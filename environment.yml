@@ -1,0 +1,16 @@
+name: glider_explorer
+channels:
+  - conda-forge
+dependencies:
+  - holoviews # might be affected by https://github.com/holoviz/holoviews/issues/5501
+  - panel
+  - dask
+  - xarray
+  - glidertools>2022
+  - hvplot
+  - cmocean
+  - pathlib
+  - pandas
+  - datashader
+  - panel
+  - argopy
