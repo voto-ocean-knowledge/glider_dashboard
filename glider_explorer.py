@@ -19,11 +19,12 @@ import param
 import datashader.transfer_functions as tf
 import time
 import plotly.express as px
+import warnings
+import pickle
 
 from download_glider_data import utils as dutils
 import utils
 import dictionaries
-import pickle
 
 pn.extension('plotly')
 
@@ -41,6 +42,8 @@ all_metadata, _ = utils.load_metadata()
 ###### filter metadata to prepare download ##############
 metadata, all_datasets = utils.filter_metadata()
 metadata = metadata.drop(['nrt_SEA067_M15', 'nrt_SEA079_M14', 'nrt_SEA061_M63'], errors='ignore') #!!!!!!!!!!!!!!!!!!!! # temporary data inconsistency
+metadata['time_coverage_start (UTC)'] = metadata['time_coverage_start (UTC)'].dt.tz_convert(None)
+metadata['time_coverage_end (UTC)'] = metadata['time_coverage_end (UTC)'].dt.tz_convert(None)
 """
 all_dataset_ids = utils.add_delayed_dataset_ids(metadata, all_datasets) # hacky
 
@@ -74,31 +77,38 @@ def plot_limits(plot, element):
     plot.handles['y_range'].min_interval = 10
     plot.handles['y_range'].max_interval = 500
 
-def create_single_ds_plot(data, metadata, variable, dsid, plt_props):
-    text_annotation = hv.Text(
-        x=metadata.loc[dsid]['time_coverage_start (UTC)'] ,
-        y=-2, text=dsid.replace('nrt_', ''),
-        fontsize=plt_props['dynfontsize'],
-            ).opts(**ropts).opts(text_opts)
-
-    startvline = hv.VLine(metadata.loc[dsid][
-        'time_coverage_start (UTC)']).opts(color='grey', line_width=1)
-    endvline = hv.VLine(metadata.loc[dsid][
-        'time_coverage_end (UTC)']).opts(color='grey', line_width=1)
-    return text_annotation*startvline*endvline
+def create_single_ds_plot(data, metadata, variable, dsid, plt_props, x_range):
+    x0, x1 = x_range
+    elements = []
+    if metadata.loc[dsid]['time_coverage_start (UTC)']>x0:
+        text_annotation = hv.Text(
+            x=metadata.loc[dsid]['time_coverage_start (UTC)'] ,
+            y=-2, text=dsid.replace('nrt_', ''),
+            fontsize=plt_props['dynfontsize'],
+                ).opts(**ropts).opts(text_opts)
+        startvline = hv.VLine(metadata.loc[dsid][
+            'time_coverage_start (UTC)']).opts(color='grey', line_width=1)
+        elements.append(text_annotation)
+        elements.append(startvline)
+    if metadata.loc[dsid]['time_coverage_end (UTC)']<x1:
+        endvline = hv.VLine(metadata.loc[dsid][
+            'time_coverage_end (UTC)']).opts(color='grey', line_width=1)
+        elements.append(endvline)
+    if elements:
+        return reduce(lambda x, y: x*y, elements)
+    else:
+        return create_None_element()
+        #.opts(xlim=x_range)#(text_annotation*startvline*endvline)#.opts(xlim=(GliderExplorer.startX, GliderExplorer.endX))
 
 
 def create_single_ds_plot_raster(
         data):
-    t1 = time.perf_counter()
     raster = data.hvplot.scatter(
         x='time',
         y='depth',
         c='cplotvar',
         )
-    #adjscatter = hv.operation.Scatter(data, dimension='cplotvar')
-    t2 = time.perf_counter()
-    return raster #<< adjscatter
+    return raster.opts(xlim=(GliderExplorer.startX, GliderExplorer.endX)) #<< adjscatter
 
 
 def load_viewport_datasets(x_range):
@@ -113,20 +123,20 @@ def load_viewport_datasets(x_range):
             # are the start and end of the individual datasets. To increase
             # perfomance, datasets are loaded only if visible, so if
             # 1. it starts within our view...
-            ((pd.to_datetime(metadata['time_coverage_start (UTC)'].dt.date)>=x0) &
-            (pd.to_datetime(metadata['time_coverage_start (UTC)'].dt.date)<=x1)) |
+            ((metadata['time_coverage_start (UTC)']>=x0) &
+            (metadata['time_coverage_start (UTC)']<=x1)) |
             # 2. it ends within our view...
-            ((pd.to_datetime(metadata['time_coverage_end (UTC)'].dt.date)>=x0) &
-            (pd.to_datetime(metadata['time_coverage_end (UTC)'].dt.date)<=x1)) |
+            ((metadata['time_coverage_end (UTC)']>=x0) &
+            (metadata['time_coverage_end (UTC)']<=x1)) |
             # 3. it starts before and ends after our view (zoomed in)...
-            ((pd.to_datetime(metadata['time_coverage_start (UTC)'].dt.date)<=x0) &
-            (pd.to_datetime(metadata['time_coverage_end (UTC)'].dt.date)>=x1)) |
+            ((metadata['time_coverage_start (UTC)']<=x0) &
+            (metadata['time_coverage_end (UTC)']>=x1)) |
             # 4. or it both, starts and ends within our view (zoomed out)...
-            ((pd.to_datetime(metadata['time_coverage_start (UTC)'].dt.date)>=x0) &
-            (pd.to_datetime(metadata['time_coverage_end (UTC)'].dt.date)<=x1))
+            ((metadata['time_coverage_start (UTC)']>=x0) &
+            (metadata['time_coverage_end (UTC)']<=x1))
             ]
 
-    print(f'len of meta is {len(meta)} in load_viewport_datasets')
+    #print(f'len of meta is {len(meta)} in load_viewport_datasets')
     if (x1-x0)>np.timedelta64(360, 'D'):
         # activate sparse data mode to speed up reactivity
         plt_props['zoomed_out'] = False
@@ -152,8 +162,6 @@ def load_viewport_datasets(x_range):
 
 
 def get_xsection(x_range):
-    #import pdb; pdb.set_trace()
-    #(x0, x1) = x_range
     t1 = time.perf_counter()
     variable='temperature'
     meta, plt_props = load_viewport_datasets(x_range)
@@ -162,10 +170,13 @@ def get_xsection(x_range):
         # this is just plotting lines and meta, no need for 'delayed' data (?)
         data=dsdict[dsid]
         single_plot = create_single_ds_plot(
-            data, metadata, variable, dsid, plt_props)
+            data, metadata, variable, dsid, plt_props, x_range)
         plotslist.append(single_plot)
     t2 = time.perf_counter()
-    return reduce(lambda x, y: x*y, plotslist)
+    if plotslist:
+        return reduce(lambda x, y: x*y, plotslist).opts(xlim=x_range)
+    else:
+        return create_None_element()
 
 
 def get_xsection_mld(x_range):
@@ -191,7 +202,7 @@ def get_xsection_mld(x_range):
             y='mld',
             color='white',
             alpha=0.5,
-        )
+        ).opts(xlim=x_range)
         plotslist.append(mldscatter)
     t2 = time.perf_counter()
     return reduce(lambda x, y: x*y, plotslist)
@@ -199,14 +210,9 @@ def get_xsection_mld(x_range):
 
 def get_xsection_raster(x_range):
     (x0, x1) = x_range
-    GliderExplorer.xmin, GliderExplorer.xmax = x_range
-    #global x_min_global
-    #global x_max_global
-    #x_min_global = x0
-    #x_max_global = x1
     meta, plt_props = load_viewport_datasets(x_range)
     plotslist1 = []
-    #data=dsdict[dsid] if plt_props['zoomed_out'] else dsdict[dsid.replace('nrt', 'delayed')]
+    # data=dsdict[dsid] if plt_props['zoomed_out'] else dsdict[dsid.replace('nrt', 'delayed')]
     # activate this for high res data
     if plt_props['zoomed_out']:
         metakeys = [element.replace('nrt', 'delayed') for element in meta.index]
@@ -216,27 +222,19 @@ def get_xsection_raster(x_range):
             element for element in meta.index]
 
     varlist = [dsdict[dsid] for dsid in metakeys]
-    dsconc = pd.concat(varlist)
-    # import pdb; pdb.set_trace();
-
-    dsconc['cplotvar'] = dsconc[currentobject.pick_variable]
-    dsconc = dsconc.iloc[0:-1:plt_props['subsample_freq']]
-    # import pdb; pdb.set_trace();
-    mplt = create_single_ds_plot_raster(data=dsconc)
-    t2 = time.perf_counter()
-    return mplt
+    if varlist:
+        dsconc = pd.concat(varlist)
+        dsconc['cplotvar'] = dsconc[currentobject.pick_variable]
+        dsconc = dsconc.iloc[0:-1:plt_props['subsample_freq']]
+        mplt = create_single_ds_plot_raster(data=dsconc)
+        return mplt.opts(xlim=x_range)
+    else:
+        return create_None_element()
 
 
 def get_xsection_TS(x_range):
-    #(x0, x1) = x_range
-    #global x_min_global
-    #global x_max_global
-    #x_min_global = x0
-    #x_max_global = x1
     meta, plt_props = load_viewport_datasets(x_range)
     plotslist1 = []
-    #data=dsdict[dsid] if plt_props['zoomed_out'] else dsdict[dsid.replace('nrt', 'delayed')]
-    # activate this for high res data
     if plt_props['zoomed_out']:
         metakeys = [element.replace('nrt', 'delayed') for element in meta.index]
     else:
@@ -246,19 +244,22 @@ def get_xsection_TS(x_range):
 
     varlist = [dsdict[dsid] for dsid in metakeys]
     dsconc = pd.concat(varlist)
-    # import pdb; pdb.set_trace();
-
-    #dsconc['cplotvar'] = dsconc[currentobject.pick_variable]
-    #dsconc = dsconc.iloc[0:-1:plt_props['subsample_freq']]
-    # import pdb; pdb.set_trace();
-    #mplt = create_single_ds_plot_raster(data=dsconc)
-    #t2 = time.perf_counter()
+    dsconc = dsconc.iloc[0:-1:plt_props['subsample_freq']]
     mplt = dsconc.hvplot.scatter(
         x='salinity',
         y='temperature',
         #c='cplotvar',
         )
     return mplt
+
+
+def create_None_element():
+    # This is just a hack because I can't return None to dynamic maps
+    try:
+        line = hv.Overlay(hv.HLine(0).opts(color='black', alpha=0.1)*hv.HLine(0).opts(color='black', alpha=0.1))
+    except:
+        import pdb; pdb.set_trace()
+    return line
 
 
 def get_xsection_points(x_range):
@@ -281,17 +282,8 @@ def get_xsection_points(x_range):
             c='cplotvar',
             )
     else:
-        dsconc = pd.DataFrame.from_dict(
-            dict(time=[x0],
-                 depth=[0],
-                 cplotvar=[np.nan]))
-        points = dsconc.hvplot.points(
-            x='time',
-            y='depth',
-            c='cplotvar',
-            hover_cols=['Value'],
-            )
-    return points
+        return create_None_element()
+    return points.opts(xlim=x_range)
 
 
 
@@ -319,22 +311,12 @@ class GliderExplorer(param.Parameterized):
         default=False, label='TSplot', doc='activate salinity temperature diagram')
     #button_inflow = param..Button(name='Tell me about inflows', icon='caret-right', button_type='primary')
     # create a button that when pushed triggers 'button'
-    button_inflow = param.Action(lambda x: x.param.trigger('button_inflow'), label='Show animation with labels!')
+    button_inflow = param.Action(lambda x: x.param.trigger('button_inflow'), label='Animation event example')
 
-    #dynmap = None
+    stream_used = False
     # on initial load, show all data
-    #xmin =
-    x_range=(metadata['time_coverage_start (UTC)'].min().to_datetime64(),
-        metadata['time_coverage_end (UTC)'].max().to_datetime64())
-
-    #global x_min_global
-    #global x_max_global
-    #x_min_global, x_max_global = x_range
-    xmin, xmax = x_range
-
-    #x_range=(x_min_global,
-    #         x_max_global)
-    range_stream = RangeX(x_range=x_range)
+    startX, endX = (metadata['time_coverage_start (UTC)'].min().to_datetime64(),
+                    metadata['time_coverage_end (UTC)'].max().to_datetime64())
     annotations = []
     about = """\
     # About
@@ -342,26 +324,25 @@ class GliderExplorer(param.Parameterized):
     """
     markdown = pn.pane.Markdown(about)
 
+    def keep_zoom(self,x_range):
+        self.startX,self.endX = x_range
+
     @param.depends('button_inflow', watch=True)
     def execute_event(self):
         self.markdown.object = """\
         # Baltic Inflows
         Baltic Inflows are transporting salt and oxygen into the depth of the Baltic Sea.
         """
-        #global x_min_global
-        #global x_max_global
-        #x_min_global = np.datetime64('2023-12-01')
-        #x_max_global = np.datetime64('2023-12-14')
         self.pick_variable = 'temperature'
         time.sleep(5)
         print('event:plot reloaded')
         text_annotation = hv.Text(
             x=np.datetime64('2023-12-07'),
-            y=20, text='Look at this cool inflow!',
+            y=20, text='Look at this!',
             fontsize=10,
             )
-        self.xmin = np.datetime64('2023-12-01')
-        self.xmax = np.datetime64('2023-12-14')
+        self.startX = np.datetime64('2023-12-01')
+        self.endX = np.datetime64('2023-12-14')
         self.annotations.append(text_annotation)
         self.pick_variable = 'oxygen_concentration'
 
@@ -374,14 +355,14 @@ class GliderExplorer(param.Parameterized):
         x_range=(
         metadata[metadata['basin']==self.pick_basin]['time_coverage_start (UTC)'].min().to_datetime64(),
         metadata[metadata['basin']==self.pick_basin]['time_coverage_end (UTC)'].max().to_datetime64())
-        self.x_min_global, self.x_max_global = x_range
 
     @param.depends('pick_cnorm','pick_variable', 'pick_aggregation',
         'pick_mld', 'pick_basin', 'pick_TS') # outcommenting this means just depend on all, redraw always
     def create_dynmap(self):
-        x_range=(self.xmin,
-                 self.xmax)
+        x_range=(self.startX,
+                 self.endX)
         range_stream = RangeX(x_range=x_range)
+        range_stream.add_subscriber(self.keep_zoom)
         global currentobject
         currentobject = self
         t1 = time.perf_counter()
@@ -390,10 +371,7 @@ class GliderExplorer(param.Parameterized):
         dmap_raster = hv.DynamicMap(
             get_xsection_raster,
             streams=[range_stream],
-            #cache_size=1,)
         )
-        self.dynmap_raster = dmap_raster
-
 
         if self.pick_aggregation=='mean':
             means = dsh.mean('cplotvar')
@@ -406,118 +384,59 @@ class GliderExplorer(param.Parameterized):
             dmap_TS = hv.DynamicMap(
                 get_xsection_TS,
                 streams=[range_stream],
-                #cache_size=1,)
-            )
+                cache_size=1,)
+
             dmapTSr = rasterize(dmap_TS).opts(
                 cnorm='eq_hist',
-                height=400,)
-
-        #import pdb; pdb.set_trace()
-
-        # adjoint
-        #dmap_rasterized = dmap_rasterized #* adjoint
+                height=400,
+                xlim=(5,17))
 
         dmap = hv.DynamicMap(
             get_xsection,
             streams=[range_stream],
             cache_size=1)
         t2 = time.perf_counter()
-
-        dmap_points = hv.DynamicMap(
-            get_xsection_points,
-            streams=[range_stream],
-            cache_size=1
-            )
-        dmap_points = spread(datashade(
-            dmap_points,
-            aggregator=means,
-            cnorm=self.pick_cnorm,
-            cmap=dictionaries.cmap_dict[self.pick_variable],), px=4).opts(
-                invert_yaxis=True,
-                toolbar='above',
-                tools=['xwheel_zoom', 'reset', 'xpan', 'ywheel_zoom', 'ypan'],
-                default_tools=[],
-                width=800,
-                height=400,
-                active_tools=['xpan', 'xwheel_zoom'],
-                bgcolor="dimgrey",)
-        if self.pick_mld:
-            dmap_mld = hv.DynamicMap(get_xsection_mld, streams=[range_stream], cache_size=1)
-        #if self.pick_mld:
-            #return (dmap_rasterized*dmap_points).opts(xlim=(x_min_global, x_max_global))*dmap*dmap_mld
-            #dynmap = (dmap_points*dmap_rasterized.opts(
-                #xlim=(x_min_global, x_max_global)
-            #    ))*dmap*dmap_mld.opts(
-                    #xlim=(x_min_global, x_max_global)
-                    #ylim=(-8,None)
-            #        )
-            #self.dynmap = dynmap
-            #pass
-            #dynmap = (dmap_points*dmap_rasterized*dmap_mld).opts(
-                #xlim=(x_min_global, x_max_global)
-            #    )*dmap.opts(
-            #        ylim=(-8,None)
-            #        )
         dmap_rasterized = rasterize(dmap_raster,
             aggregator=means,
-            #x_sampling=8.64e13/24,
-            y_sampling=.2,
-            #invert_yaxis=True,
             ).opts(
-            #alpha=0.2,
             colorbar=True,
             cmap=dictionaries.cmap_dict[self.pick_variable],#,cmap
             toolbar='above',
             tools=['xwheel_zoom', 'reset', 'xpan', 'ywheel_zoom', 'ypan'],#, 'hover'],
             default_tools=[],
-            # ylim=(0,90),
-            #responsive=True,
+            #responsive=True, # this currently breaks when activated with MLD
             width=800,
-            height=400,
+            height=800,
             cnorm=self.pick_cnorm,
             active_tools=['xpan', 'xwheel_zoom'],
             bgcolor="dimgrey",
             clabel=self.pick_variable)
-        #adjoint = dmap_rasterized.hist()
-        #dynmap = dmap_rasterized.hist().opts(
-        #        xlim=(self.xmin, self.xmax))
-        dynmap = (dmap_rasterized*dmap_points*dmap).opts(
-                xlim=(self.xmin, self.xmax)).opts(hooks=[plot_limits])
+        adjoint = dmap_rasterized.hist()
+
+        # Here it is important where the xlims are set. If set on rasterized_dmap,
+        # zoom limits are kept, if applied in the end zoom limits won't work
+        self.dynmap = spread(dmap_rasterized, px=2, how='source').opts(
+                invert_yaxis=True,
+                xlim=(self.startX, self.endX),
+                ylim=(-8,None),
+                hooks=[plot_limits])
+        self.dynmap = self.dynmap*dmap
+        #self.dynmap = (dmap_rasterized*dmap_points*dmap).opts(hooks=[plot_limits]).opts(
+        #        xlim=(self.startX, self.endX))
+                #
         if self.pick_mld:
-            dynmap = dynmap * dmap_mld
+            dmap_mld = hv.DynamicMap(
+                get_xsection_mld, streams=[range_stream], cache_size=1)
+            self.dynmap = self.dynmap * dmap_mld
         if self.pick_TS:
-            dynmap = dynmap + dmapTSr
+            self.dynmap = self.dynmap + dmapTSr
         for annotation in self.annotations:
             print('insert text annotations defined in events')
-            dynmap = dynmap*annotation
-        #import pdb; pdb.set_trace()
-        #dynmap.handles['x_range'].min_interval = np.timedelta64(2, 'h')
-        #dynmap.handles['x_range'].max_interval = np.timedelta64(int(5*3.15e7), 's') # 5 years
-        #dynmap.handles['y_range'].min_interval = 10
-        #dynmap.handles['y_range'].max_interval = 500
-
-        return dynmap
-                #*None
-        #dynmap = (dmap_points*dmap_rasterized).opts(
-                #xlim=(x_min_global, x_max_global)
-        #        )*dmap.opts(
-        #            ylim=(-8,None)
-        #            )
-            #return (dmap_rasterized*dmap_points).opts(xlim=(x_min_global, x_max_global))*dmap
-        #    self.dynmap = dynmap
-
-
-        # print(x_min_global)
-        #if self.pick_TS:
-        #    return dynmap.opts(xlim=(x_min_global, x_max_global))+dmapTSr#*adjoint)#, dynmap
-        #else:
-        #    if self.pick_mld:
-        #        return dynmap.opts(xlim=(x_min_global, x_max_global))*dmap_mld.opts(xlim=(x_min_global, x_max_global))#*adjoint
-        #    else:
-        #        return dynmap.opts(xlim=(x_min_global, x_max_global))#*adjoint
-        #return dmap*dmap_mld
-        #ToDO: restore keep zoom functionality
-
+            self.dynmap = self.dynmap*annotation
+        return self.dynmap.opts(
+            xlim=(self.startX, self.endX),
+            ylim=(-8,None),
+            responsive=True,)
 
 class MetaExplorer(param.Parameterized):
     pick_serial = param.ObjectSelector(
@@ -544,7 +463,7 @@ class MetaExplorer(param.Parameterized):
             hover_data=['ctd_serial', 'optics_serial'],
             color=dims,
             pattern_shape=dims,
-            width=1000, height=400,
+            height=400,
             #scrollZoom=True,
                     )
 
@@ -558,21 +477,12 @@ class MetaExplorer(param.Parameterized):
                 #type="date"
             )
         )
-
-
-        # fig.update_layout(yaxis=dict(autorange="reversed"))
-        #fig.update_layout(barmode='stack', yaxis={'categoryorder':'total descending'})
-        #fig.update_layout(barmode='group')
         for shape in fig['data']:
             shape['opacity'] = 0.7
-        #for shape in fig['data']:
-            #shape['opacity'] = 0.7
         for i, d in enumerate(fig.data):
             d.width = (metadata.deployment_id%2+10)/12
         return fig
-        #config = {'scrollZoom': True}
-        #import pdb; pdb.set_trace()
-        #return timeline_fig
+
 
 def create_app_instance():
     glider_explorer=GliderExplorer()
