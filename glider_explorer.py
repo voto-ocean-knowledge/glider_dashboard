@@ -406,7 +406,7 @@ class GliderExplorer(param.Parameterized):
             default_tools=[],
             #responsive=True, # this currently breaks when activated with MLD
             width=800,
-            height=800,
+            height=500,
             cnorm=self.pick_cnorm,
             active_tools=['xpan', 'xwheel_zoom'],
             bgcolor="dimgrey",
@@ -423,20 +423,23 @@ class GliderExplorer(param.Parameterized):
         self.dynmap = self.dynmap*dmap
         #self.dynmap = (dmap_rasterized*dmap_points*dmap).opts(hooks=[plot_limits]).opts(
         #        xlim=(self.startX, self.endX))
-                #
         if self.pick_mld:
             dmap_mld = hv.DynamicMap(
                 get_xsection_mld, streams=[range_stream], cache_size=1)
             self.dynmap = self.dynmap * dmap_mld
-        if self.pick_TS:
-            self.dynmap = self.dynmap + dmapTSr
         for annotation in self.annotations:
             print('insert text annotations defined in events')
             self.dynmap = self.dynmap*annotation
-        return self.dynmap.opts(
+        if self.pick_TS:
+            return self.dynmap.opts(
             xlim=(self.startX, self.endX),
             ylim=(-8,None),
-            responsive=True,)
+            responsive=True,) + dmapTSr
+        else:
+            return self.dynmap.opts(
+                xlim=(self.startX, self.endX),
+                ylim=(-8,None),
+                responsive=True,)
 
 class MetaExplorer(param.Parameterized):
     pick_serial = param.ObjectSelector(
