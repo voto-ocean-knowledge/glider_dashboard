@@ -9,6 +9,7 @@ import pathlib
 import pandas as pd
 import datashader as dsh
 from holoviews.operation.datashader import datashade, rasterize, shade, dynspread, spread
+from holoviews.selection import link_selections
 from bokeh.models import DatetimeTickFormatter, HoverTool
 from holoviews.operation import decimate
 from holoviews.streams import RangeX
@@ -292,7 +293,7 @@ class GliderExplorer(param.Parameterized):
     pick_variable = param.ObjectSelector(
         default='temperature', objects=[
         'temperature', 'salinity', 'potential_density',
-        'chlorophyll','oxygen_concentration', 'cdom', 'backscatter_scaled'],
+        'chlorophyll','oxygen_concentration', 'cdom', 'backscatter_scaled', 'methane_concentration'],
         label='variable', doc='Variable presented as colormesh')
     pick_basin = param.ObjectSelector(
         default='Bornholm Basin', objects=[
@@ -359,6 +360,7 @@ class GliderExplorer(param.Parameterized):
     @param.depends('pick_cnorm','pick_variable', 'pick_aggregation',
         'pick_mld', 'pick_basin', 'pick_TS') # outcommenting this means just depend on all, redraw always
     def create_dynmap(self):
+        commonheights = 500
         x_range=(self.startX,
                  self.endX)
         range_stream = RangeX(x_range=x_range)
@@ -388,7 +390,7 @@ class GliderExplorer(param.Parameterized):
 
             dmapTSr = rasterize(dmap_TS).opts(
                 cnorm='eq_hist',
-                height=400,
+                height=commonheights,
                 xlim=(5,17))
 
         dmap = hv.DynamicMap(
@@ -406,7 +408,7 @@ class GliderExplorer(param.Parameterized):
             default_tools=[],
             #responsive=True, # this currently breaks when activated with MLD
             width=800,
-            height=500,
+            height=commonheights,
             cnorm=self.pick_cnorm,
             active_tools=['xpan', 'xwheel_zoom'],
             bgcolor="dimgrey",
@@ -420,7 +422,7 @@ class GliderExplorer(param.Parameterized):
                 xlim=(self.startX, self.endX),
                 ylim=(-8,None),
                 hooks=[plot_limits])
-        self.dynmap = self.dynmap*dmap
+        #self.dynmap = self.dynmap*dmap
         #self.dynmap = (dmap_rasterized*dmap_points*dmap).opts(hooks=[plot_limits]).opts(
         #        xlim=(self.startX, self.endX))
         if self.pick_mld:
@@ -431,15 +433,22 @@ class GliderExplorer(param.Parameterized):
             print('insert text annotations defined in events')
             self.dynmap = self.dynmap*annotation
         if self.pick_TS:
-            return self.dynmap.opts(
-            xlim=(self.startX, self.endX),
-            ylim=(-8,None),
-            responsive=True,) + dmapTSr
+            linked_plots = link_selections(
+                self.dynmap.opts(
+                    xlim=(self.startX, self.endX),
+                    ylim=(-8,None))
+                + dmapTSr)
+            return linked_plots
+            #return self.dynmap.opts(
+            #xlim=(self.startX, self.endX),
+            #ylim=(-8,None),
+            #responsive=True,) + dmapTSr
         else:
             return self.dynmap.opts(
                 xlim=(self.startX, self.endX),
                 ylim=(-8,None),
-                responsive=True,)
+                #responsive=True,
+                )
 
 class MetaExplorer(param.Parameterized):
     pick_serial = param.ObjectSelector(
@@ -542,5 +551,6 @@ Future development ideas:
 * disentangle interactivity, so that partial refreshes (e.g. mixed layer calculation only) don't trigger complete refresh
 * otpimal colorbar range (percentiles?)
 * on selection of a new basin, I should reset the ranges. Otherwise it could come up with an error when changing while having unavailable x_range.
+* linked brushing seems to be available for datashader - genius way to find exiting TS-plot outliers in colormesh-plots: https://holoviews.org/user_guide/Linked_Brushing.html
 ...
 """
