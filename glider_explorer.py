@@ -444,6 +444,7 @@ class GliderExplorer(param.Parameterized):
             #ylim=(-8,None),
             #responsive=True,) + dmapTSr
         else:
+            self.dynmap = self.dynmap*dmap
             return self.dynmap.opts(
                 xlim=(self.startX, self.endX),
                 ylim=(-8,None),
