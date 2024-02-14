@@ -106,7 +106,6 @@ def create_single_ds_plot(data, metadata, variable, dsid, plt_props, x_range):
             y=-2,
             text='.',
             fontsize=plt_props['dynfontsize'],
-            alpha=0.1,
                 ).opts(**ropts).opts(text_opts)
         elements.append(text_annotation)
     if elements:
