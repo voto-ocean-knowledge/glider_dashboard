@@ -5,6 +5,7 @@ import xarray as xr
 import pandas as pd
 from erddapy import ERDDAP
 import ast
+import dask
 # from tqdm.notebook import tqdm
 # from argopy import DataFetcher as ArgoDataFetcher
 
@@ -202,11 +203,14 @@ def add_adcp_data(ds):
 
 
 def _preprocess(ds):
+    # currently no preprocessing because I downsample the data.
+    return ds
+
     # import pdb; pdb.set_trace();
-    if ds.dataset_id[0:3]=='nrt':
-        return ds
-    else:
-        return ds.dropna(dim='time', how='all', subset=['oxygen_concentration', 'chlorophyll'])
+    #if ds.dataset_id[0:3]=='nrt':
+    #    return ds
+    #else:
+    #    return ds.dropna(dim='time', how='all', subset=['oxygen_concentration', 'chlorophyll'])
     # this is to bring overly fine sampled datasets (e.g. every 5ms) to a more performant 1s resolution
     #dt = (ds.time.max()-ds.time.min())/len(ds.time)/1e6 # sampling frequency in ms
     #if dt<500:
@@ -272,7 +276,15 @@ def download_glider_dataset(dataset_ids, metadata, variables=(), constraints={},
                 ds = xr.open_mfdataset(dataset_nc, preprocess=_preprocess, parallel=True)
                 if adcp:
                     ds = add_adcp_data(ds)
-                glider_datasets[ds_name] = ds.to_pandas()
+                if ds_name[0:3] != 'nrt':
+                    glider_datasets[ds_name] = dask.dataframe.from_pandas(ds.to_pandas().resample('5s').mean(), npartitions=8)
+                else:
+                    glider_datasets[ds_name] = dask.dataframe.from_pandas(ds.to_pandas(), npartitions=8)
+                #if ds_name[0:3] != 'nrt':
+                #    glider_datasets[ds_name] = ds.to_pandas().resample('10s').mean()
+                #else:
+                #    glider_datasets[ds_name] = ds.to_pandas()
+                ds.close()
             else:
                 print(f"Downloading {ds_name}")
                 try:
