@@ -297,7 +297,7 @@ def download_glider_dataset(dataset_ids, metadata, variables=(), constraints={},
                 ds.to_netcdf(dataset_nc)
                 if adcp:
                     ds = add_adcp_data(ds)
-                glider_datasets[ds_name] = ds.to_pandas()
+                glider_datasets[ds_name] = dask.dataframe.from_pandas(ds.to_pandas().resample('5s').mean(), npartitions=8)#ds.to_pandas()
                 _update_stats(ds_name, request)
         else:
             print(f"Downloading {ds_name}")
@@ -311,7 +311,7 @@ def download_glider_dataset(dataset_ids, metadata, variables=(), constraints={},
             ds = _clean_dims(ds)
             if adcp:
                 ds = add_adcp_data(ds)
-            glider_datasets[ds_name] = ds.to_pandas()
+            glider_datasets[ds_name] = dask.dataframe.from_pandas(ds.to_pandas().resample('5s').mean(), npartitions=8)#ds.to_pandas()
     return glider_datasets
 
 
