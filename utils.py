@@ -85,11 +85,11 @@ def filter_metadata():
     mode = 'all' # 'nrt', 'delayed'
     metadata, all_datasets = load_metadata()
     metadata = metadata[
-        (metadata['project']=='SAMBA') &
+        #(metadata['project']=='NS_Bornholm')
         (metadata['basin']=='Bornholm Basin') &
-        (metadata['time_coverage_start (UTC)'].dt.year>2022) &
+        (metadata['time_coverage_start (UTC)'].dt.year>2022) #&
         #(metadata['time_coverage_start (UTC)'].dt.year>2022) &
-        (metadata['time_coverage_start (UTC)'].dt.month>9)
+        #(metadata['time_coverage_start (UTC)'].dt.month<3)
         ]
     #for basins
     metadata = drop_overlaps(metadata)
@@ -188,6 +188,7 @@ def voto_concat_datasets(datasets):
         )
     return datasets
 
+#def dask_add_dives(profile_nu):
 
 def add_dive_column(ds):
     """add dive column to dataset
@@ -201,6 +202,7 @@ def add_dive_column(ds):
     xarray.Dataset
         Dataset containing a dives column
     """
-    ds["dives"] = np.where(ds.profile_direction == 1, ds.profile_num, ds.profile_num + 0.5)
+    #ds["dives"] = np.where(ds.profile_direction == 1, ds.profile_num, ds.profile_num + 0.5)
+    ds["dives"] = ds.profile_num.where(ds.profile_direction==1, ds.profile_num+0.5)
     return ds
 

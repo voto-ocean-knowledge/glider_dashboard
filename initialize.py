@@ -16,11 +16,13 @@ dutils.cache_dir = pathlib.Path('../voto_erddap_data_cache')
 variables=['temperature', 'salinity', 'depth',
            'potential_density', 'profile_num',
            'profile_direction', 'chlorophyll',
-           'oxygen_concentration', 'cdom', 'backscatter_scaled', 'longitude']
+           'oxygen_concentration',
+	       #'methane_concentration',
+           'cdom', 'backscatter_scaled', 'longitude']
 dsdict = dutils.download_glider_dataset(all_dataset_ids, metadata,
                                         variables=variables)
 print('all datasets loaded, caching them to pickle file...')
 # open a file, where you ant to store the data
-file = open('cached_data_dictionary.pickle', 'wb')
-pickle.dump(dsdict, file)
-file.close()
+#file = open('cached_data_dictionary.pickle', 'wb')
+#pickle.dump(dsdict, file)
+#file.close()

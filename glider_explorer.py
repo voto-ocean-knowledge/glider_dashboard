@@ -1,27 +1,29 @@
-import xarray
+#import xarray
 import glidertools as gt
-#import hvplot.dask
-#import hvplot.xarray
+import hvplot.dask
+import hvplot.xarray
 import hvplot.pandas
 import cmocean
 import holoviews as hv
-import pathlib
+#import pathlib
 import pandas as pd
 import datashader as dsh
-from holoviews.operation.datashader import datashade, rasterize, shade, dynspread, spread
+from holoviews.operation.datashader import rasterize, spread
 from holoviews.selection import link_selections
-from bokeh.models import DatetimeTickFormatter, HoverTool
-from holoviews.operation import decimate
+#from bokeh.models import DatetimeTickFormatter, HoverTool
+#from holoviews.operation import decimate
 from holoviews.streams import RangeX
 import numpy as np
 from functools import reduce
 import panel as pn
 import param
-import datashader.transfer_functions as tf
+#import datashader.transfer_functions as tf
 import time
 import plotly.express as px
-import warnings
+#import warnings
 import pickle
+import initialize
+import dask
 
 from download_glider_data import utils as dutils
 import utils
@@ -30,9 +32,8 @@ import dictionaries
 pn.extension('plotly')
 
 # unused imports
-# import hvplot.pandas
-#import cudf # works w. cuda, but slow.
 try:
+    # cudf support works, but is currently not faster
     import hvplot.cudf
 except:
     print('no cudf available, that is fine but slower')
@@ -57,7 +58,7 @@ variables=['temperature', 'salinity', 'depth',
 dsdict = dutils.download_glider_dataset(all_dataset_ids, metadata,
                                         variables=variables) """
 file = open('cached_data_dictionary.pickle', 'rb')
-dsdict = pickle.load(file)
+dsdict = initialize.dsdict#pickle.load(file)
 file.close()
 #import pdb; pdb.set_trace();
 
@@ -79,12 +80,14 @@ def plot_limits(plot, element):
     plot.handles['y_range'].max_interval = 500
 
 def create_single_ds_plot(data, metadata, variable, dsid, plt_props, x_range):
+    # return create_None_element()
     x0, x1 = x_range
     elements = []
     if metadata.loc[dsid]['time_coverage_start (UTC)']>x0:
         text_annotation = hv.Text(
             x=metadata.loc[dsid]['time_coverage_start (UTC)'] ,
-            y=-2, text=dsid.replace('nrt_', ''),
+            y=-2,
+            text=dsid.replace('nrt_', ''),
             fontsize=plt_props['dynfontsize'],
                 ).opts(**ropts).opts(text_opts)
         startvline = hv.VLine(metadata.loc[dsid][
@@ -95,6 +98,17 @@ def create_single_ds_plot(data, metadata, variable, dsid, plt_props, x_range):
         endvline = hv.VLine(metadata.loc[dsid][
             'time_coverage_end (UTC)']).opts(color='grey', line_width=1)
         elements.append(endvline)
+        # This text annotation '.' is preventing a bug when zooming, e.g. turning
+        # the Vline object into an overlay object and thus making dmaps compatible
+        # later on. Test zooming if remove.
+        text_annotation = hv.Text(
+            x=metadata.loc[dsid]['time_coverage_end (UTC)'] ,
+            y=-2,
+            text='.',
+            fontsize=plt_props['dynfontsize'],
+            alpha=0.1,
+                ).opts(**ropts).opts(text_opts)
+        elements.append(text_annotation)
     if elements:
         return reduce(lambda x, y: x*y, elements)
     else:
@@ -192,8 +206,9 @@ def get_xsection_mld(x_range):
     dslist = [utils.add_dive_column(ds) for ds in dslist]
     plotslist = []
     for ds in dslist:
-        mld = gt.physics.mixed_layer_depth(ds.to_xarray(), 'temperature', thresh=0.1, verbose=False, ref_depth=10)
-        gtime = ds.reset_index().groupby(by='profile_num').mean().time
+        #import pdb; pdb.set_trace();
+        mld = gt.physics.mixed_layer_depth(ds.compute().to_xarray(), 'temperature', thresh=0.1, verbose=False, ref_depth=10)
+        gtime = ds.reset_index()[['profile_num', 'time']].compute().groupby(by='profile_num').mean().time
         #gt.utils.group_by_profiles(ds, variables=['time', 'temperature']).mean().time.values
         gmld = mld.values
         dfmld = pd.DataFrame.from_dict(dict(time=gtime, mld=gmld))
@@ -222,11 +237,15 @@ def get_xsection_raster(x_range):
             element.replace('nrt', 'delayed') in all_datasets.index else
             element for element in meta.index]
 
-    varlist = [dsdict[dsid] for dsid in metakeys]
+    varlist = [dsdict[dsid].compute() for dsid in metakeys]
     if varlist:
         dsconc = pd.concat(varlist)
+        # if using dask:
+        #dsconc = dask.dataframe.concat(varlist)
+        #dsconc = utils.voto_concat_datasets(varlist)
+        #dsconc = gt.load.voto_concat_datasets(varlist)
         dsconc['cplotvar'] = dsconc[currentobject.pick_variable]
-        dsconc = dsconc.iloc[0:-1:plt_props['subsample_freq']]
+        #dsconc = dsconc.iloc[0:-1:plt_props['subsample_freq']]
         mplt = create_single_ds_plot_raster(data=dsconc)
         return mplt.opts(xlim=x_range)
     else:
@@ -243,9 +262,14 @@ def get_xsection_TS(x_range):
             element.replace('nrt', 'delayed') in all_datasets.index else
             element for element in meta.index]
 
-    varlist = [dsdict[dsid] for dsid in metakeys]
-    dsconc = pd.concat(varlist)
-    dsconc = dsconc.iloc[0:-1:plt_props['subsample_freq']]
+    varlist = [dsdict[dsid] for dsid in metakeys] # unfortunately not dask compatible yet. ToDo.
+    # if using dask
+    dsconc = dask.dataframe.concat(varlist)
+
+    #dsconc = pd.concat(varlist).drop_duplicates()
+    #import pdb; pdb.set_trace()
+    #dsconc = dsconc.reset_index()
+    #dsconc = dsconc.iloc[0:-1:plt_props['subsample_freq']]
     mplt = dsconc.hvplot.scatter(
         x='salinity',
         y='temperature',
@@ -256,10 +280,7 @@ def get_xsection_TS(x_range):
 
 def create_None_element():
     # This is just a hack because I can't return None to dynamic maps
-    try:
-        line = hv.Overlay(hv.HLine(0).opts(color='black', alpha=0.1)*hv.HLine(0).opts(color='black', alpha=0.1))
-    except:
-        import pdb; pdb.set_trace()
+    line = hv.Overlay(hv.HLine(0).opts(color='black', alpha=0.1)*hv.HLine(0).opts(color='black', alpha=0.1))
     return line
 
 
@@ -548,10 +569,14 @@ Future development ideas:
 * throw out X_range_stream (possibly) and implement full data dynamic sampling instead. One solution could be to use a dynamic .sample(frac=zoomstufe)
 * plot glidertools gridded data instead (optional, but good for interpolation)...
 * good example to follow is the AdvancedStockExplorer class in the documentation
-* add secondary plot or the option for secondary linked plot
+* add secondary plot option 'profile', or color in different variables (e.g. the plot variable)
 * disentangle interactivity, so that partial refreshes (e.g. mixed layer calculation only) don't trigger complete refresh
 * otpimal colorbar range (percentiles?)
 * on selection of a new basin, I should reset the ranges. Otherwise it could come up with an error when changing while having unavailable x_range.
-* linked brushing seems to be available for datashader - genius way to find exiting TS-plot outliers in colormesh-plots: https://holoviews.org/user_guide/Linked_Brushing.html
+* range tool link, such as the metadata plot
+* optimize performance with dask after this video: https://www.youtube.com/watch?v=LKIRAzsqLb0
+* currently, the import statements make up a substantial part of the initial loading time -> check for unused imports, check enable chaching, check if new import necessary for each intial load. (time saving 4s)
+* Should refactor out the three (?) different methods of concatenating datasets and instead have one function to do that all. Then also switch between dataframes/dask should be easier.
+* in the xr.open_mfdataset, path all the dataset_ids in a list instead and keep parallel=True activated to drastically improve startup time.Maybe this could even enable live loading of the data, instead of preloading it into the RAM/dask
 ...
 """
