@@ -122,8 +122,10 @@ def create_single_ds_plot_raster(
         x='time',
         y='depth',
         c='cplotvar',
-        )
-    return raster.opts(xlim=(GliderExplorer.startX, GliderExplorer.endX)) #<< adjscatter
+        ).redim(x=hv.Dimension(
+        'x', range=(GliderExplorer.startX, GliderExplorer.endX)))
+    return raster
+    #raster.opts(xlim=(GliderExplorer.startX, GliderExplorer.endX)) #<< adjscatter
 
 
 def load_viewport_datasets(x_range):
@@ -189,7 +191,8 @@ def get_xsection(x_range):
         plotslist.append(single_plot)
     t2 = time.perf_counter()
     if plotslist:
-        return reduce(lambda x, y: x*y, plotslist).opts(xlim=x_range)
+        return reduce(lambda x, y: x*y, plotslist).redim(x=hv.Dimension(
+        'x', range=x_range))
     else:
         return create_None_element()
 
@@ -218,7 +221,8 @@ def get_xsection_mld(x_range):
             y='mld',
             color='white',
             alpha=0.5,
-        ).opts(xlim=x_range)
+        ).redim(x=hv.Dimension(
+        'x', range=x_range))
         plotslist.append(mldscatter)
     t2 = time.perf_counter()
     return reduce(lambda x, y: x*y, plotslist)
@@ -237,17 +241,20 @@ def get_xsection_raster(x_range):
             element.replace('nrt', 'delayed') in all_datasets.index else
             element for element in meta.index]
 
-    varlist = [dsdict[dsid].compute() for dsid in metakeys]
+    #varlist = [dsdict[dsid].compute() for dsid in metakeys]
+    varlist = [dsdict[dsid] for dsid in metakeys]
     if varlist:
-        dsconc = pd.concat(varlist)
+        #dsconc = pd.concat(varlist)
         # if using dask:
-        #dsconc = dask.dataframe.concat(varlist)
+        dsconc = dask.dataframe.concat(varlist)
+        dsconc = dsconc.loc[x_range[0]:x_range[1]].drop_duplicates()
         #dsconc = utils.voto_concat_datasets(varlist)
         #dsconc = gt.load.voto_concat_datasets(varlist)
         dsconc['cplotvar'] = dsconc[currentobject.pick_variable]
         #dsconc = dsconc.iloc[0:-1:plt_props['subsample_freq']]
         mplt = create_single_ds_plot_raster(data=dsconc)
-        return mplt.opts(xlim=x_range)
+        return mplt.redim(x=hv.Dimension(
+            'x', range=x_range))
     else:
         return create_None_element()
 
@@ -265,16 +272,18 @@ def get_xsection_TS(x_range):
     varlist = [dsdict[dsid] for dsid in metakeys] # unfortunately not dask compatible yet. ToDo.
     # if using dask
     dsconc = dask.dataframe.concat(varlist)
-
+    dsconc = dsconc.loc[x_range[0]:x_range[1]].drop_duplicates()
     #dsconc = pd.concat(varlist).drop_duplicates()
     #import pdb; pdb.set_trace()
     #dsconc = dsconc.reset_index()
     #dsconc = dsconc.iloc[0:-1:plt_props['subsample_freq']]
+    #import pdb; pdb.set_trace();
     mplt = dsconc.hvplot.scatter(
         x='salinity',
         y='temperature',
         #c='cplotvar',
-        )
+        ).redim(x=hv.Dimension(
+        'x', range=x_range))
     return mplt
 
 
