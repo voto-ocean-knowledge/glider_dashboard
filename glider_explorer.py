@@ -57,9 +57,9 @@ variables=['temperature', 'salinity', 'depth',
            'oxygen_concentration', 'cdom', 'backscatter_scaled', 'longitude']
 dsdict = dutils.download_glider_dataset(all_dataset_ids, metadata,
                                         variables=variables) """
-file = open('cached_data_dictionary.pickle', 'rb')
-dsdict = initialize.dsdict#pickle.load(file)
-file.close()
+#file = open('cached_data_dictionary.pickle', 'rb')
+ds = initialize.ds
+#file.close()
 #import pdb; pdb.set_trace();
 
 ####### specify global plot variables ####################
@@ -79,7 +79,7 @@ def plot_limits(plot, element):
     plot.handles['y_range'].min_interval = 10
     plot.handles['y_range'].max_interval = 500
 
-def create_single_ds_plot(data, metadata, variable, dsid, plt_props, x_range):
+def create_single_ds_plot(metadata, variable, dsid, plt_props, x_range):
     # return create_None_element()
     x0, x1 = x_range
     elements = []
@@ -117,7 +117,8 @@ def create_single_ds_plot(data, metadata, variable, dsid, plt_props, x_range):
 
 def create_single_ds_plot_raster(
         data):
-    raster = data.hvplot.scatter(
+    # https://stackoverflow.com/questions/32318751/holoviews-how-to-plot-dataframe-with-time-index
+    raster = data.reset_index().hvplot.scatter(
         x='time',
         y='depth',
         c='cplotvar',
@@ -184,9 +185,9 @@ def get_xsection(x_range):
     plotslist = []
     for dsid in meta.index:
         # this is just plotting lines and meta, no need for 'delayed' data (?)
-        data=dsdict[dsid]
+        #data=dsdict[dsid]
         single_plot = create_single_ds_plot(
-            data, metadata, variable, dsid, plt_props, x_range)
+            metadata, variable, dsid, plt_props, x_range)
         plotslist.append(single_plot)
     t2 = time.perf_counter()
     if plotslist:
@@ -229,33 +230,38 @@ def get_xsection_mld(x_range):
 
 def get_xsection_raster(x_range):
     (x0, x1) = x_range
-    meta, plt_props = load_viewport_datasets(x_range)
-    plotslist1 = []
+    #meta, plt_props = load_viewport_datasets(x_range)
+    #plotslist1 = []
+    #dsconc = ds
     # data=dsdict[dsid] if plt_props['zoomed_out'] else dsdict[dsid.replace('nrt', 'delayed')]
     # activate this for high res data
-    if plt_props['zoomed_out']:
-        metakeys = [element.replace('nrt', 'delayed') for element in meta.index]
-    else:
-        metakeys = [element.replace('nrt', 'delayed') if
-            element.replace('nrt', 'delayed') in all_datasets.index else
-            element for element in meta.index]
+    #if plt_props['zoomed_out']:
+    #    metakeys = [element.replace('nrt', 'delayed') for element in meta.index]
+    #else:
+    #    metakeys = [element.replace('nrt', 'delayed') if
+    #        element.replace('nrt', 'delayed') in all_datasets.index else
+    #        element for element in meta.index]
 
     #varlist = [dsdict[dsid].compute() for dsid in metakeys]
-    varlist = [dsdict[dsid] for dsid in metakeys]
-    if varlist:
+    #varlist = [dsdict[dsid] for dsid in metakeys]
+    #if varlist:
         #dsconc = pd.concat(varlist)
         # if using dask:
-        dsconc = dask.dataframe.concat(varlist)
-        dsconc = dsconc.loc[x_range[0]:x_range[1]].drop_duplicates()
+        # concat and drop_duplicates could potentially be done by pandarallel
+        #dsconc = dask.dataframe.concat(varlist)
+
         #dsconc = utils.voto_concat_datasets(varlist)
         #dsconc = gt.load.voto_concat_datasets(varlist)
-        dsconc['cplotvar'] = dsconc[currentobject.pick_variable]
-        #dsconc = dsconc.iloc[0:-1:plt_props['subsample_freq']]
-        mplt = create_single_ds_plot_raster(data=dsconc)
-        return mplt.redim(x=hv.Dimension(
-            'x', range=x_range))
-    else:
-        return create_None_element()
+    #dsconc = ds.sel(time=slice(x_range[0],x_range[1]))
+    dsconc = ds.loc[x_range[0]:x_range[1]]#.compute()
+    #.drop_duplicates()
+    dsconc['cplotvar'] = dsconc[currentobject.pick_variable]
+    #dsconc = dsconc.iloc[0:-1:plt_props['subsample_freq']]
+    mplt = create_single_ds_plot_raster(data=dsconc.reset_index())
+    return mplt.redim(x=hv.Dimension(
+        'x', range=x_range))
+    #else:
+    #    return create_None_element()
 
 
 def get_xsection_TS(x_range):
@@ -268,16 +274,20 @@ def get_xsection_TS(x_range):
             element.replace('nrt', 'delayed') in all_datasets.index else
             element for element in meta.index]
 
-    varlist = [dsdict[dsid] for dsid in metakeys] # unfortunately not dask compatible yet. ToDo.
+    #varlist = [dsdict[dsid] for dsid in metakeys] # unfortunately not dask compatible yet. ToDo.
     # if using dask
-    dsconc = dask.dataframe.concat(varlist)
-    dsconc = dsconc.loc[x_range[0]:x_range[1]].drop_duplicates()
+    # also here pandarallel could be the solution.
+    #dsconc = dask.dataframe.concat(varlist)
+    #dsconc = dsconc.loc[x_range[0]:x_range[1]].drop_duplicates()
+    dsconc = ds.loc[x_range[0]:x_range[1]]#.compute()
+    #.drop_duplicates()
+    dsconc['cplotvar'] = dsconc[currentobject.pick_variable]
     #dsconc = pd.concat(varlist).drop_duplicates()
     #import pdb; pdb.set_trace()
     #dsconc = dsconc.reset_index()
     #dsconc = dsconc.iloc[0:-1:plt_props['subsample_freq']]
     #import pdb; pdb.set_trace();
-    mplt = dsconc.hvplot.scatter(
+    mplt = dsconc.reset_index().hvplot.scatter(
         x='salinity',
         y='temperature',
         #c='cplotvar',
@@ -426,7 +436,7 @@ class GliderExplorer(param.Parameterized):
             get_xsection,
             streams=[range_stream],
             cache_size=1)
-        t2 = time.perf_counter()
+        #t2 = time.perf_counter()
         dmap_rasterized = rasterize(dmap_raster,
             aggregator=means,
             ).opts(
@@ -442,7 +452,7 @@ class GliderExplorer(param.Parameterized):
             active_tools=['xpan', 'xwheel_zoom'],
             bgcolor="dimgrey",
             clabel=self.pick_variable)
-        adjoint = dmap_rasterized.hist()
+        #adjoint = dmap_rasterized.hist()
 
         # Here it is important where the xlims are set. If set on rasterized_dmap,
         # zoom limits are kept, if applied in the end zoom limits won't work

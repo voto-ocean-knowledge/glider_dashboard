@@ -277,9 +277,11 @@ def download_glider_dataset(dataset_ids, metadata, variables=(), constraints={},
                 if adcp:
                     ds = add_adcp_data(ds)
                 if ds_name[0:3] != 'nrt':
-                    glider_datasets[ds_name] = dask.dataframe.from_pandas(ds.to_pandas().resample('5s').mean(), npartitions=8)
+                    glider_datasets[ds_name] = dask.dataframe.from_pandas(ds.to_pandas().resample('5s').mean(), npartitions=16).compute()
+
                 else:
-                    glider_datasets[ds_name] = dask.dataframe.from_pandas(ds.to_pandas(), npartitions=8)
+                    glider_datasets[ds_name] = dask.dataframe.from_pandas(ds.to_pandas(), npartitions=16).compute()
+
                 #if ds_name[0:3] != 'nrt':
                 #    glider_datasets[ds_name] = ds.to_pandas().resample('10s').mean()
                 #else:
@@ -297,7 +299,8 @@ def download_glider_dataset(dataset_ids, metadata, variables=(), constraints={},
                 ds.to_netcdf(dataset_nc)
                 if adcp:
                     ds = add_adcp_data(ds)
-                glider_datasets[ds_name] = dask.dataframe.from_pandas(ds.to_pandas().resample('5s').mean(), npartitions=8)#ds.to_pandas()
+                glider_datasets[ds_name] = dask.dataframe.from_pandas(ds.to_pandas().resample('5s').mean(), npartitions=16).compute()
+#ds.to_pandas()
                 _update_stats(ds_name, request)
         else:
             print(f"Downloading {ds_name}")
@@ -311,9 +314,9 @@ def download_glider_dataset(dataset_ids, metadata, variables=(), constraints={},
             ds = _clean_dims(ds)
             if adcp:
                 ds = add_adcp_data(ds)
-            glider_datasets[ds_name] = dask.dataframe.from_pandas(ds.to_pandas().resample('5s').mean(), npartitions=8)#ds.to_pandas()
-    return glider_datasets
+            glider_datasets[ds_name] = dask.dataframe.from_pandas(ds.to_pandas().resample('5s').mean(), npartitions=16).compute()
 
+    return glider_datasets
 
 def format_difference(deg_e, deg_n, ns_ahead):
     """

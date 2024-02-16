@@ -87,8 +87,8 @@ def filter_metadata():
     metadata = metadata[
         #(metadata['project']=='NS_Bornholm')
         (metadata['basin']=='Bornholm Basin') &
-        (metadata['time_coverage_start (UTC)'].dt.year>2022) #&
-        #(metadata['time_coverage_start (UTC)'].dt.year>2022) &
+        #(metadata['time_coverage_start (UTC)'].dt.year<2021) #&
+        (metadata['time_coverage_start (UTC)'].dt.year<2024) #&
         #(metadata['time_coverage_start (UTC)'].dt.month<3)
         ]
     #for basins
@@ -187,6 +187,44 @@ def voto_concat_datasets(datasets):
             datasets[index - 1].copy()["profile_num"].max()
         )
     return datasets
+
+
+def voto_concat_datasets2(datasets):
+    import dask
+    import dask.dataframe as dd
+    """
+    Concatenates multiple datasets along the time dimensions, profile_num
+    and dives variable(s) are adapted so that they start counting from one
+    for the first dataset and monotonically increase.
+
+    Parameters
+    ----------
+    datasets : list of xarray.Datasets
+
+    Returns
+    -------
+    xarray.Dataset
+        concatenated Dataset containing all the data from the list of datasets
+    """
+    # in case the datasets have a different set of variables, emtpy variables are created
+    # to allow for concatenation (concat with different set of variables leads to error)
+    mlist = [set(dataset.variables.keys()) for dataset in datasets]
+    allvariables = set.union(*mlist)
+    #for dataset in datasets:
+    #    missing_vars = allvariables - set(dataset.variables.keys())
+    #    for missing_var in missing_vars:
+    #        dataset[missing_var] = np.nan
+
+    # renumber profiles, so that profile_num still is unique in concat-dataset
+    #for index in range(1, len(datasets)):
+    #    datasets[index]["profile_num"] += (
+    #        datasets[index - 1].copy()["profile_num"].max()
+    #    )
+    ds = dd.concat(datasets, dim="time", variables=["temperature", "salinity"])#xr.concat(datasets, dim="time")
+    #ds = add_dive_column(ds)
+
+    return ds
+
 
 #def dask_add_dives(profile_nu):
 
