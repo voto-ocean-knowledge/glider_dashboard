@@ -255,6 +255,7 @@ def download_glider_dataset(dataset_ids, metadata, variables=(), constraints={},
 
     # Download each dataset as xarray
     glider_datasets = {}
+    nanosecond_iterator = 1
     for ds_name in ids_to_download:
         if variables:
             # e.variables = variables
@@ -276,11 +277,10 @@ def download_glider_dataset(dataset_ids, metadata, variables=(), constraints={},
                 ds = xr.open_mfdataset(dataset_nc, preprocess=_preprocess, parallel=True)
                 if adcp:
                     ds = add_adcp_data(ds)
-                if ds_name[0:3] != 'nrt':
-                    glider_datasets[ds_name] = dask.dataframe.from_pandas(ds.to_pandas().resample('5s').mean(), npartitions=16).compute()
-
-                else:
-                    glider_datasets[ds_name] = dask.dataframe.from_pandas(ds.to_pandas(), npartitions=16).compute()
+                #if ds_name[0:3] != 'nrt':
+                glider_datasets[ds_name] = ds#dask.dataframe.from_pandas(ds.to_pandas().resample('5s').mean(), npartitions=16).compute()
+                #else:
+                #    glider_datasets[ds_name] = #dask.dataframe.from_pandas(ds.to_pandas(), npartitions=16).compute()
 
                 #if ds_name[0:3] != 'nrt':
                 #    glider_datasets[ds_name] = ds.to_pandas().resample('10s').mean()
@@ -299,8 +299,7 @@ def download_glider_dataset(dataset_ids, metadata, variables=(), constraints={},
                 ds.to_netcdf(dataset_nc)
                 if adcp:
                     ds = add_adcp_data(ds)
-                glider_datasets[ds_name] = dask.dataframe.from_pandas(ds.to_pandas().resample('5s').mean(), npartitions=16).compute()
-#ds.to_pandas()
+                glider_datasets[ds_name] = ds #dask.dataframe.from_pandas(ds.to_pandas().resample('5s').mean(), npartitions=16).compute()
                 _update_stats(ds_name, request)
         else:
             print(f"Downloading {ds_name}")
@@ -314,8 +313,8 @@ def download_glider_dataset(dataset_ids, metadata, variables=(), constraints={},
             ds = _clean_dims(ds)
             if adcp:
                 ds = add_adcp_data(ds)
-            glider_datasets[ds_name] = dask.dataframe.from_pandas(ds.to_pandas().resample('5s').mean(), npartitions=16).compute()
-
+            glider_datasets[ds_name] = ds#dask.dataframe.from_pandas(ds.to_pandas().resample('5s').mean(), npartitions=16).compute()
+        glider_datasets[ds_name] = dask.dataframe.from_pandas(glider_datasets[ds_name].to_pandas().resample('5s').mean(), npartitions=16).compute()
     return glider_datasets
 
 def format_difference(deg_e, deg_n, ns_ahead):
