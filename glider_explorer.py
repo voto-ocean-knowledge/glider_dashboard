@@ -478,7 +478,9 @@ class GliderExplorer(param.Parameterized):
                     responsive=True)
                 + dmapTSr.opts(responsive=True),
                 #selection_mode='union'
-                )*dmap.opts(responsive=True)
+                )*dmap.opts(
+                    #heigth=500,
+                    responsive=True)
             return linked_plots
             #return self.dynmap.opts(
             #xlim=(self.startX, self.endX),
@@ -489,6 +491,7 @@ class GliderExplorer(param.Parameterized):
             return self.dynmap.opts(
                 #xlim=(self.startX, self.endX),
                 ylim=(self.startY,self.endY),
+                #heigth=500,
                 responsive=True,
                 )
 
@@ -517,7 +520,7 @@ class MetaExplorer(param.Parameterized):
             hover_data=['ctd_serial', 'optics_serial'],
             color=dims,
             pattern_shape=dims,
-            #height=400,
+            height=400,
             #scrollZoom=True,
                     )
 
@@ -537,22 +540,32 @@ class MetaExplorer(param.Parameterized):
         for i, d in enumerate(fig.data):
             d.width = (metadata.deployment_id%2+10)/12
         fig.layout.autosize = True
+        fig.update_layout(height=400)
+        #fig.layout.width='100%'
+        #fig.layout.column.col
         return fig
 
 
 def create_app_instance():
     glider_explorer=GliderExplorer()
     meta_explorer=MetaExplorer()
-    pp = pn.pane.Plotly(meta_explorer.create_timeline, config={'responsive': True})
+    #pp = pn.pane.Plotly(meta_explorer.create_timeline, config={'responsive': True, 'height':400})
+    #pp = pn.pane(meta_explorer.create_timeline, height=100, sizing_mode='stretch_width')
     layout = pn.Column(
     pn.Row(
-        glider_explorer.param,
-        glider_explorer.create_dynmap),
+        pn.Column(glider_explorer.param),
+        pn.Column(glider_explorer.create_dynmap),
+        height=600,
+    ),
     pn.Row(glider_explorer.markdown),
     pn.Row(
-        meta_explorer.param),
-    pn.Row(
-        pp, sizing_mode='stretch_width'))
+        pn.Column(meta_explorer.param,height=500,),
+        pn.Column(meta_explorer.create_timeline,height=500,),#, sizing_mode='stretch_width'),
+        height=500,
+        scroll=True,#, height=420
+        #sizing_mode='stretch_width'
+        )
+    )
     return layout
 
 # usefull to create secondary plot, but not fully indepentently working yet:
