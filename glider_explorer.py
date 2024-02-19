@@ -204,6 +204,63 @@ def get_xsection(x_range):
 
 
 def get_xsection_mld(x_range):
+
+
+    (x0, x1) = x_range
+    meta, plt_props = load_viewport_datasets(x_range)
+    plotslist1 = []
+    #dsconc = ds
+    # data=dsdict[dsid] if plt_props['zoomed_out'] else dsdict[dsid.replace('nrt', 'delayed')]
+    # activate this for high res data
+    if plt_props['zoomed_out']:
+        metakeys = [element.replace('nrt', 'delayed') for element in meta.index]
+    else:
+        metakeys = [element.replace('nrt', 'delayed') if
+            element.replace('nrt', 'delayed') in all_datasets.index else
+            element for element in meta.index]
+
+    #varlist = [dsdict[dsid].compute() for dsid in metakeys]
+    print(plt_props['subsample_freq'])
+    varlist = []
+    for dsid in metakeys:
+        ds = dsdict[dsid].reset_index().set_index(['profile_num'])
+        ds = ds[ds.index % plt_props['subsample_freq'] == 0]
+        ds = ds.reset_index().set_index(['time'])
+        varlist.append(ds)
+    #import pdb; pdb.set_trace()
+    #varlist = [dsdict[dsid]
+    #    #.iloc[0:-1:plt_props['subsample_freq']]
+    #    for dsid in metakeys]
+    for dataset in varlist:
+        dataset = dataset.reset_index().set_index(['profile_num'])
+        dataset = dataset[dataset.index % 10 == 0]
+        dataset = dataset.reset_index().set_index(['time'])
+
+
+    if currentobject.pick_mld:
+        varlist = utils.voto_concat_datasets(varlist)
+    if varlist:
+        # dsconc = pd.concat(varlist)
+        # concat and drop_duplicates could potentially be done by pandarallel
+        if currentobject.pick_TS:
+            nanosecond_iterator = 1
+            for ndataset in varlist:
+                ndataset.index = ndataset.index + +np.timedelta64(nanosecond_iterator,'ns')
+                nanosecond_iterator+=1
+        #dsconc = voto_concat_datasets
+        dsconc = dd.concat(varlist)
+        dsconc = dsconc.loc[x_range[0]:x_range[1]]
+        # could be parallelized
+        if currentobject.pick_TS:
+            try:
+                dsconc = dsconc.drop_duplicates(subset=['temperature', 'salinity']).compute()
+            except:
+                dsconc = dsconc.drop_duplicates(subset=['temperature', 'salinity'])
+        #dsconc = dsconc.loc[dsconc.index.drop_duplicates().compute()]
+        #import pdb; pdb.set_trace();
+        currentobject.data_in_view = dsconc#.reset_index()
+
+
     try:
         dscopy = utils.add_dive_column(currentobject.data_in_view).compute()
     except:
@@ -291,8 +348,8 @@ def get_xsection_TS(x_range):
         x='salinity',
         y='temperature',
         c=currentobject.pick_variable,
-        ).redim(x=hv.Dimension(
-        'x', range=x_range))
+        )#.redim(x=hv.Dimension(
+        #x', range=x_range))
     return mplt
 
 
@@ -340,6 +397,7 @@ class GliderExplorer(param.Parameterized):
     markdown = pn.pane.Markdown(about)
 
     def keep_zoom(self,x_range):
+        print('keep zoom triggered with', x_range)
         self.startX,self.endX = x_range
 
     @param.depends('button_inflow', watch=True)
@@ -446,23 +504,24 @@ class GliderExplorer(param.Parameterized):
         # zoom limits are kept, if applied in the end zoom limits won't work
         self.dynmap = spread(dmap_rasterized, px=2, how='source').opts(
                 invert_yaxis=True,
-                xlim=(self.startX, self.endX),
+                #xlim=(self.startX, self.endX),
                 ylim=(-8,None),
-                hooks=[plot_limits])
+                #hooks=[plot_limits]
+                )
         #self.dynmap = self.dynmap*dmap
         #self.dynmap = (dmap_rasterized*dmap_points*dmap).opts(hooks=[plot_limits]).opts(
         #        xlim=(self.startX, self.endX))
         if self.pick_mld:
             dmap_mld = hv.DynamicMap(
                 get_xsection_mld, streams=[range_stream], cache_size=1)
-            self.dynmap = (self.dynmap * dmap_mld).opts(xlim=(self.startX, self.endX),)
+            self.dynmap = (self.dynmap * dmap_mld)#.opts(xlim=(self.startX, self.endX),)
         for annotation in self.annotations:
             print('insert text annotations defined in events')
             self.dynmap = self.dynmap*annotation
         if self.pick_TS:
             linked_plots = link_selections(
                 self.dynmap.opts(
-                    xlim=(self.startX, self.endX),
+                    #xlim=(self.startX, self.endX),
                     ylim=(-8,None))
                 + dmapTSr,
                 #selection_mode='union'
@@ -475,7 +534,7 @@ class GliderExplorer(param.Parameterized):
         else:
             self.dynmap = self.dynmap*dmap
             return self.dynmap.opts(
-                xlim=(self.startX, self.endX),
+                #xlim=(self.startX, self.endX),
                 ylim=(-8,None),
                 #responsive=True,
                 )
