@@ -12,7 +12,7 @@ from holoviews.operation.datashader import rasterize, spread
 from holoviews.selection import link_selections
 #from bokeh.models import DatetimeTickFormatter, HoverTool
 #from holoviews.operation import decimate
-from holoviews.streams import RangeX
+from holoviews.streams import RangeX, RangeXY
 import numpy as np
 from functools import reduce
 import panel as pn
@@ -183,7 +183,7 @@ def load_viewport_datasets(x_range):
     return meta, plt_props
 
 
-def get_xsection(x_range):
+def get_xsection(x_range, y_range):
     t1 = time.perf_counter()
     variable='temperature'
     meta, plt_props = load_viewport_datasets(x_range)
@@ -203,82 +203,29 @@ def get_xsection(x_range):
         return create_None_element()
 
 
-def get_xsection_mld(x_range):
-
-
-    (x0, x1) = x_range
-    meta, plt_props = load_viewport_datasets(x_range)
-    plotslist1 = []
-    #dsconc = ds
-    # data=dsdict[dsid] if plt_props['zoomed_out'] else dsdict[dsid.replace('nrt', 'delayed')]
-    # activate this for high res data
-    if plt_props['zoomed_out']:
-        metakeys = [element.replace('nrt', 'delayed') for element in meta.index]
-    else:
-        metakeys = [element.replace('nrt', 'delayed') if
-            element.replace('nrt', 'delayed') in all_datasets.index else
-            element for element in meta.index]
-
-    #varlist = [dsdict[dsid].compute() for dsid in metakeys]
-    print(plt_props['subsample_freq'])
-    varlist = []
-    for dsid in metakeys:
-        ds = dsdict[dsid].reset_index().set_index(['profile_num'])
-        ds = ds[ds.index % plt_props['subsample_freq'] == 0]
-        ds = ds.reset_index().set_index(['time'])
-        varlist.append(ds)
-    #import pdb; pdb.set_trace()
-    #varlist = [dsdict[dsid]
-    #    #.iloc[0:-1:plt_props['subsample_freq']]
-    #    for dsid in metakeys]
-    for dataset in varlist:
-        dataset = dataset.reset_index().set_index(['profile_num'])
-        dataset = dataset[dataset.index % 10 == 0]
-        dataset = dataset.reset_index().set_index(['time'])
-
-
-    if currentobject.pick_mld:
-        varlist = utils.voto_concat_datasets(varlist)
-    if varlist:
-        # dsconc = pd.concat(varlist)
-        # concat and drop_duplicates could potentially be done by pandarallel
-        if currentobject.pick_TS:
-            nanosecond_iterator = 1
-            for ndataset in varlist:
-                ndataset.index = ndataset.index + +np.timedelta64(nanosecond_iterator,'ns')
-                nanosecond_iterator+=1
-        #dsconc = voto_concat_datasets
-        dsconc = dd.concat(varlist)
-        dsconc = dsconc.loc[x_range[0]:x_range[1]]
-        # could be parallelized
-        if currentobject.pick_TS:
-            try:
-                dsconc = dsconc.drop_duplicates(subset=['temperature', 'salinity']).compute()
-            except:
-                dsconc = dsconc.drop_duplicates(subset=['temperature', 'salinity'])
-        #dsconc = dsconc.loc[dsconc.index.drop_duplicates().compute()]
-        #import pdb; pdb.set_trace();
-        currentobject.data_in_view = dsconc#.reset_index()
-
-
+def get_xsection_mld(x_range, y_range):
     try:
         dscopy = utils.add_dive_column(currentobject.data_in_view).compute()
     except:
         dscopy = utils.add_dive_column(currentobject.data_in_view)
     mld = gt.physics.mixed_layer_depth(dscopy.to_xarray(), 'temperature', thresh=0.3, verbose=False, ref_depth=5)
     gtime = dscopy.reset_index().groupby(by='profile_num').mean().time
-    dfmld = pd.DataFrame.from_dict(dict(time=gtime, mld=mld)).sort_values(by='time').dropna()
+    dfmld = pd.DataFrame.from_dict(dict(time=gtime.values, mld=mld.rolling(10, center=True).mean().values)).sort_values(by='time').dropna()
+    #dfmld = dfmld.rolling()
+    if len(dfmld)==0:
+        import pdb; pdb.set_trace();
     mldscatter = dfmld.hvplot.line(
                     x='time',
                     y='mld',
                     color='white',
                     alpha=0.5,
+                    responsive=True,
                     )#.redim(x=hv.Dimension(
                     #   'x', range=x_range))
     return mldscatter
 
 
-def get_xsection_raster(x_range):
+def get_xsection_raster(x_range, y_range):
     (x0, x1) = x_range
     meta, plt_props = load_viewport_datasets(x_range)
     plotslist1 = []
@@ -341,7 +288,7 @@ def get_xsection_raster(x_range):
         return create_None_element()
 
 
-def get_xsection_TS(x_range):
+def get_xsection_TS(x_range, y_range):
     dsconc = currentobject.data_in_view
     # import pdb; pdb.set_trace();
     mplt = dsconc.hvplot.scatter(
@@ -385,10 +332,11 @@ class GliderExplorer(param.Parameterized):
     # create a button that when pushed triggers 'button'
     button_inflow = param.Action(lambda x: x.param.trigger('button_inflow'), label='Animation event example')
     data_in_view = None
-    stream_used = False
+    #stream_used = False
     # on initial load, show all data
     startX, endX = (metadata['time_coverage_start (UTC)'].min().to_datetime64(),
                     metadata['time_coverage_end (UTC)'].max().to_datetime64())
+    startY, endY = (-8,None)
     annotations = []
     about = """\
     # About
@@ -396,9 +344,10 @@ class GliderExplorer(param.Parameterized):
     """
     markdown = pn.pane.Markdown(about)
 
-    def keep_zoom(self,x_range):
-        print('keep zoom triggered with', x_range)
-        self.startX,self.endX = x_range
+    def keep_zoom(self,x_range, y_range):
+        print('keep zoom triggered with', x_range, y_range)
+        self.startX, self.endX = x_range
+        self.startY, self.endY = y_range
 
     @param.depends('button_inflow', watch=True)
     def execute_event(self):
@@ -435,8 +384,11 @@ class GliderExplorer(param.Parameterized):
         commonheights = 500
         x_range=(self.startX,
                  self.endX)
-        range_stream = RangeX(x_range=x_range)
+        y_range=(self.startY,
+                 self.endY)
+        range_stream = RangeXY(x_range=x_range, y_range=y_range)
         range_stream.add_subscriber(self.keep_zoom)
+        #self.keep_zoom(x_range, y_range)
         global currentobject
         currentobject = self
         t1 = time.perf_counter()
@@ -464,7 +416,7 @@ class GliderExplorer(param.Parameterized):
                 dmap_TS,
                 ).opts(
                 cnorm='eq_hist',
-                height=commonheights,
+                #height=commonheights,
                 xlim=(5,17))
 
             # This is the alternative version coloring the
@@ -492,7 +444,7 @@ class GliderExplorer(param.Parameterized):
             tools=['xwheel_zoom', 'reset', 'xpan', 'ywheel_zoom', 'ypan'],#, 'hover'],
             default_tools=[],
             #responsive=True, # this currently breaks when activated with MLD
-            width=800,
+            #width=800,
             height=commonheights,
             cnorm=self.pick_cnorm,
             active_tools=['xpan', 'xwheel_zoom'],
@@ -505,7 +457,7 @@ class GliderExplorer(param.Parameterized):
         self.dynmap = spread(dmap_rasterized, px=2, how='source').opts(
                 invert_yaxis=True,
                 #xlim=(self.startX, self.endX),
-                ylim=(-8,None),
+                #ylim=(-8,None),
                 #hooks=[plot_limits]
                 )
         #self.dynmap = self.dynmap*dmap
@@ -513,8 +465,8 @@ class GliderExplorer(param.Parameterized):
         #        xlim=(self.startX, self.endX))
         if self.pick_mld:
             dmap_mld = hv.DynamicMap(
-                get_xsection_mld, streams=[range_stream], cache_size=1)
-            self.dynmap = (self.dynmap * dmap_mld)#.opts(xlim=(self.startX, self.endX),)
+                get_xsection_mld, streams=[range_stream], cache_size=1).opts(responsive=True)
+            self.dynmap = (self.dynmap.opts(responsive=True) * dmap_mld.opts(responsive=True)).opts(responsive=True)#.opts(xlim=(self.startX, self.endX),)
         for annotation in self.annotations:
             print('insert text annotations defined in events')
             self.dynmap = self.dynmap*annotation
@@ -522,10 +474,11 @@ class GliderExplorer(param.Parameterized):
             linked_plots = link_selections(
                 self.dynmap.opts(
                     #xlim=(self.startX, self.endX),
-                    ylim=(-8,None))
-                + dmapTSr,
+                    ylim=(self.startY,self.endY),
+                    responsive=True)
+                + dmapTSr.opts(responsive=True),
                 #selection_mode='union'
-                )
+                )*dmap.opts(responsive=True)
             return linked_plots
             #return self.dynmap.opts(
             #xlim=(self.startX, self.endX),
@@ -535,8 +488,8 @@ class GliderExplorer(param.Parameterized):
             self.dynmap = self.dynmap*dmap
             return self.dynmap.opts(
                 #xlim=(self.startX, self.endX),
-                ylim=(-8,None),
-                #responsive=True,
+                ylim=(self.startY,self.endY),
+                responsive=True,
                 )
 
 class MetaExplorer(param.Parameterized):
@@ -564,7 +517,7 @@ class MetaExplorer(param.Parameterized):
             hover_data=['ctd_serial', 'optics_serial'],
             color=dims,
             pattern_shape=dims,
-            height=400,
+            #height=400,
             #scrollZoom=True,
                     )
 
@@ -578,16 +531,19 @@ class MetaExplorer(param.Parameterized):
                 #type="date"
             )
         )
+
         for shape in fig['data']:
             shape['opacity'] = 0.7
         for i, d in enumerate(fig.data):
             d.width = (metadata.deployment_id%2+10)/12
+        fig.layout.autosize = True
         return fig
 
 
 def create_app_instance():
     glider_explorer=GliderExplorer()
     meta_explorer=MetaExplorer()
+    pp = pn.pane.Plotly(meta_explorer.create_timeline, config={'responsive': True})
     layout = pn.Column(
     pn.Row(
         glider_explorer.param,
@@ -596,7 +552,7 @@ def create_app_instance():
     pn.Row(
         meta_explorer.param),
     pn.Row(
-        meta_explorer.create_timeline))
+        pp, sizing_mode='stretch_width'))
     return layout
 
 # usefull to create secondary plot, but not fully indepentently working yet:
