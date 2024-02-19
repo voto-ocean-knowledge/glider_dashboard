@@ -1,7 +1,7 @@
 #import xarray
 import glidertools as gt
 import hvplot.dask
-import hvplot.xarray
+#import hvplot.xarray
 import hvplot.pandas
 import cmocean
 import holoviews as hv
@@ -21,7 +21,7 @@ import param
 import time
 import plotly.express as px
 #import warnings
-import pickle
+#import pickle
 import initialize
 import dask
 import dask.dataframe as dd
@@ -123,8 +123,8 @@ def create_single_ds_plot_raster(
         x='time',
         y='depth',
         c=currentobject.pick_variable,
-        ).redim(x=hv.Dimension(
-        'x', range=(GliderExplorer.startX, GliderExplorer.endX)))
+        )#.redim(x=hv.Dimension(
+        #'x', range=(GliderExplorer.startX, GliderExplorer.endX)))
     return raster
     #raster.opts(xlim=(GliderExplorer.startX, GliderExplorer.endX)) #<< adjscatter
 
@@ -155,7 +155,12 @@ def load_viewport_datasets(x_range):
             ]
 
     #print(f'len of meta is {len(meta)} in load_viewport_datasets')
-    if (x1-x0)>np.timedelta64(360, 'D'):
+    if (x1-x0)>np.timedelta64(720, 'D'):
+        # activate sparse data mode to speed up reactivity
+        plt_props['zoomed_out'] = False
+        plt_props['dynfontsize']=4
+        plt_props['subsample_freq']=50
+    elif (x1-x0)>np.timedelta64(360, 'D'):
         # activate sparse data mode to speed up reactivity
         plt_props['zoomed_out'] = False
         plt_props['dynfontsize']=4
@@ -165,13 +170,12 @@ def load_viewport_datasets(x_range):
         plt_props['zoomed_out'] = False
         plt_props['dynfontsize']=4
         plt_props['subsample_freq']=10
-    elif (x1-x0)<np.timedelta64(1, 'D'):
+    elif (x1-x0)>np.timedelta64(90, 'D'):
         # activate sparse data mode to speed up reactivity
         plt_props['zoomed_out'] = False
         plt_props['dynfontsize']=4
-        plt_props['subsample_freq']=1
+        plt_props['subsample_freq']=5
     else:
-        # load delayed mode datasets for more detail
         plt_props['zoomed_out'] = False
         plt_props['dynfontsize']=10
         plt_props['subsample_freq']=1
@@ -192,8 +196,9 @@ def get_xsection(x_range):
         plotslist.append(single_plot)
     t2 = time.perf_counter()
     if plotslist:
-        return reduce(lambda x, y: x*y, plotslist).redim(x=hv.Dimension(
-        'x', range=x_range))
+        return reduce(lambda x, y: x*y, plotslist)
+        #.redim(x=hv.Dimension(
+        #'x', range=x_range))
     else:
         return create_None_element()
 
@@ -212,7 +217,7 @@ def get_xsection_mld(x_range):
                     color='white',
                     alpha=0.5,
                     )#.redim(x=hv.Dimension(
-                     #   'x', range=x_range))
+                    #   'x', range=x_range))
     return mldscatter
 
 
@@ -232,7 +237,22 @@ def get_xsection_raster(x_range):
 
     #varlist = [dsdict[dsid].compute() for dsid in metakeys]
     print(plt_props['subsample_freq'])
-    varlist = [dsdict[dsid].iloc[0:-1:plt_props['subsample_freq']] for dsid in metakeys]
+    varlist = []
+    for dsid in metakeys:
+        ds = dsdict[dsid].reset_index().set_index(['profile_num'])
+        ds = ds[ds.index % plt_props['subsample_freq'] == 0]
+        ds = ds.reset_index().set_index(['time'])
+        varlist.append(ds)
+    #import pdb; pdb.set_trace()
+    #varlist = [dsdict[dsid]
+    #    #.iloc[0:-1:plt_props['subsample_freq']]
+    #    for dsid in metakeys]
+    for dataset in varlist:
+        dataset = dataset.reset_index().set_index(['profile_num'])
+        dataset = dataset[dataset.index % 10 == 0]
+        dataset = dataset.reset_index().set_index(['time'])
+
+
     if currentobject.pick_mld:
         varlist = utils.voto_concat_datasets(varlist)
     if varlist:
@@ -246,6 +266,7 @@ def get_xsection_raster(x_range):
         #dsconc = voto_concat_datasets
         dsconc = dd.concat(varlist)
         dsconc = dsconc.loc[x_range[0]:x_range[1]]
+        # could be parallelized
         if currentobject.pick_TS:
             try:
                 dsconc = dsconc.drop_duplicates(subset=['temperature', 'salinity']).compute()
@@ -257,8 +278,8 @@ def get_xsection_raster(x_range):
         # dsconc = dsconc.iloc[0:-1:plt_props['subsample_freq']]
         #dsconc['cplotvar'] = dsconc[currentobject.pick_variable]
         mplt = create_single_ds_plot_raster(data=dsconc)
-        return mplt.redim(x=hv.Dimension(
-            'x', range=x_range))
+        return mplt#.redim(x=hv.Dimension(
+            #'x', range=x_range))
     else:
         return create_None_element()
 
@@ -434,7 +455,7 @@ class GliderExplorer(param.Parameterized):
         if self.pick_mld:
             dmap_mld = hv.DynamicMap(
                 get_xsection_mld, streams=[range_stream], cache_size=1)
-            self.dynmap = self.dynmap * dmap_mld
+            self.dynmap = (self.dynmap * dmap_mld).opts(xlim=(self.startX, self.endX),)
         for annotation in self.annotations:
             print('insert text annotations defined in events')
             self.dynmap = self.dynmap*annotation
