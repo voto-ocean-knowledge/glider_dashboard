@@ -1,3 +1,6 @@
+import time
+
+tt1 = time.perf_counter()
 #import xarray
 import glidertools as gt
 import hvplot.dask
@@ -18,19 +21,22 @@ from functools import reduce
 import panel as pn
 import param
 #import datashader.transfer_functions as tf
-import time
 import plotly.express as px
 #import warnings
 #import pickle
 import initialize
 import dask
 import dask.dataframe as dd
+#import asyncio
 
 from download_glider_data import utils as dutils
 import utils
 import dictionaries
 
+tt2 = time.perf_counter()
+print('time for imports:', tt2-tt1)
 pn.extension('plotly')
+#pn.param.ParamMethod.loading_indicator = True
 
 # unused imports
 try:
@@ -244,19 +250,21 @@ def get_xsection_raster(x_range, y_range):
     #varlist = [dsdict[dsid].compute() for dsid in metakeys]
     print(plt_props['subsample_freq'])
     varlist = []
+
     for dsid in metakeys:
         ds = dsdict[dsid].reset_index().set_index(['profile_num'])
-        ds = ds[ds.index % plt_props['subsample_freq'] == 0]
+        #ds = ds[ds.index % plt_props['subsample_freq'] == 0]
         ds = ds.reset_index().set_index(['time'])
         varlist.append(ds)
-    #import pdb; pdb.set_trace()
+    #import pdb; pdb.set_trace()nrt
     #varlist = [dsdict[dsid]
     #    #.iloc[0:-1:plt_props['subsample_freq']]
     #    for dsid in metakeys]
-    for dataset in varlist:
-        dataset = dataset.reset_index().set_index(['profile_num'])
-        dataset = dataset[dataset.index % 10 == 0]
-        dataset = dataset.reset_index().set_index(['time'])
+
+    #for dataset in varlist:
+    #    dataset = dataset.reset_index().set_index(['profile_num'])
+    #    dataset = dataset[dataset.index % 10 == 0]
+    #    dataset = dataset.reset_index().set_index(['time'])
 
 
     if currentobject.pick_mld:
@@ -391,7 +399,7 @@ class GliderExplorer(param.Parameterized):
         self.startY = -8
         self.endY = None
 
-    @pn.cache(max_items=2, policy='FIFO')
+    #@pn.cache(max_items=2, policy='FIFO')
     @param.depends('pick_cnorm','pick_variable', 'pick_aggregation',
         'pick_mld', 'pick_basin', 'pick_TS') # outcommenting this means just depend on all, redraw always
     def create_dynmap(self):
@@ -461,7 +469,10 @@ class GliderExplorer(param.Parameterized):
         #t2 = time.perf_counter()
         dmap_rasterized = rasterize(dmap_raster,
             aggregator=means,
+            #x_sampling=8.64e13/48,
+            y_sampling=0.2,
             ).opts(
+            invert_yaxis=True,
             colorbar=True,
             cmap=dictionaries.cmap_dict[self.pick_variable],#,cmap
             toolbar='above',
@@ -480,12 +491,13 @@ class GliderExplorer(param.Parameterized):
         # zoom limits are kept, if applied in the end zoom limits won't work
         self.dynmap = spread(dmap_rasterized, px=2, how='source').opts(
                 invert_yaxis=True,
+                ylim=(self.startY, self.endY),
                 #xlim=(self.startX, self.endX),
                 #ylim=(-8,None),
                 #hooks=[plot_limits]
                 )
 
-
+        #self.dynmap = dmap_rasterized
         #self.dynmap = (dynmap_spread*dmap_rasterized).opts(
         #        invert_yaxis=True,
         #        #xlim=(self.startX, self.endX),
