@@ -8,7 +8,7 @@ import holoviews as hv
 #import pathlib
 import pandas as pd
 import datashader as dsh
-from holoviews.operation.datashader import rasterize, spread
+from holoviews.operation.datashader import rasterize, spread, dynspread
 from holoviews.selection import link_selections
 #from bokeh.models import DatetimeTickFormatter, HoverTool
 #from holoviews.operation import decimate
@@ -71,7 +71,7 @@ ropts = dict(
              default_tools=[],
              active_tools=['xpan', 'xwheel_zoom'],
              bgcolor="dimgrey",
-             ylim=(-8,None)
+             #ylim=(-8,None)
             )
 
 def plot_limits(plot, element):
@@ -119,11 +119,13 @@ def create_single_ds_plot(metadata, variable, dsid, plt_props, x_range):
 def create_single_ds_plot_raster(
         data):
     # https://stackoverflow.com/questions/32318751/holoviews-how-to-plot-dataframe-with-time-index
-    raster = data.hvplot.scatter(
+    raster = data.hvplot.points(
         x='time',
         y='depth',
         c=currentobject.pick_variable,
-        )#.redim(x=hv.Dimension(
+        )
+
+        #.redim(x=hv.Dimension(
         #'x', range=(GliderExplorer.startX, GliderExplorer.endX)))
     return raster
     #raster.opts(xlim=(GliderExplorer.startX, GliderExplorer.endX)) #<< adjscatter
@@ -290,15 +292,23 @@ def get_xsection_raster(x_range, y_range):
 
 def get_xsection_TS(x_range, y_range):
     dsconc = currentobject.data_in_view
-    # import pdb; pdb.set_trace();
+    t1 = time.perf_counter()
+    thresh = dsconc[['temperature', 'salinity']].quantile(q=[0.001, 0.999])#.iloc[0:1]
+    t2 = time.perf_counter()
+    print('setting TS ranges took', t2-t1)
+    #sal_thresh = dsconc['salinity'].quantile(q=[0.01, 0.99]).iloc[0:1]
+    #import pdb; pdb.set_trace();
     mplt = dsconc.hvplot.scatter(
         x='salinity',
         y='temperature',
         c=currentobject.pick_variable,
-        )#.redim(x=hv.Dimension(
-        #x', range=x_range))
-    return mplt
+        #xlim=(10,12),
+        #ylim=(5,10),
+        )[thresh['salinity'].iloc[0]-0.5:thresh['salinity'].iloc[1]+0.5,
+          thresh['temperature'].iloc[0]-0.5:thresh['temperature'].iloc[1]+0.5]
+    #import pdb; pdb.set_trace();
 
+    return mplt
 
 def create_None_element():
     # This is just a hack because I can't return None to dynamic maps
@@ -377,6 +387,9 @@ class GliderExplorer(param.Parameterized):
         x_range=(
         metadata[metadata['basin']==self.pick_basin]['time_coverage_start (UTC)'].min().to_datetime64(),
         metadata[metadata['basin']==self.pick_basin]['time_coverage_end (UTC)'].max().to_datetime64())
+        self.startX, self.endX = x_range
+        self.startY = -8
+        self.endY = None
 
     @param.depends('pick_cnorm','pick_variable', 'pick_aggregation',
         'pick_mld', 'pick_basin', 'pick_TS') # outcommenting this means just depend on all, redraw always
@@ -410,14 +423,23 @@ class GliderExplorer(param.Parameterized):
             dmap_TS = hv.DynamicMap(
                 get_xsection_TS,
                 streams=[range_stream],
-                cache_size=1,)
+                cache_size=1,)#.opts(xlim=(-10, 110), ylim=(-14, 30))
 
+            #, threshold=0.5, max_px=3, shape='circle', how=None, name=None
             dmapTSr = rasterize(
                 dmap_TS,
                 ).opts(
                 cnorm='eq_hist',
+                )
+            dmapTSr = dynspread(dmapTSr, threshold=0.8, max_px=3, )#.redim(
+                 #   x=hv.Dimension(
+                 #       'x', range=(10,12)),
+                 #   y=hv.Dimension(
+                 #       'y', range=(5,10),))
                 #height=commonheights,
-                xlim=(5,17))
+                #xlim=(5,17)
+
+
 
             # This is the alternative version coloring the
             # TS plot by the chosen variable. Works well!
@@ -457,7 +479,7 @@ class GliderExplorer(param.Parameterized):
         self.dynmap = spread(dmap_rasterized, px=2, how='source').opts(
                 invert_yaxis=True,
                 #xlim=(self.startX, self.endX),
-                #ylim=(-8,None),
+                ylim=(self.startY, self.endY),
                 #hooks=[plot_limits]
                 )
         #self.dynmap = self.dynmap*dmap
@@ -474,13 +496,19 @@ class GliderExplorer(param.Parameterized):
             linked_plots = link_selections(
                 self.dynmap.opts(
                     #xlim=(self.startX, self.endX),
-                    ylim=(self.startY,self.endY),
+                    #ylim=(self.startY,self.endY),
                     responsive=True)
-                + dmapTSr.opts(responsive=True),
+                + dmapTSr.opts(
+                    responsive=True,
+                    bgcolor='white',).opts(padding=(0.05, 0.05))
+                    #xlim=(6,20),
+                    #ylim=(-1.8, 20)),
                 #selection_mode='union'
                 )*dmap.opts(
                     #heigth=500,
-                    responsive=True)
+                    responsive=True,
+                    #ylim=(-8,None))
+                )
             return linked_plots
             #return self.dynmap.opts(
             #xlim=(self.startX, self.endX),
@@ -490,8 +518,9 @@ class GliderExplorer(param.Parameterized):
             self.dynmap = self.dynmap*dmap
             return self.dynmap.opts(
                 #xlim=(self.startX, self.endX),
-                ylim=(self.startY,self.endY),
+                #ylim=(self.startY,self.endY),
                 #heigth=500,
+                #ylim=(-8,None),
                 responsive=True,
                 )
 
