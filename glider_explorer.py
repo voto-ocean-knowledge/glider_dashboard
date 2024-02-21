@@ -391,7 +391,7 @@ class GliderExplorer(param.Parameterized):
         self.startY = -8
         self.endY = None
 
-    @pn.cache
+    @pn.cache(max_items=2, policy='FIFO')
     @param.depends('pick_cnorm','pick_variable', 'pick_aggregation',
         'pick_mld', 'pick_basin', 'pick_TS') # outcommenting this means just depend on all, redraw always
     def create_dynmap(self):
