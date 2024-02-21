@@ -8,7 +8,7 @@ import holoviews as hv
 #import pathlib
 import pandas as pd
 import datashader as dsh
-from holoviews.operation.datashader import rasterize, spread, dynspread
+from holoviews.operation.datashader import rasterize, spread, dynspread, regrid
 from holoviews.selection import link_selections
 #from bokeh.models import DatetimeTickFormatter, HoverTool
 #from holoviews.operation import decimate
@@ -431,7 +431,8 @@ class GliderExplorer(param.Parameterized):
                 ).opts(
                 cnorm='eq_hist',
                 )
-            dmapTSr = dynspread(dmapTSr, threshold=0.8, max_px=3, )#.redim(
+            #dmapTSr = dynspread(dmapTSr, threshold=0.8, max_px=3, )
+            dmapTSr = spread(dmapTSr, px=1, shape='circle')#.redim(
                  #   x=hv.Dimension(
                  #       'x', range=(10,12)),
                  #   y=hv.Dimension(
@@ -459,6 +460,7 @@ class GliderExplorer(param.Parameterized):
         #t2 = time.perf_counter()
         dmap_rasterized = rasterize(dmap_raster,
             aggregator=means,
+            interpolation='bilinear',
             ).opts(
             colorbar=True,
             cmap=dictionaries.cmap_dict[self.pick_variable],#,cmap
@@ -476,12 +478,27 @@ class GliderExplorer(param.Parameterized):
 
         # Here it is important where the xlims are set. If set on rasterized_dmap,
         # zoom limits are kept, if applied in the end zoom limits won't work
-        self.dynmap = spread(dmap_rasterized, px=2, how='source').opts(
+
+        dynmap_spread = spread(
+                dmap_rasterized,
+                px=1,
+                how='source',
+            ).opts(
                 invert_yaxis=True,
                 #xlim=(self.startX, self.endX),
                 ylim=(self.startY, self.endY),
                 #hooks=[plot_limits]
-                )
+            )
+
+
+        #self.dynmap = (dynmap_spread*dmap_rasterized).opts(
+        #        invert_yaxis=True,
+        #        #xlim=(self.startX, self.endX),
+        #        ylim=(self.startY, self.endY),
+        #        #hooks=[plot_limits]
+        #        )
+        #dmap_rasterized = regrid(dmap_rasterized, upsample=True, interpolation='bilinear')
+        self.dynmap = dynmap_spread
         #self.dynmap = self.dynmap*dmap
         #self.dynmap = (dmap_rasterized*dmap_points*dmap).opts(hooks=[plot_limits]).opts(
         #        xlim=(self.startX, self.endX))
