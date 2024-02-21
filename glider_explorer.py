@@ -460,7 +460,6 @@ class GliderExplorer(param.Parameterized):
         #t2 = time.perf_counter()
         dmap_rasterized = rasterize(dmap_raster,
             aggregator=means,
-            interpolation='bilinear',
             ).opts(
             colorbar=True,
             cmap=dictionaries.cmap_dict[self.pick_variable],#,cmap
@@ -478,17 +477,12 @@ class GliderExplorer(param.Parameterized):
 
         # Here it is important where the xlims are set. If set on rasterized_dmap,
         # zoom limits are kept, if applied in the end zoom limits won't work
-
-        dynmap_spread = spread(
-                dmap_rasterized,
-                px=3,
-                how='source',
-            ).opts(
+        self.dynmap = spread(dmap_rasterized, px=2, how='source').opts(
                 invert_yaxis=True,
                 #xlim=(self.startX, self.endX),
-                ylim=(self.startY, self.endY),
+                #ylim=(-8,None),
                 #hooks=[plot_limits]
-            )
+                )
 
 
         #self.dynmap = (dynmap_spread*dmap_rasterized).opts(
@@ -498,7 +492,7 @@ class GliderExplorer(param.Parameterized):
         #        #hooks=[plot_limits]
         #        )
         #dmap_rasterized = regrid(dmap_rasterized, upsample=True, interpolation='bilinear')
-        self.dynmap = dynmap_spread
+        #self.dynmap = dynmap_spread
         #self.dynmap = self.dynmap*dmap
         #self.dynmap = (dmap_rasterized*dmap_points*dmap).opts(hooks=[plot_limits]).opts(
         #        xlim=(self.startX, self.endX))
