@@ -161,22 +161,22 @@ def load_viewport_datasets(x_range):
         # activate sparse data mode to speed up reactivity
         plt_props['zoomed_out'] = False
         plt_props['dynfontsize']=4
-        plt_props['subsample_freq']=25
+        plt_props['subsample_freq']=50
     elif (x1-x0)>np.timedelta64(360, 'D'):
         # activate sparse data mode to speed up reactivity
         plt_props['zoomed_out'] = False
         plt_props['dynfontsize']=4
-        plt_props['subsample_freq']=10
+        plt_props['subsample_freq']=20
     elif (x1-x0)>np.timedelta64(180, 'D'):
         # activate sparse data mode to speed up reactivity
         plt_props['zoomed_out'] = False
         plt_props['dynfontsize']=4
-        plt_props['subsample_freq']=5
+        plt_props['subsample_freq']=10
     elif (x1-x0)>np.timedelta64(90, 'D'):
         # activate sparse data mode to speed up reactivity
         plt_props['zoomed_out'] = False
         plt_props['dynfontsize']=4
-        plt_props['subsample_freq']=3
+        plt_props['subsample_freq']=5
     else:
         plt_props['zoomed_out'] = False
         plt_props['dynfontsize']=10
@@ -481,7 +481,7 @@ class GliderExplorer(param.Parameterized):
 
         dynmap_spread = spread(
                 dmap_rasterized,
-                px=1,
+                px=3,
                 how='source',
             ).opts(
                 invert_yaxis=True,
