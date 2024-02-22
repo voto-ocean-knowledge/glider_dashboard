@@ -368,6 +368,8 @@ class GliderExplorer(param.Parameterized):
         default=False, label='MLD', doc='mixed layer depth')
     pick_TS = param.Boolean(
         default=False, label='TSplot', doc='activate salinity temperature diagram')
+    pick_contours = param.Boolean(
+        default=False, label='Contours', doc='add contours to the colormesh figure')
     # create a button that when pushed triggers 'button'
     #button_inflow = param.Action(lambda x: x.param.trigger('button_inflow'), label='Animation event example')
     data_in_view = None
@@ -424,7 +426,7 @@ class GliderExplorer(param.Parameterized):
 
     #@pn.cache(max_items=2, policy='FIFO')
     @param.depends('pick_cnorm','pick_variable', 'pick_aggregation',
-        'pick_mld', 'pick_basin', 'pick_TS') # outcommenting this means just depend on all, redraw always
+        'pick_mld', 'pick_basin', 'pick_TS', 'pick_contours') # outcommenting this means just depend on all, redraw always
     def create_dynmap(self):
         commonheights = 500
         x_range=(self.startX,
@@ -519,7 +521,8 @@ class GliderExplorer(param.Parameterized):
                 #ylim=(-8,None),
                 #hooks=[plot_limits]
                 )
-
+        if self.pick_contours:
+            self.dynmap = self.dynmap * hv.operation.contours(self.dynmap, levels=5)
         #self.dynmap = dmap_rasterized
         #self.dynmap = (dynmap_spread*dmap_rasterized).opts(
         #        invert_yaxis=True,
