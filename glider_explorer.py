@@ -87,6 +87,7 @@ def plot_limits(plot, element):
     plot.handles['y_range'].max_interval = 500
 
 def create_single_ds_plot(metadata, variable, dsid, plt_props, x_range):
+    t1 = time.perf_counter()
     # return create_None_element()
     x0, x1 = x_range
     elements = []
@@ -115,6 +116,7 @@ def create_single_ds_plot(metadata, variable, dsid, plt_props, x_range):
             fontsize=plt_props['dynfontsize'],
                 ).opts(**ropts).opts(text_opts)
         elements.append(text_annotation)
+    t2 = time.perf_counter()
     if elements:
         return reduce(lambda x, y: x*y, elements)
     else:
@@ -124,6 +126,8 @@ def create_single_ds_plot(metadata, variable, dsid, plt_props, x_range):
 
 def create_single_ds_plot_raster(
         data):
+    t1 = time.perf_counter()
+
     # https://stackoverflow.com/questions/32318751/holoviews-how-to-plot-dataframe-with-time-index
     raster = data.hvplot.points(
         x='time',
@@ -133,6 +137,9 @@ def create_single_ds_plot_raster(
 
         #.redim(x=hv.Dimension(
         #'x', range=(GliderExplorer.startX, GliderExplorer.endX)))
+    t2 = time.perf_counter()
+
+    print('create_single_ds_plot_raster', t2-t1)
     return raster
     #raster.opts(xlim=(GliderExplorer.startX, GliderExplorer.endX)) #<< adjscatter
 
@@ -172,17 +179,17 @@ def load_viewport_datasets(x_range):
         # activate sparse data mode to speed up reactivity
         plt_props['zoomed_out'] = False
         plt_props['dynfontsize']=4
-        plt_props['subsample_freq']=20
+        plt_props['subsample_freq']=25
     elif (x1-x0)>np.timedelta64(180, 'D'):
         # activate sparse data mode to speed up reactivity
         plt_props['zoomed_out'] = False
         plt_props['dynfontsize']=4
-        plt_props['subsample_freq']=10
+        plt_props['subsample_freq']=8
     elif (x1-x0)>np.timedelta64(90, 'D'):
         # activate sparse data mode to speed up reactivity
         plt_props['zoomed_out'] = False
         plt_props['dynfontsize']=4
-        plt_props['subsample_freq']=5
+        plt_props['subsample_freq']=4
     else:
         plt_props['zoomed_out'] = False
         plt_props['dynfontsize']=10
@@ -192,17 +199,32 @@ def load_viewport_datasets(x_range):
 
 
 def get_xsection(x_range, y_range):
+    (x0, x1) = x_range
     t1 = time.perf_counter()
-    variable='temperature'
     meta, plt_props = load_viewport_datasets(x_range)
-    plotslist = []
-    for dsid in meta.index:
-        # this is just plotting lines and meta, no need for 'delayed' data (?)
-        #data=dsdict[dsid]
-        single_plot = create_single_ds_plot(
-            metadata, variable, dsid, plt_props, x_range)
-        plotslist.append(single_plot)
-    t2 = time.perf_counter()
+
+    #import pdb; pdb.set_trace();
+    meta_start_in_view = meta[
+        (meta['time_coverage_start (UTC)']>x0)]
+    meta_end_in_view = meta[
+        (meta['time_coverage_end (UTC)']<x1)]
+
+    startvlines = hv.Spikes(meta_start_in_view['time_coverage_start (UTC)']).opts(
+        color='grey', spike_length=20).opts(position=-10)
+    endvlines = hv.Spikes(meta_end_in_view['time_coverage_end (UTC)']).opts(
+        color='grey', spike_length=20).opts(position=-10)
+    #endvlines = hv.Spikes(meta[meta[
+    #    'time_coverage_end (UTC)']<x1]).opts(color='grey', spike_length=20).opts(position=-10)
+
+    data = pd.DataFrame.from_dict(
+        dict(time=meta_start_in_view['time_coverage_start (UTC)'].values,
+        y=-5,
+        text=meta_start_in_view.index))
+    ds_labels = hv.Labels(data).opts(
+        fontsize=4,#plt_props['dynfontsize'],
+        text_align='left')
+    plotslist = [startvlines, endvlines, ds_labels]#, ds_labels]
+
     if plotslist:
         return reduce(lambda x, y: x*y, plotslist)
         #.redim(x=hv.Dimension(
@@ -216,12 +238,14 @@ def get_xsection_mld(x_range, y_range):
         dscopy = utils.add_dive_column(currentobject.data_in_view).compute()
     except:
         dscopy = utils.add_dive_column(currentobject.data_in_view)
-    mld = gt.physics.mixed_layer_depth(dscopy.to_xarray(), 'temperature', thresh=0.3, verbose=False, ref_depth=5)
-    gtime = dscopy.reset_index().groupby(by='profile_num').mean().time
-    dfmld = pd.DataFrame.from_dict(dict(time=gtime.values, mld=mld.rolling(10, center=True).mean().values)).sort_values(by='time').dropna()
+    mld = gt.physics.mixed_layer_depth(dscopy.to_xarray(), 'temperature', thresh=0.3, verbose=False, ref_depth=5)#.dropna()
+    gtime = dscopy.reset_index().groupby(by='dives').mean().time#.dropna()
+    #try:
+    dfmld = pd.DataFrame.from_dict(dict(time=gtime.values, mld=mld)).sort_values(by='time').dropna()
+    #except:
+    #import pdb; pdb.set_trace();
     #dfmld = dfmld.rolling()
-    if len(dfmld)==0:
-        import pdb; pdb.set_trace();
+    #if len(dfmld)==0:
     mldscatter = dfmld.hvplot.line(
                     x='time',
                     y='mld',
@@ -232,30 +256,47 @@ def get_xsection_mld(x_range, y_range):
                     #   'x', range=x_range))
     return mldscatter
 
-
+#@pn.cache(max_items=2)
 def get_xsection_raster(x_range, y_range):
+
+
     (x0, x1) = x_range
     meta, plt_props = load_viewport_datasets(x_range)
     plotslist1 = []
     #dsconc = ds
     # data=dsdict[dsid] if plt_props['zoomed_out'] else dsdict[dsid.replace('nrt', 'delayed')]
     # activate this for high res data
+
     if plt_props['zoomed_out']:
-        metakeys = [element.replace('nrt', 'delayed') for element in meta.index]
+        metakeys = meta.index
     else:
+        # take nrt in case delayed not yet available
         metakeys = [element.replace('nrt', 'delayed') if
             element.replace('nrt', 'delayed') in all_datasets.index else
             element for element in meta.index]
+        #import pdb; pdb.set_trace();
+        #currentobject.dmap_rasterized.update(x_sampling=None)
 
     #varlist = [dsdict[dsid].compute() for dsid in metakeys]
     print(plt_props['subsample_freq'])
     varlist = []
 
+
     for dsid in metakeys:
-        ds = dsdict[dsid].reset_index().set_index(['profile_num'])
+
+        #ds = dsdict[dsid].reset_index().set_index(['profile_num'])
+        #import pdb; pdb.set_trace();
         #ds = ds[ds.index % plt_props['subsample_freq'] == 0]
-        ds = ds.reset_index().set_index(['time'])
+        #ds = ds.reset_index().set_index(['time'])
+        ds = dsdict[dsid]
+        if not plt_props['zoomed_out']:
+            ds = ds[ds.profile_num % plt_props['subsample_freq'] == 0]
+        #else:
+        #    ds = ds[ds.profile_direction == 1]
         varlist.append(ds)
+
+
+    t1 = time.perf_counter()
     #import pdb; pdb.set_trace()nrt
     #varlist = [dsdict[dsid]
     #    #.iloc[0:-1:plt_props['subsample_freq']]
@@ -272,26 +313,36 @@ def get_xsection_raster(x_range, y_range):
     if varlist:
         # dsconc = pd.concat(varlist)
         # concat and drop_duplicates could potentially be done by pandarallel
-        if currentobject.pick_TS:
-            nanosecond_iterator = 1
-            for ndataset in varlist:
-                ndataset.index = ndataset.index + +np.timedelta64(nanosecond_iterator,'ns')
-                nanosecond_iterator+=1
+        #if currentobject.pick_TS:
+        #    nanosecond_iterator = 1
+        #    for ndataset in varlist:
+        #        ndataset.index = ndataset.index + +np.timedelta64(nanosecond_iterator,'ns')
+        #        nanosecond_iterator+=1
         #dsconc = voto_concat_datasets
         dsconc = dd.concat(varlist)
+        #import pdb; pdb.set_trace();
+
         dsconc = dsconc.loc[x_range[0]:x_range[1]]
+
         # could be parallelized
-        if currentobject.pick_TS:
-            try:
-                dsconc = dsconc.drop_duplicates(subset=['temperature', 'salinity']).compute()
-            except:
-                dsconc = dsconc.drop_duplicates(subset=['temperature', 'salinity'])
+        #if currentobject.pick_TS:
+        #    try:
+        #        dsconc = dsconc.drop_duplicates(subset=['temperature', 'salinity']).compute()
+        #    except:
+        dsconc = dsconc.drop_duplicates(subset=['temperature', 'salinity'])
         #dsconc = dsconc.loc[dsconc.index.drop_duplicates().compute()]
         #import pdb; pdb.set_trace();
-        currentobject.data_in_view = dsconc#.reset_index()
+        try:
+            currentobject.data_in_view = dsconc.compute()#.reset_index()
+        except:
+            currentobject.data_in_view = dsconc
+
         # dsconc = dsconc.iloc[0:-1:plt_props['subsample_freq']]
         #dsconc['cplotvar'] = dsconc[currentobject.pick_variable]
         mplt = create_single_ds_plot_raster(data=dsconc)
+        t2 = time.perf_counter()
+
+        print('get_xsection_raster', t2-t1)
         return mplt#.redim(x=hv.Dimension(
             #'x', range=x_range))
     else:
@@ -399,7 +450,7 @@ class GliderExplorer(param.Parameterized):
         self.startY = -8
         self.endY = None
 
-    #@pn.cache(max_items=2, policy='FIFO')
+    #@pn.cache(max_items=2)
     @param.depends('pick_cnorm','pick_variable', 'pick_aggregation',
         'pick_mld', 'pick_basin', 'pick_TS') # outcommenting this means just depend on all, redraw always
     def create_dynmap(self):
@@ -467,17 +518,20 @@ class GliderExplorer(param.Parameterized):
             streams=[range_stream],
             cache_size=1)
         #t2 = time.perf_counter()
-        dmap_rasterized = rasterize(dmap_raster,
+        self.dmap_rasterized = rasterize(dmap_raster,
             aggregator=means,
-            #x_sampling=8.64e13/48,
-            y_sampling=0.2,
+            #x_sampling=8.64e13/2,#/48,
+            #y_sampling=0.2,
+            #pixel_ratio=0.5,
             ).opts(
+            #height=500, #width=800,
             invert_yaxis=True,
             colorbar=True,
             cmap=dictionaries.cmap_dict[self.pick_variable],#,cmap
             toolbar='above',
             tools=['xwheel_zoom', 'reset', 'xpan', 'ywheel_zoom', 'ypan'],#, 'hover'],
             default_tools=[],
+
             #responsive=True, # this currently breaks when activated with MLD
             #width=800,
             height=commonheights,
@@ -489,7 +543,7 @@ class GliderExplorer(param.Parameterized):
 
         # Here it is important where the xlims are set. If set on rasterized_dmap,
         # zoom limits are kept, if applied in the end zoom limits won't work
-        self.dynmap = spread(dmap_rasterized, px=2, how='source').opts(
+        self.dynmap = spread(self.dmap_rasterized, px=1, how='source', shape='circle').opts(
                 invert_yaxis=True,
                 ylim=(self.startY, self.endY),
                 #xlim=(self.startX, self.endX),
@@ -497,7 +551,7 @@ class GliderExplorer(param.Parameterized):
                 #hooks=[plot_limits]
                 )
 
-        #self.dynmap = dmap_rasterized
+        #self.dynmap = self.dmap_rasterized
         #self.dynmap = (dynmap_spread*dmap_rasterized).opts(
         #        invert_yaxis=True,
         #        #xlim=(self.startX, self.endX),
