@@ -8,6 +8,7 @@ import hvplot.dask
 import hvplot.pandas
 import cmocean
 import holoviews as hv
+from holoviews import opts
 #import pathlib
 import pandas as pd
 import datashader as dsh
@@ -86,6 +87,7 @@ def plot_limits(plot, element):
     plot.handles['y_range'].min_interval = 10
     plot.handles['y_range'].max_interval = 500
 
+"""
 def create_single_ds_plot(metadata, variable, dsid, plt_props, x_range):
     # return create_None_element()
     x0, x1 = x_range
@@ -118,9 +120,9 @@ def create_single_ds_plot(metadata, variable, dsid, plt_props, x_range):
     if elements:
         return reduce(lambda x, y: x*y, elements)
     else:
-        return create_None_element()
+        return create_None_element('')
         #.opts(xlim=x_range)#(text_annotation*startvline*endvline)#.opts(xlim=(GliderExplorer.startX, GliderExplorer.endX))
-
+"""
 
 def create_single_ds_plot_raster(
         data):
@@ -167,22 +169,22 @@ def load_viewport_datasets(x_range):
         # activate sparse data mode to speed up reactivity
         plt_props['zoomed_out'] = False
         plt_props['dynfontsize']=4
-        plt_props['subsample_freq']=50
+        plt_props['subsample_freq']=25
     elif (x1-x0)>np.timedelta64(360, 'D'):
         # activate sparse data mode to speed up reactivity
         plt_props['zoomed_out'] = False
         plt_props['dynfontsize']=4
-        plt_props['subsample_freq']=20
+        plt_props['subsample_freq']=10
     elif (x1-x0)>np.timedelta64(180, 'D'):
         # activate sparse data mode to speed up reactivity
         plt_props['zoomed_out'] = False
         plt_props['dynfontsize']=4
-        plt_props['subsample_freq']=10
+        plt_props['subsample_freq']=4
     elif (x1-x0)>np.timedelta64(90, 'D'):
         # activate sparse data mode to speed up reactivity
         plt_props['zoomed_out'] = False
         plt_props['dynfontsize']=4
-        plt_props['subsample_freq']=5
+        plt_props['subsample_freq']=2
     else:
         plt_props['zoomed_out'] = False
         plt_props['dynfontsize']=10
@@ -192,23 +194,40 @@ def load_viewport_datasets(x_range):
 
 
 def get_xsection(x_range, y_range):
+    (x0, x1) = x_range
     t1 = time.perf_counter()
-    variable='temperature'
     meta, plt_props = load_viewport_datasets(x_range)
+
+    #import pdb; pdb.set_trace();
+    meta_start_in_view = meta[
+        (meta['time_coverage_start (UTC)']>x0)]
+    meta_end_in_view = meta[
+        (meta['time_coverage_end (UTC)']<x1)]
+
+    startvlines = hv.Spikes(meta_start_in_view['time_coverage_start (UTC)']).opts(
+        color='grey', spike_length=20).opts(position=-10)
+    endvlines = hv.Spikes(meta_end_in_view['time_coverage_end (UTC)']).opts(
+        color='grey', spike_length=20).opts(position=-10)
+    #endvlines = hv.Spikes(meta[meta[
+    #    'time_coverage_end (UTC)']<x1]).opts(color='grey', spike_length=20).opts(position=-10)
+
+    data = pd.DataFrame.from_dict(
+        dict(time=meta_start_in_view['time_coverage_start (UTC)'].values,
+        y=-5,
+        text=meta_start_in_view.index))
+    ds_labels = hv.Labels(data).opts(
+        fontsize=4,#plt_props['dynfontsize'],
+        text_align='left')
     plotslist = []
-    for dsid in meta.index:
-        # this is just plotting lines and meta, no need for 'delayed' data (?)
-        #data=dsdict[dsid]
-        single_plot = create_single_ds_plot(
-            metadata, variable, dsid, plt_props, x_range)
-        plotslist.append(single_plot)
-    t2 = time.perf_counter()
+    if len(meta_start_in_view)>0:
+        plotslist.append(startvlines)
+        plotslist.append(ds_labels)
+    if len(meta_end_in_view)>0:
+        plotslist.append(endvlines)
     if plotslist:
-        return reduce(lambda x, y: x*y, plotslist)
-        #.redim(x=hv.Dimension(
-        #'x', range=x_range))
+        return hv.Overlay(plotslist)#reduce(lambda x, y: x*y, plotslist)
     else:
-        return create_None_element()
+        return create_None_element('Overlay')
 
 
 def get_xsection_mld(x_range, y_range):
@@ -252,9 +271,9 @@ def get_xsection_raster(x_range, y_range):
     varlist = []
 
     for dsid in metakeys:
-        ds = dsdict[dsid].reset_index().set_index(['profile_num'])
-        #ds = ds[ds.index % plt_props['subsample_freq'] == 0]
-        ds = ds.reset_index().set_index(['time'])
+        ds = dsdict[dsid]#.reset_index().set_index(['profile_num'])
+        ds = ds[ds.profile_num % plt_props['subsample_freq'] == 0]
+        #ds = ds.reset_index().set_index(['time'])
         varlist.append(ds)
     #import pdb; pdb.set_trace()nrt
     #varlist = [dsdict[dsid]
@@ -295,7 +314,7 @@ def get_xsection_raster(x_range, y_range):
         return mplt#.redim(x=hv.Dimension(
             #'x', range=x_range))
     else:
-        return create_None_element()
+        return create_None_element('Overlay')
 
 
 def get_xsection_TS(x_range, y_range):
@@ -318,10 +337,13 @@ def get_xsection_TS(x_range, y_range):
 
     return mplt
 
-def create_None_element():
+def create_None_element(type):
     # This is just a hack because I can't return None to dynamic maps
-    line = hv.Overlay(hv.HLine(0).opts(color='black', alpha=0.1)*hv.HLine(0).opts(color='black', alpha=0.1))
-    return line
+    if type=='Overlay':
+        element = hv.Overlay(hv.HLine(0).opts(color='black', alpha=0.1)*hv.HLine(0).opts(color='black', alpha=0.1))
+    elif type=='Spikes':
+        element = hv.Spikes().opts(color='black', alpha=0.1)
+    return element
 
 
 class GliderExplorer(param.Parameterized):
@@ -346,9 +368,8 @@ class GliderExplorer(param.Parameterized):
         default=False, label='MLD', doc='mixed layer depth')
     pick_TS = param.Boolean(
         default=False, label='TSplot', doc='activate salinity temperature diagram')
-    #button_inflow = param..Button(name='Tell me about inflows', icon='caret-right', button_type='primary')
     # create a button that when pushed triggers 'button'
-    button_inflow = param.Action(lambda x: x.param.trigger('button_inflow'), label='Animation event example')
+    #button_inflow = param.Action(lambda x: x.param.trigger('button_inflow'), label='Animation event example')
     data_in_view = None
     #stream_used = False
     # on initial load, show all data
@@ -367,6 +388,7 @@ class GliderExplorer(param.Parameterized):
         self.startX, self.endX = x_range
         self.startY, self.endY = y_range
 
+    '''
     @param.depends('button_inflow', watch=True)
     def execute_event(self):
         self.markdown.object = """\
@@ -387,6 +409,7 @@ class GliderExplorer(param.Parameterized):
         self.pick_variable = 'oxygen_concentration'
 
         return #self.dynmap*text_annotation
+    '''
 
     @param.depends('pick_basin', watch=True)
     def change_basin(self):
@@ -489,7 +512,7 @@ class GliderExplorer(param.Parameterized):
 
         # Here it is important where the xlims are set. If set on rasterized_dmap,
         # zoom limits are kept, if applied in the end zoom limits won't work
-        self.dynmap = spread(dmap_rasterized, px=2, how='source').opts(
+        self.dynmap = spread(dmap_rasterized, px=1, how='source').opts(
                 invert_yaxis=True,
                 ylim=(self.startY, self.endY),
                 #xlim=(self.startX, self.endX),
@@ -528,23 +551,21 @@ class GliderExplorer(param.Parameterized):
                     #xlim=(6,20),
                     #ylim=(-1.8, 20)),
                 #selection_mode='union'
-                )*dmap.opts(
+                )#*dmap.opts(
                     #heigth=500,
-                    responsive=True,
+                #    responsive=True,
                     #ylim=(-8,None))
-                )
+                #)
             return linked_plots
             #return self.dynmap.opts(
             #xlim=(self.startX, self.endX),
             #ylim=(-8,None),
             #responsive=True,) + dmapTSr
         else:
-            self.dynmap = self.dynmap*dmap
+            self.dynmap = self.dynmap*dmap.opts(
+                    opts.Labels(text_font_size='6pt'))
+            #import pdb; pdb.set_trace();
             return self.dynmap.opts(
-                #xlim=(self.startX, self.endX),
-                #ylim=(self.startY,self.endY),
-                #heigth=500,
-                #ylim=(-8,None),
                 responsive=True,
                 )
 
