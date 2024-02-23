@@ -315,6 +315,7 @@ def download_glider_dataset(dataset_ids, metadata, variables=(), constraints={},
                 ds = add_adcp_data(ds)
             glider_datasets[ds_name] = ds#dask.dataframe.from_pandas(ds.to_pandas().resample('5s').mean(), npartitions=16).compute()
         glider_datasets[ds_name] = dask.dataframe.from_pandas(glider_datasets[ds_name].to_pandas().resample('5s').mean(), npartitions=16).compute()
+        glider_datasets[ds_name]['depth'] = -glider_datasets[ds_name]['depth']
     return glider_datasets
 
 def format_difference(deg_e, deg_n, ns_ahead):
