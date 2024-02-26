@@ -51,6 +51,7 @@ metadata, all_datasets = utils.filter_metadata()
 metadata = metadata.drop(['nrt_SEA067_M15', 'nrt_SEA079_M14', 'nrt_SEA061_M63'], errors='ignore') #!!!!!!!!!!!!!!!!!!!! # temporary data inconsistency
 metadata['time_coverage_start (UTC)'] = metadata['time_coverage_start (UTC)'].dt.tz_convert(None)
 metadata['time_coverage_end (UTC)'] = metadata['time_coverage_end (UTC)'].dt.tz_convert(None)
+
 """
 all_dataset_ids = utils.add_delayed_dataset_ids(metadata, all_datasets) # hacky
 
@@ -205,7 +206,7 @@ def get_xsection(x_range, y_range):
         y=5,
         text=meta_start_in_view.index.str.replace('nrt_', '')))
     ds_labels = hv.Labels(data).opts(
-        fontsize=4,#plt_props['dynfontsize'],
+        fontsize=12,#plt_props['dynfontsize'],
         text_align='left')
     plotslist = []
     if len(meta_start_in_view)>0:
@@ -217,6 +218,8 @@ def get_xsection(x_range, y_range):
         return hv.Overlay(plotslist)#reduce(lambda x, y: x*y, plotslist)
     else:
         return create_None_element('Overlay')
+
+
 
 
 def get_xsection_mld(x_range, y_range):
@@ -243,6 +246,8 @@ def get_xsection_mld(x_range, y_range):
 
 def get_xsection_raster(x_range, y_range, contour_variable=None):
     (x0, x1) = x_range
+    t1 = time.perf_counter()
+    print('start raster')
     meta, plt_props = load_viewport_datasets(x_range)
     plotslist1 = []
 
@@ -256,7 +261,6 @@ def get_xsection_raster(x_range, y_range, contour_variable=None):
         variable=contour_variable
     else:
         variable=currentobject.pick_variable
-
     varlist = []
     for dsid in metakeys:
         ds = dsdict[dsid]
@@ -282,6 +286,8 @@ def get_xsection_raster(x_range, y_range, contour_variable=None):
                 dsconc = dsconc.drop_duplicates(subset=['temperature', 'salinity'])
         currentobject.data_in_view = dsconc
         mplt = create_single_ds_plot_raster(data=dsconc, variable=variable)
+        t2 = time.perf_counter()
+        print(t2-t1)
         return mplt
     else:
         return create_None_element('Overlay')
@@ -304,7 +310,57 @@ def get_xsection_TS(x_range, y_range):
         c=currentobject.pick_variable,
         )[thresh['salinity'].iloc[0]-0.5:thresh['salinity'].iloc[1]+0.5,
           thresh['temperature'].iloc[0]-0.5:thresh['temperature'].iloc[1]+0.5]
+
     return mplt
+
+
+def get_density_contours(x_range, y_range):
+    ######TSPLOT############
+    # Calculate how many gridcells we need in the x and y dimensions
+    import gsw
+
+    dsconc = currentobject.data_in_view
+    t1 = time.perf_counter()
+    thresh = dsconc[['temperature', 'salinity']].quantile(q=[0.001, 0.999])
+    #import xarray as xr
+    smin,smax = (thresh['salinity'].iloc[0]-1, thresh['salinity'].iloc[1]+1)
+    tmin,tmax = (thresh['temperature'].iloc[0]-1, thresh['temperature'].iloc[1]+1)
+
+    #import pdb; pdb.set_trace();
+    xdim = round((smax-smin)/0.1+1,0)
+    ydim = round((tmax-tmin)+1,0)
+
+    # Create empty grid of zeros
+    dens = np.zeros((int(ydim),int(xdim)))
+
+    # Create temp and salt vectors of appropiate dimensions
+    ti = np.linspace(1,ydim-1,int(ydim))+tmin
+    si = np.linspace(1,xdim-1,int(xdim))*0.1+smin
+
+    # Loop to fill in grid with densities
+    for j in range(0,int(ydim)):
+        for i in range(0, int(xdim)):
+            dens[j,i]=gsw.rho(si[i],ti[j],0)
+
+    # Substract 1000 to convert to sigma-t
+    dens = dens - 1000
+
+    #da = xr.DataArray(dens, coords={'temperature': ti,'salinity': si}, dims=["temperature", "salinity"]).to_pandas()
+    #da = pd.Dataset.from_dict()
+    #import pdb; pdb.set_trace()
+
+    dcont = hv.QuadMesh((si, ti, dens))
+    dcont = hv.operation.contours(
+        dcont,
+        #overlaid=True,
+        ).opts(
+        show_legend=False,
+        cmap='dimgray',
+        )
+    # this is good but the ranges are not yet automatically adjusted.
+    # also, maybe the contour color should be something more discrete
+    ##########END TSPLOT######
+    return dcont
 
 def create_None_element(type):
     # This is just a hack because I can't return None to dynamic maps
@@ -390,7 +446,7 @@ class GliderExplorer(param.Parameterized):
         return #self.dynmap*text_annotation
     '''
 
-    @param.depends('pick_basin', watch=True)
+    @param.depends('pick_basin', watch=False)
     def change_basin(self):
         # on initial load, show all data
         x_range=(
@@ -435,24 +491,36 @@ class GliderExplorer(param.Parameterized):
                 streams=[range_stream],
                 cache_size=1,)
 
+            dcont = hv.DynamicMap(
+                get_density_contours,
+                streams=[range_stream]).opts(
+                alpha=0.5,
+                )
+            #import pdb; pdb.set_trace();
+
             dmapTSr = rasterize(
                 dmap_TS,
+                pixel_ratio=0.5,
                 ).opts(
                 cnorm='eq_hist',
                 )
 
-            dmapTSr = spread(dmapTSr, px=1, shape='circle')
+            #dmapTSr = spread(dmapTSr,
+            #    px=1, shape='circle')
 
             # This is the alternative version coloring the
             # TS plot by the chosen variable. Works well!
             # I should make it configurable
             #dmapTSr = rasterize(
             #    dmap_TS,
-            #    aggregator=means,
+            #    pixel_ratio=0.5,
+            #   aggregator=means,
             #    ).opts(
             #    cnorm='eq_hist',
-            #    height=commonheights,
-            #    xlim=(5,17))
+            #    cmap=dictionaries.cmap_dict[self.pick_variable],#,cmap
+            #    clabel=self.pick_variable,
+            #    colorbar=True,
+            #    )
 
         dmap = hv.DynamicMap(
             get_xsection,
@@ -463,6 +531,7 @@ class GliderExplorer(param.Parameterized):
             aggregator=means,
             #x_sampling=8.64e13/48,
             y_sampling=0.2,
+            pixel_ratio=0.5,
             ).opts(
             #invert_yaxis=True,
             colorbar=True,
@@ -490,7 +559,13 @@ class GliderExplorer(param.Parameterized):
                 )
         if self.pick_contours:
             if self.pick_contours == self.pick_variable:
-                self.dynmap = self.dynmap * hv.operation.contours(self.dynmap, levels=5)
+                self.dynmap = self.dynmap * hv.operation.contours(
+                    self.dynmap,
+                    levels=10,
+                    ).opts(
+                        #cmap=dictionaries.cmap_dict[self.pick_contours],
+                        line_width=2.,
+                    )
             else:
 
                 dmap_contour = hv.DynamicMap(
@@ -501,9 +576,16 @@ class GliderExplorer(param.Parameterized):
                 dmap_contour_rasterized = rasterize(dmap_contour,
                     aggregator=means_contour,
                     y_sampling=0.2,
+                    pixel_ratio=0.5,
                     ).opts()
                 #self.dynmap = self.dynmap #* hv.operation.contours(dmap_contour_rasterized, levels=5)
-                self.dynmap = self.dynmap * hv.operation.contours(dmap_contour_rasterized, levels=5)
+                self.dynmap = self.dynmap * hv.operation.contours(
+                    dmap_contour_rasterized,
+                    levels=10,
+                    ).opts(
+                        #cmap=dictionaries.cmap_dict[self.pick_contours],
+                        line_width=2.,
+                    )
 
         if self.pick_mld:
             dmap_mld = hv.DynamicMap(
@@ -529,6 +611,10 @@ class GliderExplorer(param.Parameterized):
                 #    responsive=True,
                     #ylim=(-8,None))
                 #)
+            linked_plots.DynamicMap.II = dcont*linked_plots.DynamicMap.II
+            #import pdb; pdb.set_trace()
+
+
             return linked_plots
             #return self.dynmap.opts(
             #xlim=(self.startX, self.endX),
@@ -542,60 +628,93 @@ class GliderExplorer(param.Parameterized):
                 responsive=True,
                 )
 
-class MetaExplorer(param.Parameterized):
-    pick_serial = param.ObjectSelector(
-        default='glider_serial', objects=[
-        'glider_serial', 'optics_serial', 'altimeter_serial',
-        'irradiance_serial','project',],
-        label='Equipment Ser. No.', doc='Track equipment or gliders')
 
-    @param.depends('pick_serial') # outcommenting this means just depend on all, redraw always
-    def create_timeline(self):
-        dfm = all_metadata.sort_values('basin')#px.data.iris() # replace with your own data source
-        #fig = make_subplots(rows=1, cols=1,
-        #                shared_xaxes=True,
-        #                vertical_spacing=0.02)
-        dims=self.pick_serial
-        fig = px.timeline(dfm,
-            x_start="time_coverage_start (UTC)",
-            x_end="time_coverage_end (UTC)",
-            y="basin",
-            hover_name=dfm.index,
-            #color_discrete_map=['lightgrey'],
-            color_discrete_map={
-            0: "lightgrey", "nan":"grey"},
-            hover_data=['ctd_serial', 'optics_serial'],
-            color=dims,
-            pattern_shape=dims,
-            height=400,
-            #scrollZoom=True,
-                    )
+highlight = pn.widgets.AutocompleteInput(
+    value='glider_serial',
+    name='highlight', options=sorted(all_metadata.columns.values),
+    case_sensitive=False, search_strategy='includes',)
+#import pdb; pdb.set_trace();
+highlight.search_strategy = 'includes'
+    #case_sensitive=False, search_strategy='includes',
+    #placeholder='Write something here')
 
-            # Add range slider
-        fig.update_layout(
-            title=dims,
-            xaxis=dict(
-                rangeslider=dict(
-                    visible=True
-                ),
-                #type="date"
-            )
+#class MetaExplorer(param.Parameterized):
+    #import pdb; pdb.set_trace();
+
+#    highlight = param.Selector(
+#        check_on_set=True,
+#        default='glider_serial', objects=sorted(all_metadata.columns.values),
+#        label='Equipment Ser. No.', doc='Track equipment or gliders')
+
+    #pick_variable = param.ObjectSelector(
+    #    default='cdom_available', objects=[
+    #    'temperature_available', 'salinity_available', 'cdom_available', 'chlorophyll_available'],
+    #    label='Observation variable', doc='highligt missions with this observation variable')
+
+    #@param.depends('highlight', watch=True)
+    #def highlight_variable(self):
+    #    highligt = self.pick_variable
+    #    fig = self.create_timeline(highligt)
+    #    return fig
+
+    #@param.depends('pick_serial', watch=True)
+    #def highlight_serial_nr(self):
+    #    highligt = self.pick_serial
+    #    fig = self.create_timeline(highligt)
+    #    return fig
+
+    #@param.depends('pick_variable', watch=False)
+
+def create_timeline(highlight='glider_serial'):
+    dfm = all_metadata.sort_values('basin')#px.data.iris() # replace with your own data source
+    #fig = make_subplots(rows=1, cols=1,
+    #                shared_xaxes=True,
+    #                vertical_spacing=0.02)
+    dims=highlight#self.pick_serial
+    print('HIGHLIGHT:', highlight)
+    fig = px.timeline(dfm,
+        x_start="time_coverage_start (UTC)",
+        x_end="time_coverage_end (UTC)",
+        y="basin",
+        hover_name=dfm.index,
+        #color_discrete_map=['lightgrey'],
+        color_discrete_map={
+        0: "lightgrey", "nan":"grey"},
+        hover_data=['ctd_serial', 'optics_serial'],
+        color=dims,
+        pattern_shape=dims,
+        height=400,
+        #scrollZoom=True,
+                )
+
+        # Add range slider
+    fig.update_layout(
+        title=dims,
+        xaxis=dict(
+            rangeslider=dict(
+                visible=True
+            ),
+            #type="date"
         )
+    )
 
-        for shape in fig['data']:
-            shape['opacity'] = 0.7
-        for i, d in enumerate(fig.data):
-            d.width = (metadata.deployment_id%2+10)/12
-        fig.layout.autosize = True
-        fig.update_layout(height=400)
-        #fig.layout.width='100%'
-        #fig.layout.column.col
-        return fig
+    for shape in fig['data']:
+        shape['opacity'] = 0.7
+    for i, d in enumerate(fig.data):
+        d.width = (metadata.deployment_id%2+10)/12
+    fig.layout.autosize = True
+    fig.update_layout(height=400)
+    #fig.layout.width='100%'
+    #fig.layout.column.col
+    return fig
 
+    # @param.depends()#@param.depends('pick_serial', 'pick_variable') # outcommenting this means just depend on all, redraw always
+
+bound_plot = pn.bind(create_timeline, highlight=highlight)
 
 def create_app_instance():
     glider_explorer=GliderExplorer()
-    meta_explorer=MetaExplorer()
+    #meta_explorer=MetaExplorer()
     #pp = pn.pane.Plotly(meta_explorer.create_timeline, config={'responsive': True, 'height':400})
     #pp = pn.pane(meta_explorer.create_timeline, height=100, sizing_mode='stretch_width')
     layout = pn.Column(
@@ -609,10 +728,17 @@ def create_app_instance():
     ),
     pn.Row(glider_explorer.markdown),
     pn.Row(
-        pn.Column(meta_explorer.param,height=500,),
-        pn.Column(meta_explorer.create_timeline,height=500,),#, sizing_mode='stretch_width'),
-        height=500,
-        scroll=True,#, height=420
+        pn.Column(highlight, bound_plot),
+        #pn.Column(pn.Param(meta_explorer.param['highlight'],
+        #          widgets={'highlight':pn.widgets.AutocompleteInput,
+        #          'placeholder': 'type...',
+        #          'search_strategy':'includes',
+        #          'case_sensitive':False,
+        #          'restrict':True}),
+        #    height=500,),
+        #pn.Column(bound_plot,height=500,),#, sizing_mode='stretch_width'),
+        #height=500,
+        #scroll=True,#, height=420
         #sizing_mode='stretch_width'
         )
     )
@@ -664,5 +790,7 @@ Future development ideas:
 * currently, the import statements make up a substantial part of the initial loading time -> check for unused imports, check enable chaching, check if new import necessary for each intial load. (time saving 4s)
 * Should refactor out the three (?) different methods of concatenating datasets and instead have one function to do that all. Then also switch between dataframes/dask should be easier.
 * in the xr.open_mfdataset, path all the dataset_ids in a list instead and keep parallel=True activated to drastically improve startup time.Maybe this could even enable live loading of the data, instead of preloading it into the RAM/dask
+
+expensive: datashader_apply spreading 2.464
 ...
 """
