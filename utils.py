@@ -60,7 +60,17 @@ def load_metadata():
     metadata['altimeter_serial'] = metadata.altimeter_serial.apply(obj_to_string)
     metadata['glider_serial'] = metadata.glider_serial.apply(obj_to_string)
     metadata['basin'] = metadata.basin.apply(basin_simplify)
+    metadata['time_coverage_end (UTC)'] = pd.to_datetime(metadata['time_coverage_end (UTC)'])
+    metadata['time_coverage_start (UTC)'] = pd.to_datetime(metadata['time_coverage_start (UTC)'])
+    return metadata, all_datasets
 
+
+def variable_exists(x, variable):
+    # import pdb; pdb.set_trace();
+    return variable in x
+
+
+def create_available_variables_columns(metadata):
     # create list of all variables
     all_variables_set = set()
     menuentries = []
@@ -73,11 +83,9 @@ def load_metadata():
     for variable in list(all_variables_set):
         newmetadatacolumns[variable+'_available'] = metadata.variables.apply(variable_exists, args=(variable,))
         menuentries.append({'label':variable+'_available', 'value':variable+'_available'})
-        menuentries_variables.append({'label':variable,variable+'_available' 'value':variable})
+        #menuentries_variables.append({'label':variable,variable+'_available' 'value':variable})
     metadata = metadata.join(pd.DataFrame.from_dict(newmetadatacolumns))
-    metadata['time_coverage_end (UTC)'] = pd.to_datetime(metadata['time_coverage_end (UTC)'])
-    metadata['time_coverage_start (UTC)'] = pd.to_datetime(metadata['time_coverage_start (UTC)'])
-    return metadata, all_datasets
+    return metadata
 
 
 def filter_metadata():
@@ -85,10 +93,11 @@ def filter_metadata():
     mode = 'all' # 'nrt', 'delayed'
     metadata, all_datasets = load_metadata()
     metadata = metadata[
-        #(metadata['project']=='NS_Bornholm')
+        (metadata['project']=='SAMBA') &
         (metadata['basin']=='Bornholm Basin') &
+        #(metadata['basin']=='Åland Sea') &
         #(metadata['time_coverage_start (UTC)'].dt.year<2021) #&
-        (metadata['time_coverage_start (UTC)'].dt.year<2024) #&
+        (metadata['time_coverage_start (UTC)'].dt.year>2022) #&
         #(metadata['time_coverage_start (UTC)'].dt.month<3)
         ]
     #for basins

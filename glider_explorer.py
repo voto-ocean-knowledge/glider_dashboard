@@ -393,6 +393,8 @@ class GliderExplorer(param.Parameterized):
         default=False, label='MLD', doc='mixed layer depth')
     pick_TS = param.Boolean(
         default=False, label='TSplot', doc='activate salinity temperature diagram')
+    pick_TS_colored_by_variable = param.Boolean(
+        default=False, label='color TS by variable', doc='colors the TS plot by the colormesh variable')
     pick_contours = param.Selector(default=None, objects=[
         None, 'temperature', 'salinity', 'potential_density',
         'chlorophyll','oxygen_concentration', 'cdom', 'backscatter_scaled', 'methane_concentration'],
@@ -458,7 +460,7 @@ class GliderExplorer(param.Parameterized):
 
     #@pn.cache(max_items=2, policy='FIFO')
     @param.depends('pick_cnorm','pick_variable', 'pick_aggregation',
-        'pick_mld', 'pick_basin', 'pick_TS', 'pick_contours') # outcommenting this means just depend on all, redraw always
+        'pick_mld', 'pick_basin', 'pick_TS', 'pick_contours', 'pick_TS_colored_by_variable') # outcommenting this means just depend on all, redraw always
     def create_dynmap(self):
         commonheights = 500
         x_range=(self.startX,
@@ -497,30 +499,30 @@ class GliderExplorer(param.Parameterized):
                 alpha=0.5,
                 )
             #import pdb; pdb.set_trace();
+            if not self.pick_TS_colored_by_variable:
+                dmapTSr = rasterize(
+                    dmap_TS,
+                    pixel_ratio=0.5,
+                    ).opts(
+                    cnorm='eq_hist',
+                    )
+            else:
+                #dmapTSr = spread(dmapTSr,
+                #px=1, shape='circle')
 
-            dmapTSr = rasterize(
-                dmap_TS,
-                pixel_ratio=0.5,
-                ).opts(
-                cnorm='eq_hist',
-                )
-
-            #dmapTSr = spread(dmapTSr,
-            #    px=1, shape='circle')
-
-            # This is the alternative version coloring the
-            # TS plot by the chosen variable. Works well!
-            # I should make it configurable
-            #dmapTSr = rasterize(
-            #    dmap_TS,
-            #    pixel_ratio=0.5,
-            #   aggregator=means,
-            #    ).opts(
-            #    cnorm='eq_hist',
-            #    cmap=dictionaries.cmap_dict[self.pick_variable],#,cmap
-            #    clabel=self.pick_variable,
-            #    colorbar=True,
-            #    )
+                # This is the alternative version coloring the
+                # TS plot by the chosen variable. Works well!
+                # I should make it configurable
+                dmapTSr = rasterize(
+                    dmap_TS,
+                    pixel_ratio=0.5,
+                aggregator=means,
+                    ).opts(
+                    cnorm='eq_hist',
+                    cmap=dictionaries.cmap_dict[self.pick_variable],#,cmap
+                    clabel=self.pick_variable,
+                    colorbar=True,
+                    )
 
         dmap = hv.DynamicMap(
             get_xsection,
@@ -628,93 +630,60 @@ class GliderExplorer(param.Parameterized):
                 responsive=True,
                 )
 
+class MetaExplorer(param.Parameterized):
+    pick_serial = param.ObjectSelector(
+        default='glider_serial', objects=[
+        'glider_serial', 'optics_serial', 'altimeter_serial',
+        'irradiance_serial','project', all_metadata.columns.values],
+        label='Equipment Ser. No.', doc='Track equipment or gliders')
 
-highlight = pn.widgets.AutocompleteInput(
-    value='glider_serial',
-    name='highlight', options=sorted(all_metadata.columns.values),
-    case_sensitive=False, search_strategy='includes',)
-#import pdb; pdb.set_trace();
-highlight.search_strategy = 'includes'
-    #case_sensitive=False, search_strategy='includes',
-    #placeholder='Write something here')
+    @param.depends('pick_serial') # outcommenting this means just depend on all, redraw always
+    def create_timeline(self):
+        dfm = all_metadata.sort_values('basin')#px.data.iris() # replace with your own data source
+        #fig = make_subplots(rows=1, cols=1,
+        #                shared_xaxes=True,
+        #                vertical_spacing=0.02)
+        dims=self.pick_serial
+        fig = px.timeline(dfm,
+            x_start="time_coverage_start (UTC)",
+            x_end="time_coverage_end (UTC)",
+            y="basin",
+            hover_name=dfm.index,
+            #color_discrete_map=['lightgrey'],
+            color_discrete_map={
+            0: "lightgrey", "nan":"grey"},
+            hover_data=['ctd_serial', 'optics_serial'],
+            color=dims,
+            pattern_shape=dims,
+            height=400,
+            #scrollZoom=True,
+                    )
 
-#class MetaExplorer(param.Parameterized):
-    #import pdb; pdb.set_trace();
-
-#    highlight = param.Selector(
-#        check_on_set=True,
-#        default='glider_serial', objects=sorted(all_metadata.columns.values),
-#        label='Equipment Ser. No.', doc='Track equipment or gliders')
-
-    #pick_variable = param.ObjectSelector(
-    #    default='cdom_available', objects=[
-    #    'temperature_available', 'salinity_available', 'cdom_available', 'chlorophyll_available'],
-    #    label='Observation variable', doc='highligt missions with this observation variable')
-
-    #@param.depends('highlight', watch=True)
-    #def highlight_variable(self):
-    #    highligt = self.pick_variable
-    #    fig = self.create_timeline(highligt)
-    #    return fig
-
-    #@param.depends('pick_serial', watch=True)
-    #def highlight_serial_nr(self):
-    #    highligt = self.pick_serial
-    #    fig = self.create_timeline(highligt)
-    #    return fig
-
-    #@param.depends('pick_variable', watch=False)
-
-def create_timeline(highlight='glider_serial'):
-    dfm = all_metadata.sort_values('basin')#px.data.iris() # replace with your own data source
-    #fig = make_subplots(rows=1, cols=1,
-    #                shared_xaxes=True,
-    #                vertical_spacing=0.02)
-    dims=highlight#self.pick_serial
-    print('HIGHLIGHT:', highlight)
-    fig = px.timeline(dfm,
-        x_start="time_coverage_start (UTC)",
-        x_end="time_coverage_end (UTC)",
-        y="basin",
-        hover_name=dfm.index,
-        #color_discrete_map=['lightgrey'],
-        color_discrete_map={
-        0: "lightgrey", "nan":"grey"},
-        hover_data=['ctd_serial', 'optics_serial'],
-        color=dims,
-        pattern_shape=dims,
-        height=400,
-        #scrollZoom=True,
-                )
-
-        # Add range slider
-    fig.update_layout(
-        title=dims,
-        xaxis=dict(
-            rangeslider=dict(
-                visible=True
-            ),
-            #type="date"
+            # Add range slider
+        fig.update_layout(
+            title=dims,
+            xaxis=dict(
+                rangeslider=dict(
+                    visible=True
+                ),
+                #type="date"
+            )
         )
-    )
 
-    for shape in fig['data']:
-        shape['opacity'] = 0.7
-    for i, d in enumerate(fig.data):
-        d.width = (metadata.deployment_id%2+10)/12
-    fig.layout.autosize = True
-    fig.update_layout(height=400)
-    #fig.layout.width='100%'
-    #fig.layout.column.col
-    return fig
+        for shape in fig['data']:
+            shape['opacity'] = 0.7
+        for i, d in enumerate(fig.data):
+            d.width = (metadata.deployment_id%2+10)/12
+        fig.layout.autosize = True
+        fig.update_layout(height=400)
+        #fig.layout.width='100%'
+        #fig.layout.column.col
+        return fig
 
-    # @param.depends()#@param.depends('pick_serial', 'pick_variable') # outcommenting this means just depend on all, redraw always
-
-bound_plot = pn.bind(create_timeline, highlight=highlight)
 
 def create_app_instance():
     glider_explorer=GliderExplorer()
-    #meta_explorer=MetaExplorer()
+    meta_explorer=MetaExplorer()
     #pp = pn.pane.Plotly(meta_explorer.create_timeline, config={'responsive': True, 'height':400})
     #pp = pn.pane(meta_explorer.create_timeline, height=100, sizing_mode='stretch_width')
     layout = pn.Column(
@@ -728,17 +697,10 @@ def create_app_instance():
     ),
     pn.Row(glider_explorer.markdown),
     pn.Row(
-        pn.Column(highlight, bound_plot),
-        #pn.Column(pn.Param(meta_explorer.param['highlight'],
-        #          widgets={'highlight':pn.widgets.AutocompleteInput,
-        #          'placeholder': 'type...',
-        #          'search_strategy':'includes',
-        #          'case_sensitive':False,
-        #          'restrict':True}),
-        #    height=500,),
-        #pn.Column(bound_plot,height=500,),#, sizing_mode='stretch_width'),
-        #height=500,
-        #scroll=True,#, height=420
+        pn.Column(meta_explorer.param,height=500,),
+        pn.Column(meta_explorer.create_timeline,height=500,),#, sizing_mode='stretch_width'),
+        height=500,
+        scroll=True,#, height=420
         #sizing_mode='stretch_width'
         )
     )
