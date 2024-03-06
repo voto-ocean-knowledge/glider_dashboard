@@ -473,15 +473,16 @@ class GliderExplorer(param.Parameterized):
         return #self.dynmap*text_annotation
     '''
 
-    @param.depends('pick_basin', watch=False)
+    @param.depends('pick_basin', watch=True)
     def change_basin(self):
-        # on initial load, show all data
+        # bug: setting watch=True enables correct reset of (y-) coordinates, but leads to double initialization (slow)
+        # setting watch=False fixes initialization but does not keep y-coordinate.
         x_range=(
         metadata[metadata['basin']==self.pick_basin]['time_coverage_start (UTC)'].min().to_datetime64(),
         metadata[metadata['basin']==self.pick_basin]['time_coverage_end (UTC)'].max().to_datetime64())
         self.startX, self.endX = x_range
         self.startY = None
-        self.endY = 8
+        self.endY = 12
 
     #@pn.cache(max_items=2, policy='FIFO')
     @param.depends('pick_cnorm','pick_variable', 'pick_aggregation',
