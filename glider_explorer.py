@@ -304,12 +304,29 @@ def get_xsection_TS(x_range, y_range):
     t1 = time.perf_counter()
     thresh = dsconc[['temperature', 'salinity']].quantile(q=[0.001, 0.999])
     t2 = time.perf_counter()
+    # variable=currentobject.pick_variable
     mplt = dsconc.hvplot.scatter(
         x='salinity',
         y='temperature',
         c=currentobject.pick_variable,
         )[thresh['salinity'].iloc[0]-0.5:thresh['salinity'].iloc[1]+0.5,
           thresh['temperature'].iloc[0]-0.5:thresh['temperature'].iloc[1]+0.5]
+
+    return mplt
+
+
+def get_xsection_profiles(x_range, y_range):
+    dsconc = currentobject.data_in_view
+    t1 = time.perf_counter()
+    thresh = dsconc[['temperature', 'salinity']].quantile(q=[0.001, 0.999])
+    t2 = time.perf_counter()
+    # variable=currentobject.pick_variable
+    mplt = dsconc.hvplot.scatter(
+        x=currentobject.pick_variable,
+        y='depth',
+        c=currentobject.pick_variable,
+        )#[thresh['salinity'].iloc[0]-0.5:thresh['salinity'].iloc[1]+0.5,
+         #thresh['temperature'].iloc[0]-0.5:thresh['temperature'].iloc[1]+0.5]
 
     return mplt
 
@@ -373,32 +390,40 @@ def create_None_element(type):
 
 class GliderExplorer(param.Parameterized):
 
-    pick_variable = param.ObjectSelector(
+    pick_variable = param.Selector(
         default='temperature', objects=[
         'temperature', 'salinity', 'potential_density',
         'chlorophyll','oxygen_concentration', 'cdom', 'backscatter_scaled', 'methane_concentration'],
-        label='variable', doc='Variable presented as colormesh')
-    pick_basin = param.ObjectSelector(
+        label='variable', doc='Variable used to create colormesh')
+    pick_basin = param.Selector(
         default='Bornholm Basin', objects=[
         'Bornholm Basin', 'Eastern Gotland',
         'Western Gotland', 'Skagerrak, Kattegat',
         'Åland Sea'], label='SAMBA observatory'
     )
-    pick_cnorm = param.ObjectSelector(
-        default='linear', objects=['linear', 'eq_hist', 'log'], doc='colorbar transformations', label='cbar scale')
-    pick_aggregation = param.ObjectSelector(
-        default='mean', objects=['mean', 'std', 'var'], label='aggregation',
-        doc='choose method to aggregate different values that fall into one bin')
+    pick_cnorm = param.Selector(
+        default='linear', objects=['linear', 'eq_hist', 'log'], doc='Colorbar Transformations', label='Colourbar Scale')
+    pick_aggregation = param.Selector(
+        default='mean', objects=['mean', 'std'], label='Data Aggregation',
+        doc='Method that is applied after binning')
     pick_mld = param.Boolean(
-        default=False, label='MLD', doc='mixed layer depth')
+        default=False, label='MLD', doc='Show Mixed Layer Depth')
     pick_TS = param.Boolean(
-        default=False, label='TSplot', doc='activate salinity temperature diagram')
+        default=False, label='Show TS-diagram', doc='Activate salinity-temperature diagram')
+    pick_profiles = param.Boolean(
+        default=False, label='Show profiles', doc='Activate profiles diagram')
     pick_TS_colored_by_variable = param.Boolean(
-        default=False, label='color TS by variable', doc='colors the TS plot by the colormesh variable')
+        default=False, label='Colour TS by variable', doc='Colours the TS diagram by "variable" instead of "count of datapoints"')
     pick_contours = param.Selector(default=None, objects=[
         None, 'temperature', 'salinity', 'potential_density',
         'chlorophyll','oxygen_concentration', 'cdom', 'backscatter_scaled', 'methane_concentration'],
         label='contour variable', doc='Variable presented as contour')
+    pick_high_resolution = param.Boolean(
+        default=False, label='Increased Resolution', doc='Increases the rendering resolution (slower performance)')
+
+
+    # import pdb; pdb.set_trace();
+
     #default=False, label='Contours', doc='add contours to the colormesh figure')
     #pick_contours_variable = param.ObjectSelector(
     #    default='potential_density', objects=[
@@ -460,8 +485,18 @@ class GliderExplorer(param.Parameterized):
 
     #@pn.cache(max_items=2, policy='FIFO')
     @param.depends('pick_cnorm','pick_variable', 'pick_aggregation',
-        'pick_mld', 'pick_basin', 'pick_TS', 'pick_contours', 'pick_TS_colored_by_variable') # outcommenting this means just depend on all, redraw always
+        'pick_mld', 'pick_basin', 'pick_TS', 'pick_contours', 'pick_TS_colored_by_variable', 'pick_high_resolution', 'pick_profiles') # outcommenting this means just depend on all, redraw always
     def create_dynmap(self):
+
+        # import pdb; pdb.set_trace();
+        #if self.pick_TS:
+        #    self.pick_profiles = False
+        #else:
+        #    self.pick_TS_colored_by_variable.constant = True
+        #if self.pick_profiles:
+        #    self.pick_TS_colored_by_variable = False
+        #    self.pick_TS = False
+
         commonheights = 500
         x_range=(self.startX,
                  self.endX)
@@ -484,8 +519,12 @@ class GliderExplorer(param.Parameterized):
             means = dsh.mean(self.pick_variable)
         if self.pick_aggregation=='std':
             means = dsh.std(self.pick_variable)
-        if self.pick_aggregation=='var':
-            means = dsh.var(self.pick_variable)
+        if self.pick_high_resolution:
+            pixel_ratio=1.
+        else:
+            pixel_ratio=0.5
+        #if self.pick_aggregation=='var':
+        #    means = dsh.var(self.pick_variable)
 
         if self.pick_TS:
             dmap_TS = hv.DynamicMap(
@@ -502,7 +541,7 @@ class GliderExplorer(param.Parameterized):
             if not self.pick_TS_colored_by_variable:
                 dmapTSr = rasterize(
                     dmap_TS,
-                    pixel_ratio=0.5,
+                    pixel_ratio=pixel_ratio,
                     ).opts(
                     cnorm='eq_hist',
                     )
@@ -515,7 +554,7 @@ class GliderExplorer(param.Parameterized):
                 # I should make it configurable
                 dmapTSr = rasterize(
                     dmap_TS,
-                    pixel_ratio=0.5,
+                    pixel_ratio=pixel_ratio,
                 aggregator=means,
                     ).opts(
                     cnorm='eq_hist',
@@ -523,6 +562,18 @@ class GliderExplorer(param.Parameterized):
                     clabel=self.pick_variable,
                     colorbar=True,
                     )
+
+        if self.pick_profiles:
+            dmap_profiles = hv.DynamicMap(
+                get_xsection_profiles,
+                streams=[range_stream],
+                cache_size=1,)
+            dmap_profilesr = rasterize(
+                dmap_profiles,
+                pixel_ratio=pixel_ratio,
+                ).opts(
+                cnorm='eq_hist',
+                )
 
         dmap = hv.DynamicMap(
             get_xsection,
@@ -533,7 +584,7 @@ class GliderExplorer(param.Parameterized):
             aggregator=means,
             #x_sampling=8.64e13/48,
             y_sampling=0.2,
-            pixel_ratio=0.5,
+            pixel_ratio=pixel_ratio,
             ).opts(
             #invert_yaxis=True,
             colorbar=True,
@@ -569,7 +620,6 @@ class GliderExplorer(param.Parameterized):
                         line_width=2.,
                     )
             else:
-
                 dmap_contour = hv.DynamicMap(
                     get_xsection_raster_contour,
                     streams=[range_stream],
@@ -578,7 +628,7 @@ class GliderExplorer(param.Parameterized):
                 dmap_contour_rasterized = rasterize(dmap_contour,
                     aggregator=means_contour,
                     y_sampling=0.2,
-                    pixel_ratio=0.5,
+                    pixel_ratio=pixel_ratio,
                     ).opts()
                 #self.dynmap = self.dynmap #* hv.operation.contours(dmap_contour_rasterized, levels=5)
                 self.dynmap = self.dynmap * hv.operation.contours(
@@ -616,6 +666,27 @@ class GliderExplorer(param.Parameterized):
             linked_plots.DynamicMap.II = dcont*linked_plots.DynamicMap.II
             #import pdb; pdb.set_trace()
 
+
+            return linked_plots
+        if self.pick_profiles:
+            linked_plots = link_selections(
+                self.dynmap.opts(
+                    #xlim=(self.startX, self.endX),
+                    #ylim=(self.startY,self.endY),
+                    responsive=True)
+                + dmap_profilesr.opts(
+                    responsive=True,
+                    bgcolor='white',).opts(padding=(0.05, 0.05))
+                    #xlim=(6,20),
+                    #ylim=(-1.8, 20)),
+                #selection_mode='union'
+                )#*dmap.opts(
+                    #heigth=500,
+                #    responsive=True,
+                    #ylim=(-8,None))
+                #)
+            linked_plots.DynamicMap.II = linked_plots.DynamicMap.II
+            #import pdb; pdb.set_trace()
 
             return linked_plots
             #return self.dynmap.opts(
@@ -683,18 +754,73 @@ class MetaExplorer(param.Parameterized):
 
 def create_app_instance():
     glider_explorer=GliderExplorer()
+    glider_explorer2=GliderExplorer()
     meta_explorer=MetaExplorer()
     #pp = pn.pane.Plotly(meta_explorer.create_timeline, config={'responsive': True, 'height':400})
     #pp = pn.pane(meta_explorer.create_timeline, height=100, sizing_mode='stretch_width')
     layout = pn.Column(
     pn.Row(
-        pn.Column(glider_explorer.param
-            #glider_explorer.pick_basin,
+        pn.Column(# glider_explorer.param, # this would autogenerate all of them...
+            pn.Row('Glider Dashboard'),
+            pn.Param(glider_explorer,
+                parameters=['pick_basin'],
+                default_layout=pn.Column,
+                show_name=False),
+            pn.Column(
+                pn.Param(glider_explorer,
+                    parameters=['pick_variable'],
+                    default_layout=pn.Column,
+                    show_name=False),
+                pn.Param(glider_explorer,
+                    parameters=['pick_cnorm'],
+                    #widgets={'pick_cnorm': pn.widgets.RadioButtonGroup},
+                    show_name=False,
+                    ),
+                pn.Param(glider_explorer,
+                    parameters=['pick_aggregation'],
+                    #widgets={'pick_aggregation': pn.widgets.RadioButtonGroup},
+                    show_name=False,
+                    show_labels=True,
+                    ),
+                pn.Param(glider_explorer,
+                    parameters=['pick_contours'],
+                    show_name=False,),
+                styles={'background': '#f0f0f0'},),
+
+            #pn.Param(glider_explorer,
+            #    parameters=['pick_variable'],
+            #    show_name=False,),
+            pn.Param(glider_explorer,
+                parameters=['pick_TS', 'pick_TS_colored_by_variable'],
+                default_layout=pn.Row,
+                show_name=False,
+                display_threshold=10,),
+            pn.Param(glider_explorer,
+                parameters=['pick_high_resolution'],
+                show_name=False,
+                display_threshold=10,),
+            pn.Param(glider_explorer,
+                parameters=['pick_profiles'],
+                show_name=False,
+                display_threshold=10,),
+            #width=300,
+        ),
+            #, 'pick_mld']),
             #glider_explorer.pick_variable
-            ),
+            #),
         pn.Column(glider_explorer.create_dynmap),
         height=600,
     ),
+
+    #pn.Row(
+    #    pn.Column(glider_explorer2.param
+    #        #glider_explorer.pick_basin,
+    #        #glider_explorer.pick_variable
+    #        ),
+    #   pn.Column(glider_explorer2.create_dynmap),
+    #    height=600,
+    #),
+
     pn.Row(glider_explorer.markdown),
     pn.Row(
         pn.Column(meta_explorer.param,height=500,),
