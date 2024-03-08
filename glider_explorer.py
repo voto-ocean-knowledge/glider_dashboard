@@ -302,7 +302,7 @@ def get_xsection_raster_contour(x_range, y_range):
 def get_xsection_TS(x_range, y_range):
     dsconc = currentobject.data_in_view
     t1 = time.perf_counter()
-    thresh = dsconc[['temperature', 'salinity']].quantile(q=[0.001, 0.999])
+    thresh = dsconc[['temperature', 'salinity']].quantile(q=[0.01, 0.99])
     t2 = time.perf_counter()
     # variable=currentobject.pick_variable
     mplt = dsconc.hvplot.scatter(
@@ -318,14 +318,14 @@ def get_xsection_TS(x_range, y_range):
 def get_xsection_profiles(x_range, y_range):
     dsconc = currentobject.data_in_view
     t1 = time.perf_counter()
-    thresh = dsconc[['temperature', 'salinity']].quantile(q=[0.001, 0.999])
+    thresh = dsconc[currentobject.pick_variable].quantile(q=[0.01, 0.99])
     t2 = time.perf_counter()
     # variable=currentobject.pick_variable
     mplt = dsconc.hvplot.scatter(
         x=currentobject.pick_variable,
         y='depth',
         c=currentobject.pick_variable,
-        )#[thresh['salinity'].iloc[0]-0.5:thresh['salinity'].iloc[1]+0.5,
+        )[thresh[currentobject.pick_variable].iloc[0]:thresh[currentobject.pick_variable].iloc[1]]#,
          #thresh['temperature'].iloc[0]-0.5:thresh['temperature'].iloc[1]+0.5]
 
     return mplt
@@ -655,11 +655,12 @@ class GliderExplorer(param.Parameterized):
                     responsive=True)
                 + dmapTSr.opts(
                     responsive=True,
-                    bgcolor='white',).opts(padding=(0.05, 0.05))
+                    bgcolor='white').opts(padding=(0.05, 0.05),),
+                unselected_alpha=0.3)
                     #xlim=(6,20),
                     #ylim=(-1.8, 20)),
                 #selection_mode='union'
-                )#*dmap.opts(
+                #*dmap.opts(
                     #heigth=500,
                 #    responsive=True,
                     #ylim=(-8,None))
@@ -812,6 +813,7 @@ def create_app_instance():
         pn.Column(glider_explorer.create_dynmap),
         height=600,
     ),
+    #pn.Row(glider_explorer2.create_dynmap),
 
     #pn.Row(
     #    pn.Column(glider_explorer2.param
