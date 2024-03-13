@@ -199,7 +199,7 @@ class GliderExplorer(param.Parameterized):
     annotations = []
     about = """\
     # About
-    This is designed to visualize data from the Voice of the Ocean SAMBA observatories. For additional datasets, visit observations.voiceoftheocean.org.
+    This dashboard is designed to visualize data from the Voice of the Ocean SAMBA observatories. For additional datasets, visit observations.voiceoftheocean.org.
     """
     markdown = pn.pane.Markdown(about)
 
@@ -712,10 +712,14 @@ class GliderExplorer(param.Parameterized):
             return create_None_element('Overlay')
 
 class MetaExplorer(param.Parameterized):
+
+    options=['glider_serial', 'optics_serial', 'altimeter_serial',
+        'irradiance_serial','project']
+    # import pdb; pdb.set_trace();
+    options += list(all_metadata.columns)
+
     pick_serial = param.ObjectSelector(
-        default='glider_serial', objects=[
-        'glider_serial', 'optics_serial', 'altimeter_serial',
-        'irradiance_serial','project', all_metadata.columns.values],
+        default='glider_serial', objects=options,
         label='Equipment Ser. No.', doc='Track equipment or gliders')
 
     @param.depends('pick_serial') # outcommenting this means just depend on all, redraw always
