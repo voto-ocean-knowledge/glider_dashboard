@@ -10,6 +10,7 @@ cmap_dict = dict(
     cdom=cmocean.cm.matter,
     fdom=cmocean.cm.haline,
     chlorophyll=cmocean.cm.algae,
+    phycocyanin=cmocean.cm.algae,
     oxygen_concentration=cmocean.cm.amp,
     N2=cmocean.cm.balance,  # cmocean.cm.amp,
     spice=cmocean.cm.matter,

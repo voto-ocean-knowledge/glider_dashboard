@@ -132,252 +132,9 @@ def create_single_ds_plot_raster(
         )
     return raster
 
-def load_viewport_datasets(x_range):
-    t1 = time.perf_counter()
-    (x0, x1) = x_range
-    dt = x1-x0
-    dtns = dt/np.timedelta64(1, 'ns')
-    plt_props = {}
-    meta = metadata[metadata['basin']==currentobject.pick_basin]
-    meta = meta[
-            # x0 and x1 are the time start and end of our view, the other times
-            # are the start and end of the individual datasets. To increase
-            # perfomance, datasets are loaded only if visible, so if
-            # 1. it starts within our view...
-            ((metadata['time_coverage_start (UTC)']>=x0) &
-            (metadata['time_coverage_start (UTC)']<=x1)) |
-            # 2. it ends within our view...
-            ((metadata['time_coverage_end (UTC)']>=x0) &
-            (metadata['time_coverage_end (UTC)']<=x1)) |
-            # 3. it starts before and ends after our view (zoomed in)...
-            ((metadata['time_coverage_start (UTC)']<=x0) &
-            (metadata['time_coverage_end (UTC)']>=x1)) |
-            # 4. or it both, starts and ends within our view (zoomed out)...
-            ((metadata['time_coverage_start (UTC)']>=x0) &
-            (metadata['time_coverage_end (UTC)']<=x1))
-            ]
+"""
 
-    #print(f'len of meta is {len(meta)} in load_viewport_datasets')
-    if (x1-x0)>np.timedelta64(720, 'D'):
-        # activate sparse data mode to speed up reactivity
-        plt_props['zoomed_out'] = False
-        plt_props['dynfontsize']=4
-        plt_props['subsample_freq']=25
-    elif (x1-x0)>np.timedelta64(360, 'D'):
-        # activate sparse data mode to speed up reactivity
-        plt_props['zoomed_out'] = False
-        plt_props['dynfontsize']=4
-        plt_props['subsample_freq']=10
-    elif (x1-x0)>np.timedelta64(180, 'D'):
-        # activate sparse data mode to speed up reactivity
-        plt_props['zoomed_out'] = False
-        plt_props['dynfontsize']=4
-        plt_props['subsample_freq']=4
-    elif (x1-x0)>np.timedelta64(90, 'D'):
-        # activate sparse data mode to speed up reactivity
-        plt_props['zoomed_out'] = False
-        plt_props['dynfontsize']=4
-        plt_props['subsample_freq']=2
-    else:
-        plt_props['zoomed_out'] = False
-        plt_props['dynfontsize']=10
-        plt_props['subsample_freq']=1
-    t2 = time.perf_counter()
-    return meta, plt_props
-
-
-def get_xsection(x_range, y_range):
-    (x0, x1) = x_range
-    t1 = time.perf_counter()
-    meta, plt_props = load_viewport_datasets(x_range)
-
-    meta_start_in_view = meta[
-        (meta['time_coverage_start (UTC)']>x0)]
-    meta_end_in_view = meta[
-        (meta['time_coverage_end (UTC)']<x1)]
-
-    startvlines = hv.Spikes(meta_start_in_view['time_coverage_start (UTC)']).opts(
-        color='grey', spike_length=20).opts(position=-10)
-    endvlines = hv.Spikes(meta_end_in_view['time_coverage_end (UTC)']).opts(
-        color='grey', spike_length=20).opts(position=-10)
-
-    data = pd.DataFrame.from_dict(
-        dict(time=meta_start_in_view['time_coverage_start (UTC)'].values,
-        y=5,
-        text=meta_start_in_view.index.str.replace('nrt_', '')))
-    ds_labels = hv.Labels(data).opts(
-        fontsize=12,#plt_props['dynfontsize'],
-        text_align='left')
-    plotslist = []
-    if len(meta_start_in_view)>0:
-        plotslist.append(startvlines)
-        plotslist.append(ds_labels)
-    if len(meta_end_in_view)>0:
-        plotslist.append(endvlines)
-    if plotslist:
-        return hv.Overlay(plotslist)#reduce(lambda x, y: x*y, plotslist)
-    else:
-        return create_None_element('Overlay')
-
-
-
-
-def get_xsection_mld(x_range, y_range):
-    try:
-        dscopy = utils.add_dive_column(currentobject.data_in_view).compute()
-    except:
-        dscopy = utils.add_dive_column(currentobject.data_in_view)
-    dscopy['depth'] = -dscopy['depth']
-    mld = gt.physics.mixed_layer_depth(dscopy.to_xarray(), 'temperature', thresh=0.3, verbose=True, ref_depth=5)
-    gtime = dscopy.reset_index().groupby(by='profile_num').mean().time
-    dfmld = pd.DataFrame.from_dict(dict(time=gtime.values, mld=-mld.rolling(10, center=True).mean().values)).sort_values(by='time').dropna()
-    if len(dfmld)==0:
-        import pdb; pdb.set_trace();
-    print(dfmld)
-    mldscatter = dfmld.hvplot.line(
-                    x='time',
-                    y='mld',
-                    color='white',
-                    alpha=0.5,
-                    responsive=True,
-                    )
-    return mldscatter
-
-
-def get_xsection_raster(x_range, y_range, contour_variable=None):
-    (x0, x1) = x_range
-    t1 = time.perf_counter()
-    print('start raster')
-    meta, plt_props = load_viewport_datasets(x_range)
-    plotslist1 = []
-
-    if plt_props['zoomed_out']:
-        metakeys = [element.replace('nrt', 'delayed') for element in meta.index]
-    else:
-        metakeys = [element.replace('nrt', 'delayed') if
-            element.replace('nrt', 'delayed') in all_datasets.index else
-            element for element in meta.index]
-    if contour_variable:
-        variable=contour_variable
-    else:
-        variable=currentobject.pick_variable
-    varlist = []
-    for dsid in metakeys:
-        ds = dsdict[dsid]
-        ds = ds[ds.profile_num % plt_props['subsample_freq'] == 0]
-        varlist.append(ds)
-
-    if currentobject.pick_mld:
-        varlist = utils.voto_concat_datasets(varlist)
-    if varlist:
-        # concat and drop_duplicates could potentially be done by pandarallel
-        if currentobject.pick_TS:
-            nanosecond_iterator = 1
-            for ndataset in varlist:
-                ndataset.index = ndataset.index + +np.timedelta64(nanosecond_iterator,'ns')
-                nanosecond_iterator+=1
-        dsconc = dd.concat(varlist)
-        dsconc = dsconc.loc[x_range[0]:x_range[1]]
-        # could be parallelized
-        if currentobject.pick_TS:
-            try:
-                dsconc = dsconc.drop_duplicates(subset=['temperature', 'salinity']).compute()
-            except:
-                dsconc = dsconc.drop_duplicates(subset=['temperature', 'salinity'])
-        currentobject.data_in_view = dsconc
-        mplt = create_single_ds_plot_raster(data=dsconc, variable=variable)
-        t2 = time.perf_counter()
-        print(t2-t1)
-        return mplt
-    else:
-        return create_None_element('Overlay')
-
-
-def get_xsection_raster_contour(x_range, y_range):
-    # This function exists because I cannot pass variables directly
-    variable=currentobject.pick_contours
-    return get_xsection_raster(x_range, y_range, contour_variable=variable)
-
-
-def get_xsection_TS(x_range, y_range):
-    dsconc = currentobject.data_in_view
-    t1 = time.perf_counter()
-    thresh = dsconc[['temperature', 'salinity']].quantile(q=[0.01, 0.99])
-    t2 = time.perf_counter()
-    # variable=currentobject.pick_variable
-    mplt = dsconc.hvplot.scatter(
-        x='salinity',
-        y='temperature',
-        c=currentobject.pick_variable,
-        )[thresh['salinity'].iloc[0]-0.5:thresh['salinity'].iloc[1]+0.5,
-          thresh['temperature'].iloc[0]-0.5:thresh['temperature'].iloc[1]+0.5]
-
-    return mplt
-
-
-def get_xsection_profiles(x_range, y_range):
-    dsconc = currentobject.data_in_view
-    t1 = time.perf_counter()
-    thresh = dsconc[currentobject.pick_variable].quantile(q=[0.01, 0.99])
-    t2 = time.perf_counter()
-    # variable=currentobject.pick_variable
-    mplt = dsconc.hvplot.scatter(
-        x=currentobject.pick_variable,
-        y='depth',
-        c=currentobject.pick_variable,
-        )[thresh[currentobject.pick_variable].iloc[0]:thresh[currentobject.pick_variable].iloc[1]]#,
-         #thresh['temperature'].iloc[0]-0.5:thresh['temperature'].iloc[1]+0.5]
-
-    return mplt
-
-
-def get_density_contours(x_range, y_range):
-    ######TSPLOT############
-    # Calculate how many gridcells we need in the x and y dimensions
-    import gsw
-
-    dsconc = currentobject.data_in_view
-    t1 = time.perf_counter()
-    thresh = dsconc[['temperature', 'salinity']].quantile(q=[0.001, 0.999])
-    #import xarray as xr
-    smin,smax = (thresh['salinity'].iloc[0]-1, thresh['salinity'].iloc[1]+1)
-    tmin,tmax = (thresh['temperature'].iloc[0]-1, thresh['temperature'].iloc[1]+1)
-
-    #import pdb; pdb.set_trace();
-    xdim = round((smax-smin)/0.1+1,0)
-    ydim = round((tmax-tmin)+1,0)
-
-    # Create empty grid of zeros
-    dens = np.zeros((int(ydim),int(xdim)))
-
-    # Create temp and salt vectors of appropiate dimensions
-    ti = np.linspace(1,ydim-1,int(ydim))+tmin
-    si = np.linspace(1,xdim-1,int(xdim))*0.1+smin
-
-    # Loop to fill in grid with densities
-    for j in range(0,int(ydim)):
-        for i in range(0, int(xdim)):
-            dens[j,i]=gsw.rho(si[i],ti[j],0)
-
-    # Substract 1000 to convert to sigma-t
-    dens = dens - 1000
-
-    #da = xr.DataArray(dens, coords={'temperature': ti,'salinity': si}, dims=["temperature", "salinity"]).to_pandas()
-    #da = pd.Dataset.from_dict()
-    #import pdb; pdb.set_trace()
-
-    dcont = hv.QuadMesh((si, ti, dens))
-    dcont = hv.operation.contours(
-        dcont,
-        #overlaid=True,
-        ).opts(
-        show_legend=False,
-        cmap='dimgray',
-        )
-    # this is good but the ranges are not yet automatically adjusted.
-    # also, maybe the contour color should be something more discrete
-    ##########END TSPLOT######
-    return dcont
+"""
 
 def create_None_element(type):
     # This is just a hack because I can't return None to dynamic maps
@@ -393,7 +150,7 @@ class GliderExplorer(param.Parameterized):
     pick_variable = param.Selector(
         default='temperature', objects=[
         'temperature', 'salinity', 'potential_density',
-        'chlorophyll','oxygen_concentration', 'cdom', 'backscatter_scaled', 'methane_concentration'],
+        'chlorophyll','oxygen_concentration', 'cdom', 'backscatter_scaled', 'phycocyanin', 'methane_concentration'],
         label='variable', doc='Variable used to create colormesh')
     pick_basin = param.Selector(
         default='Bornholm Basin', objects=[
@@ -486,7 +243,8 @@ class GliderExplorer(param.Parameterized):
 
     #@pn.cache(max_items=2, policy='FIFO')
     @param.depends('pick_cnorm','pick_variable', 'pick_aggregation',
-        'pick_mld', 'pick_basin', 'pick_TS', 'pick_contours', 'pick_TS_colored_by_variable', 'pick_high_resolution', 'pick_profiles') # outcommenting this means just depend on all, redraw always
+        'pick_mld', 'pick_basin', 'pick_TS', 'pick_contours', 'pick_TS_colored_by_variable', 'pick_high_resolution', 'pick_profiles',
+        watch=True) # outcommenting this means just depend on all, redraw always
     def create_dynmap(self):
 
         # import pdb; pdb.set_trace();
@@ -503,16 +261,17 @@ class GliderExplorer(param.Parameterized):
                  self.endX)
         y_range=(self.startY,
                  self.endY)
-        range_stream = RangeXY(x_range=x_range, y_range=y_range)
+        import numpy
+        range_stream = RangeXY(x_range=x_range, y_range=y_range).rename()
         range_stream.add_subscriber(self.keep_zoom)
         #self.keep_zoom(x_range, y_range)
-        global currentobject
-        currentobject = self
+        #global currentobject
+        #currentobject = self
         t1 = time.perf_counter()
         pick_cnorm='linear'
 
         dmap_raster = hv.DynamicMap(
-            get_xsection_raster,
+            self.get_xsection_raster,
             streams=[range_stream],
         )
 
@@ -529,12 +288,12 @@ class GliderExplorer(param.Parameterized):
 
         if self.pick_TS:
             dmap_TS = hv.DynamicMap(
-                get_xsection_TS,
+                self.get_xsection_TS,
                 streams=[range_stream],
                 cache_size=1,)
 
             dcont = hv.DynamicMap(
-                get_density_contours,
+                self.get_density_contours,
                 streams=[range_stream]).opts(
                 alpha=0.5,
                 )
@@ -566,7 +325,7 @@ class GliderExplorer(param.Parameterized):
 
         if self.pick_profiles:
             dmap_profiles = hv.DynamicMap(
-                get_xsection_profiles,
+                self.get_xsection_profiles,
                 streams=[range_stream],
                 cache_size=1,)
             dmap_profilesr = rasterize(
@@ -577,7 +336,7 @@ class GliderExplorer(param.Parameterized):
                 )
 
         dmap = hv.DynamicMap(
-            get_xsection,
+            self.get_xsection,
             streams=[range_stream],
             cache_size=1)
         #t2 = time.perf_counter()
@@ -622,7 +381,7 @@ class GliderExplorer(param.Parameterized):
                     )
             else:
                 dmap_contour = hv.DynamicMap(
-                    get_xsection_raster_contour,
+                    self.get_xsection_raster_contour,
                     streams=[range_stream],
                     )
                 means_contour = dsh.mean(self.pick_contours)
@@ -642,7 +401,7 @@ class GliderExplorer(param.Parameterized):
 
         if self.pick_mld:
             dmap_mld = hv.DynamicMap(
-                get_xsection_mld, streams=[range_stream], cache_size=1).opts(responsive=True)
+                self.get_xsection_mld, streams=[range_stream], cache_size=1).opts(responsive=True)
             self.dynmap = (self.dynmap.opts(responsive=True) * dmap_mld.opts(responsive=True)).opts(responsive=True)
         for annotation in self.annotations:
             print('insert text annotations defined in events')
@@ -703,6 +462,255 @@ class GliderExplorer(param.Parameterized):
                 responsive=True,
                 )
 
+    def load_viewport_datasets(self, x_range):
+        # import pdb; pdb.set_trace();
+        t1 = time.perf_counter()
+        (x0, x1) = x_range
+        dt = x1-x0
+        dtns = dt/np.timedelta64(1, 'ns')
+        plt_props = {}
+        meta = metadata[metadata['basin']==self.pick_basin]
+        meta = meta[
+                # x0 and x1 are the time start and end of our view, the other times
+                # are the start and end of the individual datasets. To increase
+                # perfomance, datasets are loaded only if visible, so if
+                # 1. it starts within our view...
+                ((metadata['time_coverage_start (UTC)']>=x0) &
+                (metadata['time_coverage_start (UTC)']<=x1)) |
+                # 2. it ends within our view...
+                ((metadata['time_coverage_end (UTC)']>=x0) &
+                (metadata['time_coverage_end (UTC)']<=x1)) |
+                # 3. it starts before and ends after our view (zoomed in)...
+                ((metadata['time_coverage_start (UTC)']<=x0) &
+                (metadata['time_coverage_end (UTC)']>=x1)) |
+                # 4. or it both, starts and ends within our view (zoomed out)...
+                ((metadata['time_coverage_start (UTC)']>=x0) &
+                (metadata['time_coverage_end (UTC)']<=x1))
+                ]
+
+        #print(f'len of meta is {len(meta)} in load_viewport_datasets')
+        if (x1-x0)>np.timedelta64(720, 'D'):
+            # activate sparse data mode to speed up reactivity
+            plt_props['zoomed_out'] = False
+            plt_props['dynfontsize']=4
+            plt_props['subsample_freq']=25
+        elif (x1-x0)>np.timedelta64(360, 'D'):
+            # activate sparse data mode to speed up reactivity
+            plt_props['zoomed_out'] = False
+            plt_props['dynfontsize']=4
+            plt_props['subsample_freq']=10
+        elif (x1-x0)>np.timedelta64(180, 'D'):
+            # activate sparse data mode to speed up reactivity
+            plt_props['zoomed_out'] = False
+            plt_props['dynfontsize']=4
+            plt_props['subsample_freq']=4
+        elif (x1-x0)>np.timedelta64(90, 'D'):
+            # activate sparse data mode to speed up reactivity
+            plt_props['zoomed_out'] = False
+            plt_props['dynfontsize']=4
+            plt_props['subsample_freq']=2
+        else:
+            plt_props['zoomed_out'] = False
+            plt_props['dynfontsize']=10
+            plt_props['subsample_freq']=1
+        t2 = time.perf_counter()
+        return meta, plt_props
+
+    def get_xsection_mld(self, x_range, y_range):
+        try:
+            dscopy = utils.add_dive_column(self.data_in_view).compute()
+        except:
+            dscopy = utils.add_dive_column(self.data_in_view)
+        dscopy['depth'] = -dscopy['depth']
+        mld = gt.physics.mixed_layer_depth(dscopy.to_xarray(), 'temperature', thresh=0.3, verbose=True, ref_depth=5)
+        gtime = dscopy.reset_index().groupby(by='profile_num').mean().time
+        dfmld = pd.DataFrame.from_dict(dict(time=gtime.values, mld=-mld.rolling(10, center=True).mean().values)).sort_values(by='time').dropna()
+        if len(dfmld)==0:
+            import pdb; pdb.set_trace();
+        print(dfmld)
+        mldscatter = dfmld.hvplot.line(
+                        x='time',
+                        y='mld',
+                        color='white',
+                        alpha=0.5,
+                        responsive=True,
+                        )
+        return mldscatter
+
+
+    def get_xsection_raster(self, x_range, y_range, contour_variable=None):
+        (x0, x1) = x_range
+        t1 = time.perf_counter()
+        print('start raster')
+        meta, plt_props = self.load_viewport_datasets(x_range)
+        plotslist1 = []
+
+        if plt_props['zoomed_out']:
+            metakeys = [element.replace('nrt', 'delayed') for element in meta.index]
+        else:
+            metakeys = [element.replace('nrt', 'delayed') if
+                element.replace('nrt', 'delayed') in all_datasets.index else
+                element for element in meta.index]
+        if contour_variable:
+            variable=contour_variable
+        else:
+            variable=self.pick_variable
+        varlist = []
+        for dsid in metakeys:
+            ds = dsdict[dsid]
+            ds = ds[ds.profile_num % plt_props['subsample_freq'] == 0]
+            varlist.append(ds)
+
+        if self.pick_mld:
+            varlist = utils.voto_concat_datasets(varlist)
+        if varlist:
+            # concat and drop_duplicates could potentially be done by pandarallel
+            if self.pick_TS:
+                nanosecond_iterator = 1
+                for ndataset in varlist:
+                    ndataset.index = ndataset.index + +np.timedelta64(nanosecond_iterator,'ns')
+                    nanosecond_iterator+=1
+            dsconc = dd.concat(varlist)
+            dsconc = dsconc.loc[x_range[0]:x_range[1]]
+            # could be parallelized
+            if self.pick_TS:
+                try:
+                    dsconc = dsconc.drop_duplicates(subset=['temperature', 'salinity']).compute()
+                except:
+                    dsconc = dsconc.drop_duplicates(subset=['temperature', 'salinity'])
+            self.data_in_view = dsconc
+            mplt = create_single_ds_plot_raster(data=dsconc, variable=variable)
+            t2 = time.perf_counter()
+            print(t2-t1)
+            return mplt
+        else:
+            return create_None_element('Overlay')
+
+
+    def get_xsection_raster_contour(self, x_range, y_range):
+        # This function exists because I cannot pass variables directly
+        variable=self.pick_contours
+        return self.get_xsection_raster(x_range, y_range, contour_variable=variable)
+
+
+    def get_xsection_TS(self, x_range, y_range):
+        dsconc = self.data_in_view
+        t1 = time.perf_counter()
+        thresh = dsconc[['temperature', 'salinity']].quantile(q=[0.01, 0.99])
+        t2 = time.perf_counter()
+        # variable=currentobject.pick_variable
+        mplt = dsconc.hvplot.scatter(
+            x='salinity',
+            y='temperature',
+            c=self.pick_variable,
+            )[thresh['salinity'].iloc[0]-0.5:thresh['salinity'].iloc[1]+0.5,
+            thresh['temperature'].iloc[0]-0.5:thresh['temperature'].iloc[1]+0.5]
+
+        return mplt
+
+
+    def get_xsection_profiles(self, x_range, y_range):
+        dsconc = self.data_in_view
+        t1 = time.perf_counter()
+        thresh = dsconc[self.pick_variable].quantile(q=[0.01, 0.99])
+        t2 = time.perf_counter()
+        # variable=self.pick_variable
+        #import pdb; pdb.set_trace();
+        try:
+            thresh = thresh.compute()#.iloc[0]
+        except:
+            thresh = thresh
+        mplt = dsconc.hvplot.scatter(
+            x=self.pick_variable,
+            y='depth',
+            c=self.pick_variable,
+            )[thresh.iloc[0]:thresh.iloc[1]]#,
+            #thresh['temperature'].iloc[0]-0.5:thresh['temperature'].iloc[1]+0.5]
+
+        return mplt
+
+
+    def get_density_contours(self, x_range, y_range):
+        ######TSPLOT############
+        # Calculate how many gridcells we need in the x and y dimensions
+        import gsw
+
+        dsconc = self.data_in_view
+        t1 = time.perf_counter()
+        thresh = dsconc[['temperature', 'salinity']].quantile(q=[0.001, 0.999])
+        #import xarray as xr
+        smin,smax = (thresh['salinity'].iloc[0]-1, thresh['salinity'].iloc[1]+1)
+        tmin,tmax = (thresh['temperature'].iloc[0]-1, thresh['temperature'].iloc[1]+1)
+
+        #import pdb; pdb.set_trace();
+        xdim = round((smax-smin)/0.1+1,0)
+        ydim = round((tmax-tmin)+1,0)
+
+        # Create empty grid of zeros
+        dens = np.zeros((int(ydim),int(xdim)))
+
+        # Create temp and salt vectors of appropiate dimensions
+        ti = np.linspace(1,ydim-1,int(ydim))+tmin
+        si = np.linspace(1,xdim-1,int(xdim))*0.1+smin
+
+        # Loop to fill in grid with densities
+        for j in range(0,int(ydim)):
+            for i in range(0, int(xdim)):
+                dens[j,i]=gsw.rho(si[i],ti[j],0)
+
+        # Substract 1000 to convert to sigma-t
+        dens = dens - 1000
+
+        #da = xr.DataArray(dens, coords={'temperature': ti,'salinity': si}, dims=["temperature", "salinity"]).to_pandas()
+        #da = pd.Dataset.from_dict()
+        #import pdb; pdb.set_trace()
+
+        dcont = hv.QuadMesh((si, ti, dens))
+        dcont = hv.operation.contours(
+            dcont,
+            #overlaid=True,
+            ).opts(
+            show_legend=False,
+            cmap='dimgray',
+            )
+        # this is good but the ranges are not yet automatically adjusted.
+        # also, maybe the contour color should be something more discrete
+        ##########END TSPLOT######
+        return dcont
+
+    def get_xsection(self, x_range, y_range):
+        (x0, x1) = x_range
+        t1 = time.perf_counter()
+        meta, plt_props = self.load_viewport_datasets(x_range)
+
+        meta_start_in_view = meta[
+            (meta['time_coverage_start (UTC)']>x0)]
+        meta_end_in_view = meta[
+            (meta['time_coverage_end (UTC)']<x1)]
+
+        startvlines = hv.Spikes(meta_start_in_view['time_coverage_start (UTC)']).opts(
+            color='grey', spike_length=20).opts(position=-10)
+        endvlines = hv.Spikes(meta_end_in_view['time_coverage_end (UTC)']).opts(
+            color='grey', spike_length=20).opts(position=-10)
+
+        data = pd.DataFrame.from_dict(
+            dict(time=meta_start_in_view['time_coverage_start (UTC)'].values,
+            y=5,
+            text=meta_start_in_view.index.str.replace('nrt_', '')))
+        ds_labels = hv.Labels(data).opts(
+            fontsize=12,#plt_props['dynfontsize'],
+            text_align='left')
+        plotslist = []
+        if len(meta_start_in_view)>0:
+            plotslist.append(startvlines)
+            plotslist.append(ds_labels)
+        if len(meta_end_in_view)>0:
+            plotslist.append(endvlines)
+        if plotslist:
+            return hv.Overlay(plotslist)#reduce(lambda x, y: x*y, plotslist)
+        else:
+            return create_None_element('Overlay')
+
 class MetaExplorer(param.Parameterized):
     pick_serial = param.ObjectSelector(
         default='glider_serial', objects=[
@@ -755,8 +763,9 @@ class MetaExplorer(param.Parameterized):
 
 
 def create_app_instance():
+    #glider_explorer=GliderExplorer()
+    #glider_explorer2=GliderExplorer()
     glider_explorer=GliderExplorer()
-    glider_explorer2=GliderExplorer()
     meta_explorer=MetaExplorer()
     #pp = pn.pane.Plotly(meta_explorer.create_timeline, config={'responsive': True, 'height':400})
     #pp = pn.pane(meta_explorer.create_timeline, height=100, sizing_mode='stretch_width')
@@ -813,8 +822,6 @@ def create_app_instance():
         pn.Column(glider_explorer.create_dynmap),
         height=600,
     ),
-    #pn.Row(glider_explorer2.create_dynmap),
-
     #pn.Row(
     #    pn.Column(glider_explorer2.param
     #        #glider_explorer.pick_basin,
@@ -839,7 +846,9 @@ def create_app_instance():
 # glider_explorer2=GliderExplorer()
 
 app = create_app_instance()
+#app2 = create_app_instance()
 app.servable()
+#app2.servable()
 #    port=12345,
 #    websocket_origin='*',
 #    title='VOTO SAMBA data',

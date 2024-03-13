@@ -17,7 +17,7 @@ dutils.cache_dir = pathlib.Path('../voto_erddap_data_cache')
 variables=['temperature', 'salinity', 'depth',
            'potential_density', 'profile_num',
            'profile_direction', 'chlorophyll',
-           'oxygen_concentration',
+           'oxygen_concentration', 'phycocyanin',
 	       #'methane_concentration',
            'cdom', 'backscatter_scaled', 'longitude']
 # dsids = ['../voto_erddap_data_cache/'+element+'.nc' for element in metadata.index]
