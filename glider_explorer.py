@@ -596,7 +596,7 @@ class GliderExplorer(param.Parameterized):
     def get_xsection_TS(self, x_range, y_range):
         dsconc = self.data_in_view
         t1 = time.perf_counter()
-        thresh = dsconc[['temperature', 'salinity']].quantile(q=[0.01, 0.99])
+        thresh = dsconc[['temperature', 'salinity']].quantile(q=[0.001, 0.999])
         t2 = time.perf_counter()
         # variable=currentobject.pick_variable
         mplt = dsconc.hvplot.scatter(
@@ -612,7 +612,7 @@ class GliderExplorer(param.Parameterized):
     def get_xsection_profiles(self, x_range, y_range):
         dsconc = self.data_in_view
         t1 = time.perf_counter()
-        thresh = dsconc[self.pick_variable].quantile(q=[0.01, 0.99])
+        thresh = dsconc[self.pick_variable].quantile(q=[0.001, 0.999])
         t2 = time.perf_counter()
         # variable=self.pick_variable
         #import pdb; pdb.set_trace();
@@ -625,7 +625,7 @@ class GliderExplorer(param.Parameterized):
             y='depth',
             # No clue if this was good or bad. Needs to be testeded!
             c=self.pick_variable,
-            )[thresh.iloc[0]+(0.1*thresh.iloc[0]):thresh.iloc[1]+(0.1*thresh.iloc[1])]#,
+            )[thresh.iloc[0]-(0.1*thresh.iloc[0]):thresh.iloc[1]+(0.1*thresh.iloc[1])]#,
             #thresh['temperature'].iloc[0]-0.5:thresh['temperature'].iloc[1]+0.5]
 
         return mplt
