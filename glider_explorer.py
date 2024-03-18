@@ -424,7 +424,7 @@ class GliderExplorer(param.Parameterized):
                 #    responsive=True,
                     #ylim=(-8,None))
                 #)
-            linked_plots.DynamicMap.II = dcont*linked_plots.DynamicMap.II
+            linked_plots.DynamicMap.II = dcont.opts(xlabel='salinity', ylabel='temperature')*linked_plots.DynamicMap.II
             #import pdb; pdb.set_trace()
 
 
@@ -623,8 +623,9 @@ class GliderExplorer(param.Parameterized):
         mplt = dsconc.hvplot.scatter(
             x=self.pick_variable,
             y='depth',
+            # No clue if this was good or bad. Needs to be testeded!
             c=self.pick_variable,
-            )[thresh.iloc[0]:thresh.iloc[1]]#,
+            )[thresh.iloc[0]+(0.1*thresh.iloc[0]):thresh.iloc[1]+(0.1*thresh.iloc[1])]#,
             #thresh['temperature'].iloc[0]-0.5:thresh['temperature'].iloc[1]+0.5]
 
         return mplt
@@ -668,6 +669,7 @@ class GliderExplorer(param.Parameterized):
         dcont = hv.QuadMesh((si, ti, dens))
         dcont = hv.operation.contours(
             dcont,
+            #vdims=['temperature', 'salinity'],
             #overlaid=True,
             ).opts(
             show_legend=False,
@@ -816,6 +818,10 @@ def create_app_instance():
                 display_threshold=10,),
             pn.Param(glider_explorer,
                 parameters=['pick_profiles'],
+                show_name=False,
+                display_threshold=10,),
+            pn.Param(glider_explorer,
+                parameters=['pick_mld'],
                 show_name=False,
                 display_threshold=10,),
             #width=300,
