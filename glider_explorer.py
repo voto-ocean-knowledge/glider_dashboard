@@ -437,7 +437,8 @@ class GliderExplorer(param.Parameterized):
                     responsive=True)
                 + dmap_profilesr.opts(
                     responsive=True,
-                    bgcolor='white',).opts(padding=(0.05, 0.05))
+                    bgcolor='white',).opts(padding=(0.05, 0.05),),
+                unselected_alpha=0.3
                     #xlim=(6,20),
                     #ylim=(-1.8, 20)),
                 #selection_mode='union'
