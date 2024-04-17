@@ -178,23 +178,15 @@ class GliderExplorer(param.Parameterized):
     pick_high_resolution = param.Boolean(
         default=False, label='Increased Resolution', doc='Increases the rendering resolution (slower performance)')
 
-
-    # import pdb; pdb.set_trace();
-
-    #default=False, label='Contours', doc='add contours to the colormesh figure')
-    #pick_contours_variable = param.ObjectSelector(
-    #    default='potential_density', objects=[
-    #    'temperature', 'salinity', 'potential_density',
-    #    'chlorophyll','oxygen_concentration', 'cdom', 'backscatter_scaled', 'methane_concentration'],
-    #    label='contour variable', doc='Variable presented as contour')
-    # create a button that when pushed triggers 'button'
-    #button_inflow = param.Action(lambda x: x.param.trigger('button_inflow'), label='Animation event example')
     data_in_view = None
     contour_processing = False
-    #stream_used = False
+    # stream_used = False
     # on initial load, show all data
+
     startX, endX = (metadata['time_coverage_start (UTC)'].min().to_datetime64(),
-                    metadata['time_coverage_end (UTC)'].max().to_datetime64())
+                metadata['time_coverage_end (UTC)'].max().to_datetime64())
+
+
     startY, endY = (None, 8)
     annotations = []
     about = """\
@@ -243,8 +235,10 @@ class GliderExplorer(param.Parameterized):
 
     #@pn.cache(max_items=2, policy='FIFO')
     @param.depends('pick_cnorm','pick_variable', 'pick_aggregation',
-        'pick_mld', 'pick_basin', 'pick_TS', 'pick_contours', 'pick_TS_colored_by_variable', 'pick_high_resolution', 'pick_profiles',
-        watch=True) # outcommenting this means just depend on all, redraw always
+        'pick_mld', 'pick_basin', 'pick_TS', 'pick_contours', 'pick_TS_colored_by_variable',
+        'pick_high_resolution', 'pick_profiles',
+        watch=True
+        ) # outcommenting this means just depend on all, redraw always
     def create_dynmap(self):
 
         # import pdb; pdb.set_trace();
@@ -414,8 +408,9 @@ class GliderExplorer(param.Parameterized):
                     responsive=True)
                 + dmapTSr.opts(
                     responsive=True,
-                    bgcolor='white').opts(padding=(0.05, 0.05),),
-                unselected_alpha=0.3)
+                    bgcolor='white').opts(padding=(0.05, 0.05)),
+                unselected_alpha=0.3,
+                cross_filter_mode='overwrite')
                     #xlim=(6,20),
                     #ylim=(-1.8, 20)),
                 #selection_mode='union'
@@ -464,7 +459,7 @@ class GliderExplorer(param.Parameterized):
                 )
 
     def load_viewport_datasets(self, x_range):
-        # import pdb; pdb.set_trace();
+
         t1 = time.perf_counter()
         (x0, x1) = x_range
         dt = x1-x0
@@ -626,7 +621,8 @@ class GliderExplorer(param.Parameterized):
             y='depth',
             # No clue if this was good or bad. Needs to be testeded!
             c=self.pick_variable,
-            )[thresh.iloc[0]-(0.1*thresh.iloc[0]):thresh.iloc[1]+(0.1*thresh.iloc[1])]#,
+            )#[thresh.iloc[0]-(0.1*thresh.iloc[0]):thresh.iloc[1]+(0.1*thresh.iloc[1])]
+            #[thresh.iloc[0]-(0.1*thresh.iloc[0]):thresh.iloc[1]+(0.1*thresh.iloc[1])]#,
             #thresh['temperature'].iloc[0]-0.5:thresh['temperature'].iloc[1]+0.5]
 
         return mplt
@@ -851,6 +847,18 @@ def create_app_instance():
         #sizing_mode='stretch_width'
         )
     )
+    # settings = GliderExplorer()
+    pn.state.location.sync(
+        glider_explorer, {
+            'pick_basin': 'pick_basin',
+            'pick_variable': 'pick_variable',
+            'pick_aggregation': 'pick_aggregation',
+            'pick_mld': 'pick_mld',
+            'pick_TS': 'pick_TS',
+            'pick_profiles': 'pick_profiles',
+            'pick_TS_colored_by_variable': 'pick_TS_colored_by_variable',
+            'pick_contours': 'pick_contours',
+            'pick_high_resolution':'pick_high_resolution',})
     return layout
 
 # usefull to create secondary plot, but not fully indepentently working yet:
