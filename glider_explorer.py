@@ -140,10 +140,12 @@ class GliderExplorer(param.Parameterized):
         default=False, label="MLD", doc="Show Mixed Layer Depth", precedence=1
     )
     pick_startX = param.Date(
-        default=np.datetime64("2024-01-01"), label="startX", doc="startX", precedence=1
+        default=metadata["time_coverage_start (UTC)"].min(),
+        label="startX", doc="startX", precedence=1
     )
     pick_endX = param.Date(
-        default=np.datetime64("2024-03-01"), label="endX", doc="endX", precedence=1
+        default=metadata["time_coverage_end (UTC)"].max(),
+        label="endX", doc="endX", precedence=1
     )
     pick_display_threshold = param.Number(
         default=1, step=1, bounds=(-10, 10), label="display_treshold"
@@ -818,9 +820,9 @@ class MetaExplorer(param.Parameterized):
 
 
 def create_app_instance():
-    # glider_explorer=GliderExplorer()
-    # glider_explorer2=GliderExplorer()
     glider_explorer = GliderExplorer()
+    # glider_explorer2=GliderExplorer()
+
     meta_explorer = MetaExplorer()
     # pp = pn.pane.Plotly(meta_explorer.create_timeline, config={'responsive': True, 'height':400})
     # pp = pn.pane(meta_explorer.create_timeline, height=100, sizing_mode='stretch_width')
@@ -868,6 +870,9 @@ def create_app_instance():
                     show_name=False,
                     # display_threshold=10,
                 ),
+                # This is a hidden parameter, which can be specified in url
+                # to show or hide the menus. Can be useful when emedding interactive
+                # figures in webpages or presentations for example.
                 # pn.Param(glider_explorer,
                 #    parameters=['pick_display_threshold'],
                 #    show_name=False,
