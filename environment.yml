@@ -1,4 +1,4 @@
-name: glider_explorer
+name: glider_explorer_new
 channels:
   - conda-forge
 dependencies:
@@ -15,3 +15,4 @@ dependencies:
   - panel
   - argopy
   - shapely
+  - plotly

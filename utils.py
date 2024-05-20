@@ -15,13 +15,13 @@ def load_metadata():
     e.dataset_id = "meta_metadata_table"
     metadata = e.to_pandas(
         index_col="datasetID",
-        parse_dates=True,
+        date_format="%f"
     )
 
     e.dataset_id = "allDatasets"
     all_datasets = e.to_pandas(
         index_col="datasetID",
-        parse_dates=True,
+        date_format="%f"
     )
 
     def obj_to_string(x):
@@ -97,8 +97,8 @@ def filter_metadata():
         (metadata['basin']=='Bornholm Basin') &
         #(metadata['basin']=='Åland Sea') &
         #(metadata['time_coverage_start (UTC)'].dt.year<2021) #&
-        (metadata['time_coverage_start (UTC)'].dt.year>2022) #&
-        #(metadata['time_coverage_start (UTC)'].dt.month<3)
+        (metadata['time_coverage_start (UTC)'].dt.year>2023) &
+        (metadata['time_coverage_start (UTC)'].dt.month<3)
         ]
     #for basins
     metadata = drop_overlaps(metadata)

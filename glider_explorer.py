@@ -287,7 +287,7 @@ class GliderExplorer(param.Parameterized):
         "pick_high_resolution",
         "pick_profiles",
         "pick_display_threshold",  #'pick_startX', 'pick_endX',
-        watch=True,
+        #watch=True,
     )  # outcommenting this means just depend on all, redraw always
     def create_dynmap(self):
 
@@ -558,10 +558,9 @@ class GliderExplorer(param.Parameterized):
             .sort_values(by="time")
             .dropna()
         )
-        if len(dfmld) == 0:
-            import pdb
-
-            pdb.set_trace()
+        #if len(dfmld) == 0:
+        #    import pdb
+        #    pdb.set_trace()
         print(dfmld)
         mldscatter = dfmld.hvplot.line(
             x="time",
