@@ -20,3 +20,11 @@ cmap_dict = dict(
     methane_concentration=cmocean.cm.thermal,
     methane_raw_concentration=cmocean.cm.thermal
 )
+
+SAMBA_observatories = [
+    "Bornholm Basin",
+    "Eastern Gotland",
+    "Western Gotland",
+    "Skagerrak, Kattegat",
+    "Åland Sea",
+]

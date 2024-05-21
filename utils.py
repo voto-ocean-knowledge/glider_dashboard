@@ -93,15 +93,16 @@ def filter_metadata():
     mode = 'all' # 'nrt', 'delayed'
     metadata, all_datasets = load_metadata()
     metadata = metadata[
-        (metadata['project']=='SAMBA') &
+        #(metadata['project']=='SAMBA') &
         (metadata['basin']=='Bornholm Basin') &
         #(metadata['basin']=='Åland Sea') &
         #(metadata['time_coverage_start (UTC)'].dt.year<2021) #&
-        (metadata['time_coverage_start (UTC)'].dt.year>2023) &
-        (metadata['time_coverage_start (UTC)'].dt.month<3)
+        (metadata['time_coverage_start (UTC)'].dt.year==2022) &
+        (metadata['time_coverage_start (UTC)'].dt.month==10)
+        #(metadata['time_coverage_start (UTC)'].dt.day<15)
         ]
     #for basins
-    metadata = drop_overlaps(metadata)
+    #metadata = drop_overlaps(metadata)
     return metadata, all_datasets
 
 def add_delayed_dataset_ids(metadata, all_datasets):

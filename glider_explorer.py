@@ -61,6 +61,8 @@ ropts = dict(
 
 
 def plot_limits(plot, element):
+    # function to limit user interaction. Can prevent crashes
+    # caused by data before 0AD, data out of range...
     plot.handles["x_range"].min_interval = np.timedelta64(2, "h")
     plot.handles["x_range"].max_interval = np.timedelta64(
         int(5 * 3.15e7), "s"
@@ -110,18 +112,21 @@ class GliderExplorer(param.Parameterized):
         doc="Variable used to create colormesh",
         precedence=1,
     )
+    # show all the basins and all the datasets. I use the nrt data
+    # from the metadatatables as keys, so I skip the 'delayed' sets
+    # with the lambda function.
     pick_basin = param.Selector(
         default="Bornholm Basin",
-        objects=[
-            "Bornholm Basin",
-            "Eastern Gotland",
-            "Western Gotland",
-            "Skagerrak, Kattegat",
-            "Åland Sea",
-        ],
-        label="SAMBA observatory",
+        objects=dictionaries.SAMBA_observatories,
+        label="SAMBA observatory or DatasetID",
         precedence=1,
     )
+
+    pick_toggle = param.Selector(
+        objects=['SAMBA obs.', 'DatasetID'],
+        label="choose by SAMBA observatory or data ID",
+    )
+
     pick_cnorm = param.Selector(
         default="linear",
         objects=["linear", "eq_hist", "log"],
@@ -209,6 +214,7 @@ class GliderExplorer(param.Parameterized):
     # About
     This dashboard is designed to visualize data from the Voice of the Ocean SAMBA observatories. For additional datasets, visit observations.voiceoftheocean.org.
     """
+
     markdown = pn.pane.Markdown(about)
 
     def keep_zoom(self, x_range, y_range):
@@ -231,6 +237,13 @@ class GliderExplorer(param.Parameterized):
             "button_inflow",
         ]:
             self.param[var].precedence = self.pick_display_threshold
+
+    @param.depends("pick_toggle", watch=True)
+    def update_datasource(self):
+        if self.pick_toggle == 'DatasetID':
+            self.param.pick_basin.objects = list(filter(lambda k: 'nrt' in k, dsdict.keys()))
+        else:
+            self.param.pick_basin.objects = dictionaries.SAMBA_observatories
 
     @param.depends("button_inflow", watch=True)
     def execute_event(self):
@@ -263,15 +276,19 @@ class GliderExplorer(param.Parameterized):
     def change_basin(self):
         # bug: setting watch=True enables correct reset of (y-) coordinates, but leads to double initialization (slow)
         # setting watch=False fixes initialization but does not keep y-coordinate.
-        x_range = (
-            metadata[metadata["basin"] == self.pick_basin]["time_coverage_start (UTC)"]
-            .min()
-            .to_datetime64(),
-            metadata[metadata["basin"] == self.pick_basin]["time_coverage_end (UTC)"]
-            .max()
-            .to_datetime64(),
-        )
-        self.startX, self.endX = x_range
+
+        if self.pick_basin in metadata.index:
+            # first case, user selected a dataset_id
+            meta = metadata[metadata.index==self.pick_basin]
+        else:
+            # second case, user selected an aggregation, e.g. 'Bornholm Basin'
+            meta = metadata[metadata["basin"] == self.pick_basin]
+
+        mintime = meta['time_coverage_start (UTC)'].min()
+        maxtime = meta['time_coverage_end (UTC)'].max()
+
+        self.startX, self.endX = (mintime.to_datetime64(), maxtime.to_datetime64())
+        self.pick_startX, self.pick_endX = (mintime, maxtime)
         self.startY = None
         self.endY = 12
 
@@ -477,13 +494,19 @@ class GliderExplorer(param.Parameterized):
             )
 
     def load_viewport_datasets(self, x_range):
-
-        t1 = time.perf_counter()
         (x0, x1) = x_range
         dt = x1 - x0
         dtns = dt / np.timedelta64(1, "ns")
         plt_props = {}
-        meta = metadata[metadata["basin"] == self.pick_basin]
+
+        if self.pick_basin in metadata.index:
+            # first case, user selected a dataset_id
+            meta = metadata[metadata.index==self.pick_basin]
+        else:
+            # second case, user selected an aggregation, e.g. 'Bornholm Basin'
+            meta = metadata[metadata["basin"] == self.pick_basin]
+            meta = utils.drop_overlaps(meta)
+
         meta = meta[
             # x0 and x1 are the time start and end of our view, the other times
             # are the start and end of the individual datasets. To increase
@@ -538,7 +561,6 @@ class GliderExplorer(param.Parameterized):
             plt_props["zoomed_out"] = False
             plt_props["dynfontsize"] = 10
             plt_props["subsample_freq"] = 1
-        t2 = time.perf_counter()
         return meta, plt_props
 
     def get_xsection_mld(self, x_range, y_range):
@@ -770,7 +792,6 @@ class MetaExplorer(param.Parameterized):
         "irradiance_serial",
         "project",
     ]
-    # import pdb; pdb.set_trace();
     options += list(all_metadata.columns)
 
     pick_serial = param.ObjectSelector(
@@ -820,110 +841,136 @@ class MetaExplorer(param.Parameterized):
 
 def create_app_instance():
     glider_explorer = GliderExplorer()
+    #dd = {k: {"width": 100} for k in GliderExplorer.param}
     # glider_explorer2=GliderExplorer()
 
     meta_explorer = MetaExplorer()
+
+    # Data options
+    ctrl_data = pn.Column( # top stack, dataset and basin options
+        'Choose input data either based on basin location or ID',
+        pn.Param(
+            glider_explorer,
+            parameters=["pick_toggle"],
+            widgets={'pick_toggle':pn.widgets.RadioButtonGroup, 'button_type': 'success'},
+            #css_classes=["widget-button"],
+            #default_layout=pn.Column,
+            show_name=False,
+            #width=100,
+        ),
+        pn.Param(
+            glider_explorer,
+            parameters=["pick_basin"],
+            #default_layout=pn.Column,
+            show_name=False,
+            #css_classes=["widget-button"],
+            #width=100,
+            #sizing_mode='fixed'
+        ),
+        #styles={"background": "#C0C0C0"},
+    )
+
+    # contour plot options
+    ctrl_contour = pn.Column(
+        pn.Param(
+            glider_explorer,
+            parameters=["pick_variable"],
+            default_layout=pn.Column,
+            show_name=False,
+        ),
+        pn.Param(
+            glider_explorer,
+            parameters=["pick_cnorm"],
+            # widgets={'pick_cnorm': pn.widgets.RadioButtonGroup},
+            show_name=False,
+        ),
+        pn.Param(
+            glider_explorer,
+            parameters=["pick_aggregation"],
+            # widgets={'pick_aggregation': pn.widgets.RadioButtonGroup},
+            show_name=False,
+            show_labels=True,
+        ),
+        pn.Param(
+            glider_explorer,
+            parameters=["pick_contours"],
+            show_name=False,
+        ),
+        #styles={"background": "#f0f0f0"},
+    )
+
+    # scatter options
+    ctrl_scatter = pn.Column(
+        pn.Param(
+            glider_explorer,
+            parameters=["pick_TS", "pick_TS_colored_by_variable"],
+            default_layout=pn.Row,
+            show_name=False,
+            # display_threshold=10,
+        ),
+        pn.Param(
+            glider_explorer,
+            parameters=["pick_profiles"],
+            show_name=False,
+            # display_threshold=10,
+        ),
+        # This is a hidden parameter, which can be specified in url
+        # to show or hide the menus. Can be useful when emedding interactive
+        # figures in webpages or presentations for example.
+        # pn.Param(glider_explorer,
+        #    parameters=['pick_display_threshold'],
+        #    show_name=False,
+        #    display_threshold=10,),
+
+    )
+
+    ctrl_more = pn.Column(
+            pn.Param(
+            glider_explorer,
+            parameters=["startX"],
+            show_name=False,
+            # display_threshold=10,
+        ),
+        pn.Param(
+            glider_explorer,
+            parameters=["pick_high_resolution"],
+            show_name=False,
+            # display_threshold=10,
+        ),
+        pn.Param(
+            glider_explorer,
+            parameters=["pick_mld"],
+            show_name=False,
+            # display_threshold=0.5,
+        ),
+        pn.Param(
+            glider_explorer,
+            parameters=["button_inflow"],
+            show_name=False,
+            # display_threshold=10,
+        ),
+        pn.Param(
+            glider_explorer,
+            parameters=["endX"],
+            show_name=False,
+            # display_threshold=10,
+        ),
+    )
+
     # pp = pn.pane.Plotly(meta_explorer.create_timeline, config={'responsive': True, 'height':400})
     # pp = pn.pane(meta_explorer.create_timeline, height=100, sizing_mode='stretch_width')
     layout = pn.Column(
-        pn.Row(
-            pn.Column(  # glider_explorer.param, # this would autogenerate all of them...
-                # pn.Row('Glider Dashboard'),
-                pn.Param(
-                    glider_explorer,
-                    parameters=["pick_basin"],
-                    default_layout=pn.Column,
-                    show_name=False,
-                ),
-                pn.Column(
-                    pn.Param(
-                        glider_explorer,
-                        parameters=["pick_variable"],
-                        default_layout=pn.Column,
-                        show_name=False,
-                    ),
-                    pn.Param(
-                        glider_explorer,
-                        parameters=["pick_cnorm"],
-                        # widgets={'pick_cnorm': pn.widgets.RadioButtonGroup},
-                        show_name=False,
-                    ),
-                    pn.Param(
-                        glider_explorer,
-                        parameters=["pick_aggregation"],
-                        # widgets={'pick_aggregation': pn.widgets.RadioButtonGroup},
-                        show_name=False,
-                        show_labels=True,
-                    ),
-                    pn.Param(
-                        glider_explorer,
-                        parameters=["pick_contours"],
-                        show_name=False,
-                    ),
-                    styles={"background": "#f0f0f0"},
-                ),
-                pn.Param(
-                    glider_explorer,
-                    parameters=["pick_TS", "pick_TS_colored_by_variable"],
-                    default_layout=pn.Row,
-                    show_name=False,
-                    # display_threshold=10,
-                ),
-                # This is a hidden parameter, which can be specified in url
-                # to show or hide the menus. Can be useful when emedding interactive
-                # figures in webpages or presentations for example.
-                # pn.Param(glider_explorer,
-                #    parameters=['pick_display_threshold'],
-                #    show_name=False,
-                #    display_threshold=10,),
-                pn.Param(
-                    glider_explorer,
-                    parameters=["startX"],
-                    show_name=False,
-                    # display_threshold=10,
-                ),
-                pn.Param(
-                    glider_explorer,
-                    parameters=["pick_high_resolution"],
-                    show_name=False,
-                    # display_threshold=10,
-                ),
-                pn.Param(
-                    glider_explorer,
-                    parameters=["pick_profiles"],
-                    show_name=False,
-                    # display_threshold=10,
-                ),
-                pn.Param(
-                    glider_explorer,
-                    parameters=["pick_mld"],
-                    show_name=False,
-                    # display_threshold=0.5,
-                ),
-                pn.Param(
-                    glider_explorer,
-                    parameters=["button_inflow"],
-                    show_name=False,
-                    # display_threshold=10,
-                ),
-                pn.Param(
-                    glider_explorer,
-                    parameters=["endX"],
-                    show_name=False,
-                    # display_threshold=10,
-                ),
+        pn.Row( # row with controls, trajectory plot and TS plot
+            pn.Accordion(
+                toggle=True,
+                objects=[('Choose dataset(s)', ctrl_data),
+                ('Contour plot options', ctrl_contour),
+                ('Linked (scatter-)plots', ctrl_scatter),
+                ('more', ctrl_more)]
             ),
             pn.Column(glider_explorer.create_dynmap),
             height=600,
         ),
-        # pn.Row(
-        #    pn.Column(glider_explorer2.param
-        #        #glider_explorer.pick_basin,
-        #        #glider_explorer.pick_variable
-        #        ),
-        #   pn.Column(glider_explorer2.create_dynmap),
-        #    height=600,
-        # ),
         pn.Row(glider_explorer.markdown),
         pn.Row(
             pn.Column(
