@@ -892,7 +892,7 @@ def create_app_instance():
         pn.Param(
             glider_explorer,
             parameters=["pick_dsids"],
-            #widgets={'pick_dsids':pn.widgets.MultiChoice()},
+            widgets={'pick_dsids':pn.widgets.MultiChoice},
             show_name=False,
         ),
         #styles={"background": "#C0C0C0"},
