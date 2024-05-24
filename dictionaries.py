@@ -21,6 +21,29 @@ cmap_dict = dict(
     methane_raw_concentration=cmocean.cm.thermal
 )
 
+
+units_dict = dict(
+    conservative_temperature="⁰C",
+    potential_density="kg/m³",
+    temperature="⁰C",
+    salinity="g/kg",
+    backscatter="m⁻¹sr⁻¹",
+    backscatter_scaled="m⁻¹sr⁻¹",
+    cdom="mg/m³",
+    fdom="ppb Quinine Sulfate Equivalent",
+    chlorophyll="mg/m³",
+    phycocyanin="mg/m³",
+    oxygen_concentration="mmol/m³",
+    N2="s⁻¹",  # cmocean.cm.amp,
+    spice="",
+    temperature_oxygen="",
+    turbidity="NTU",
+    profile_num="",
+    methane_concentration="mg/m³",
+    methane_raw_concentration=""
+)
+
+
 SAMBA_observatories = [
     "Bornholm Basin",
     "Eastern Gotland",

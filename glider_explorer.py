@@ -118,8 +118,15 @@ class GliderExplorer(param.Parameterized):
     pick_basin = param.Selector(
         default="Bornholm Basin",
         objects=dictionaries.SAMBA_observatories,
-        label="SAMBA observatory or DatasetID",
+        label="SAMBA observatory",
         precedence=1,
+    )
+    alldslist = list(filter(lambda k: 'nrt' in k, dsdict.keys()))
+    pick_dsids = param.ListSelector(
+        default=[alldslist[0]],
+        objects=alldslist,
+        label="DatasetID",
+        precedence=-10,
     )
 
     pick_toggle = param.Selector(
@@ -201,21 +208,41 @@ class GliderExplorer(param.Parameterized):
         label="Animation event",
         precedence=1,
     )
+    pick_show_ctrls = param.Boolean(
+        default=True,
+        label="show controls",
+        precedence=1,
+    )
     data_in_view = None
     contour_processing = False
+    # import pdb; pdb.set_trace();
     startX, endX = (
-        metadata["time_coverage_start (UTC)"].min().to_datetime64(),
+        #metadata["time_coverage_start (UTC)"].min().to_datetime64(),
+        metadata["time_coverage_end (UTC)"].max().to_datetime64()-np.timedelta64(6*30*24,'s'), # last six months
         metadata["time_coverage_end (UTC)"].max().to_datetime64(),
     )
 
     startY, endY = (None, 8)
     annotations = []
-    about = """\
-    # About
-    This dashboard is designed to visualize data from the Voice of the Ocean SAMBA observatories. For additional datasets, visit observations.voiceoftheocean.org.
-    """
 
-    markdown = pn.pane.Markdown(about)
+    def update_markdown(self):
+        p1 = f"""\
+            # About
+            Ocean {self.pick_variable} in [{dictionaries.units_dict[self.pick_variable]}] for """
+        if self.pick_toggle == "DatasetID":
+            p2 = f""" the datasets {self.pick_dsids} """
+        elif self.pick_toggle == "SAMBA obs.":
+            p2 = f""" the region {self.pick_basin} """
+        else:
+            import pdb; pdb.set_trace();
+        print(self.pick_toggle)
+        p3 = f"""from {np.datetime_as_string(self.startX, unit='s')} to {np.datetime_as_string(self.endX, unit='s')}"""
+        # import pdb; pdb.set_trace();
+
+        return p1+p2+p3
+
+    # empty initialization for use later
+    markdown = pn.pane.Markdown("")
 
     def keep_zoom(self, x_range, y_range):
         self.startX, self.endX = x_range
@@ -226,6 +253,8 @@ class GliderExplorer(param.Parameterized):
         for var in [
             "pick_variable",
             "pick_basin",
+            "pick_toggle",
+            "pick_dsids",
             "pick_cnorm",
             "pick_aggregation",
             "pick_mld",
@@ -238,12 +267,19 @@ class GliderExplorer(param.Parameterized):
         ]:
             self.param[var].precedence = self.pick_display_threshold
 
-    @param.depends("pick_toggle", watch=True)
+    @param.depends("pick_show_ctrls", watch=True)
+    def update_display_threshold(self):
+        layout[0][0].visible = self.pick_show_ctrls
+
+    @param.depends("pick_toggle","pick_basin", watch=True)
     def update_datasource(self):
+        # toggles visibility
         if self.pick_toggle == 'DatasetID':
-            self.param.pick_basin.objects = list(filter(lambda k: 'nrt' in k, dsdict.keys()))
+            self.param.pick_basin.precedence = -10
+            self.param.pick_dsids.precedence = 1
         else:
-            self.param.pick_basin.objects = dictionaries.SAMBA_observatories
+            self.param.pick_dsids.precedence = -10
+            self.param.pick_basin.precedence = 1
 
     @param.depends("button_inflow", watch=True)
     def execute_event(self):
@@ -272,17 +308,17 @@ class GliderExplorer(param.Parameterized):
 
         return  # self.dynmap*text_annotation
 
-    @param.depends("pick_basin", watch=True)
+    @param.depends("pick_basin", "pick_dsids", watch=True)
     def change_basin(self):
         # bug: setting watch=True enables correct reset of (y-) coordinates, but leads to double initialization (slow)
         # setting watch=False fixes initialization but does not keep y-coordinate.
-
-        if self.pick_basin in metadata.index:
-            # first case, user selected a dataset_id
-            meta = metadata[metadata.index==self.pick_basin]
-        else:
-            # second case, user selected an aggregation, e.g. 'Bornholm Basin'
+        if self.pick_toggle == 'SAMBA obs.':
+            # first case, , user selected an aggregation, e.g. 'Bornholm Basin'
             meta = metadata[metadata["basin"] == self.pick_basin]
+            meta = utils.drop_overlaps(meta)
+        else:
+            # second case, user selected dids
+            meta = metadata.loc[self.pick_dsids]
 
         mintime = meta['time_coverage_start (UTC)'].min()
         maxtime = meta['time_coverage_end (UTC)'].max()
@@ -298,6 +334,8 @@ class GliderExplorer(param.Parameterized):
         "pick_aggregation",
         "pick_mld",
         "pick_basin",
+        "pick_dsids",
+        "pick_toggle",
         "pick_TS",
         "pick_contours",
         "pick_TS_colored_by_variable",
@@ -307,6 +345,8 @@ class GliderExplorer(param.Parameterized):
         #watch=True,
     )  # outcommenting this means just depend on all, redraw always
     def create_dynmap(self):
+
+        self.markdown.object = self.update_markdown()
 
         self.startX = self.pick_startX
         self.endX = self.pick_endX
@@ -499,13 +539,13 @@ class GliderExplorer(param.Parameterized):
         dtns = dt / np.timedelta64(1, "ns")
         plt_props = {}
 
-        if self.pick_basin in metadata.index:
-            # first case, user selected a dataset_id
-            meta = metadata[metadata.index==self.pick_basin]
-        else:
-            # second case, user selected an aggregation, e.g. 'Bornholm Basin'
+        if self.pick_toggle == 'SAMBA obs.':
+            # first case, , user selected an aggregation, e.g. 'Bornholm Basin'
             meta = metadata[metadata["basin"] == self.pick_basin]
             meta = utils.drop_overlaps(meta)
+        else:
+            # second case, user selected dids
+            meta = metadata.loc[self.pick_dsids]
 
         meta = meta[
             # x0 and x1 are the time start and end of our view, the other times
@@ -561,6 +601,7 @@ class GliderExplorer(param.Parameterized):
             plt_props["zoomed_out"] = False
             plt_props["dynfontsize"] = 10
             plt_props["subsample_freq"] = 1
+
         return meta, plt_props
 
     def get_xsection_mld(self, x_range, y_range):
@@ -621,6 +662,7 @@ class GliderExplorer(param.Parameterized):
         varlist = []
         for dsid in metakeys:
             ds = dsdict[dsid]
+            # import pdb; pdb.set_trace();
             ds = ds[ds.profile_num % plt_props["subsample_freq"] == 0]
             varlist.append(ds)
 
@@ -841,7 +883,6 @@ class MetaExplorer(param.Parameterized):
 
 def create_app_instance():
     glider_explorer = GliderExplorer()
-    #dd = {k: {"width": 100} for k in GliderExplorer.param}
     # glider_explorer2=GliderExplorer()
 
     meta_explorer = MetaExplorer()
@@ -861,11 +902,16 @@ def create_app_instance():
         pn.Param(
             glider_explorer,
             parameters=["pick_basin"],
-            #default_layout=pn.Column,
+            #widgets={'pick_basin':pn.widgets.MultiChoice(max_items=1)}
+            default_layout=pn.Column,
+            #max_items=1,
             show_name=False,
-            #css_classes=["widget-button"],
-            #width=100,
-            #sizing_mode='fixed'
+        ),
+        pn.Param(
+            glider_explorer,
+            parameters=["pick_dsids"],
+            widgets={'pick_dsids':pn.widgets.MultiChoice},
+            show_name=False,
         ),
         #styles={"background": "#C0C0C0"},
     )
@@ -881,13 +927,13 @@ def create_app_instance():
         pn.Param(
             glider_explorer,
             parameters=["pick_cnorm"],
-            # widgets={'pick_cnorm': pn.widgets.RadioButtonGroup},
+            widgets={'pick_cnorm': pn.widgets.RadioButtonGroup},
             show_name=False,
         ),
         pn.Param(
             glider_explorer,
             parameters=["pick_aggregation"],
-            # widgets={'pick_aggregation': pn.widgets.RadioButtonGroup},
+            widgets={'pick_aggregation': pn.widgets.RadioButtonGroup},
             show_name=False,
             show_labels=True,
         ),
@@ -957,8 +1003,6 @@ def create_app_instance():
         ),
     )
 
-    # pp = pn.pane.Plotly(meta_explorer.create_timeline, config={'responsive': True, 'height':400})
-    # pp = pn.pane(meta_explorer.create_timeline, height=100, sizing_mode='stretch_width')
     layout = pn.Column(
         pn.Row( # row with controls, trajectory plot and TS plot
             pn.Accordion(
@@ -966,9 +1010,13 @@ def create_app_instance():
                 objects=[('Choose dataset(s)', ctrl_data),
                 ('Contour plot options', ctrl_contour),
                 ('Linked (scatter-)plots', ctrl_scatter),
-                ('more', ctrl_more)]
-            ),
-            pn.Column(glider_explorer.create_dynmap),
+                ('more', ctrl_more)],
+                visible=True,),
+            pn.Column(glider_explorer.create_dynmap,
+                pn.Param(
+                    glider_explorer,
+                    parameters=["pick_show_ctrls"],
+                    show_name=False,),),
             height=600,
         ),
         pn.Row(glider_explorer.markdown),
@@ -984,6 +1032,7 @@ def create_app_instance():
             height=500,
             scroll=True,
         ),
+        # visible=False, # works, but hides everything!
     )
 
     # this keeps the url in sync with the parameter choices and vice versa
@@ -992,6 +1041,8 @@ def create_app_instance():
             glider_explorer,
             {
                 "pick_basin": "pick_basin",
+                "pick_dsids": "pick_dsids",
+                "pick_show_ctrls": "pick_show_ctrls",
                 "pick_variable": "pick_variable",
                 "pick_aggregation": "pick_aggregation",
                 "pick_mld": "pick_mld",
@@ -1013,10 +1064,10 @@ def create_app_instance():
 
 # usefull to create secondary plot, but not fully indepentently working yet:
 # glider_explorer2=GliderExplorer()
-
-app = create_app_instance()
+layout = create_app_instance()
+# app = layout # create_app_instance()
 # app2 = create_app_instance()
-app.servable()
+layout.servable()
 # app2.servable()
 #    port=12345,
 #    websocket_origin='*',
