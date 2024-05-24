@@ -215,19 +215,34 @@ class GliderExplorer(param.Parameterized):
     )
     data_in_view = None
     contour_processing = False
+    # import pdb; pdb.set_trace();
     startX, endX = (
-        metadata["time_coverage_start (UTC)"].min().to_datetime64(),
+        #metadata["time_coverage_start (UTC)"].min().to_datetime64(),
+        metadata["time_coverage_end (UTC)"].max().to_datetime64()-np.timedelta64(6*30*24,'s'), # last six months
         metadata["time_coverage_end (UTC)"].max().to_datetime64(),
     )
 
     startY, endY = (None, 8)
     annotations = []
-    about = """\
-    # About
-    This dashboard is designed to visualize data from the Voice of the Ocean SAMBA observatories. For additional datasets, visit observations.voiceoftheocean.org.
-    """
 
-    markdown = pn.pane.Markdown(about)
+    def update_markdown(self):
+        p1 = f"""\
+            # About
+            Ocean {self.pick_variable} in [{dictionaries.units_dict[self.pick_variable]}] for """
+        if self.pick_toggle == "DatasetID":
+            p2 = f""" the datasets {self.pick_dsids} """
+        elif self.pick_toggle == "SAMBA obs.":
+            p2 = f""" the region {self.pick_basin} """
+        else:
+            import pdb; pdb.set_trace();
+        print(self.pick_toggle)
+        p3 = f"""from {np.datetime_as_string(self.startX, unit='s')} to {np.datetime_as_string(self.endX, unit='s')}"""
+        # import pdb; pdb.set_trace();
+
+        return p1+p2+p3
+
+    # empty initialization for use later
+    markdown = pn.pane.Markdown("")
 
     def keep_zoom(self, x_range, y_range):
         self.startX, self.endX = x_range
@@ -330,6 +345,8 @@ class GliderExplorer(param.Parameterized):
         #watch=True,
     )  # outcommenting this means just depend on all, redraw always
     def create_dynmap(self):
+
+        self.markdown.object = self.update_markdown()
 
         self.startX = self.pick_startX
         self.endX = self.pick_endX
@@ -645,6 +662,7 @@ class GliderExplorer(param.Parameterized):
         varlist = []
         for dsid in metakeys:
             ds = dsdict[dsid]
+            # import pdb; pdb.set_trace();
             ds = ds[ds.profile_num % plt_props["subsample_freq"] == 0]
             varlist.append(ds)
 
