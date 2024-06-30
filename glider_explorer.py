@@ -122,9 +122,12 @@ class GliderExplorer(param.Parameterized):
         precedence=1,
     )
     alldslist = list(filter(lambda k: 'nrt' in k, dsdict.keys()))
+    alldslabels = [element[4:] for element in alldslist]
+    objectsdict = dict(zip(alldslabels,alldslist))
+    # import pdb; pdb.set_trace();
     pick_dsids = param.ListSelector(
-        default=[alldslist[0]],
-        objects=alldslist,
+        default=[alldslist[0]],#dslist[0]],
+        objects=objectsdict,#alldslist,
         label="DatasetID",
         precedence=-10,
     )
@@ -319,12 +322,18 @@ class GliderExplorer(param.Parameterized):
         else:
             # second case, user selected dids
             meta = metadata.loc[self.pick_dsids]
+        # hacky way to differentiate if called via synclink or refreshed with UI buttons
+        incoming_link=not(isinstance(self.pick_startX, pd.Timestamp))
+        #print('ISINSTANCE', isinstance(self.pick_startX, pd.Timestamp))
+        #print('INCOMING VIA LINK:', incoming_link)
+        if not incoming_link:
+            mintime = meta['time_coverage_start (UTC)'].min()
+            maxtime = meta['time_coverage_end (UTC)'].max()
+            #self.startX, self.endX = (mintime.to_datetime64(), maxtime.to_datetime64())
+            self.pick_startX, self.pick_endX = (mintime, maxtime)
+        else:
+            self.pick_startX, self.pick_endX = (self.pick_startX, self.pick_endX)
 
-        mintime = meta['time_coverage_start (UTC)'].min()
-        maxtime = meta['time_coverage_end (UTC)'].max()
-
-        self.startX, self.endX = (mintime.to_datetime64(), maxtime.to_datetime64())
-        self.pick_startX, self.pick_endX = (mintime, maxtime)
         self.startY = None
         self.endY = 12
 
