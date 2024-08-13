@@ -93,7 +93,7 @@ def create_None_element(type):
     return element
 
 
-class GliderExplorer(param.Parameterized):
+class GliderDashboard(param.Parameterized):
 
     pick_variable = param.Selector(
         default="temperature",
@@ -834,7 +834,7 @@ class GliderExplorer(param.Parameterized):
             return create_None_element("Overlay")
 
 
-class MetaExplorer(param.Parameterized):
+class MetaDashboard(param.Parameterized):
 
     options = [
         "glider_serial",
@@ -891,16 +891,16 @@ class MetaExplorer(param.Parameterized):
 
 
 def create_app_instance():
-    glider_explorer = GliderExplorer()
+    glider_dashboard = GliderDashboard()
     # glider_explorer2=GliderExplorer()
 
-    meta_explorer = MetaExplorer()
+    meta_dashboard = MetaDashboard()
 
     # Data options
     ctrl_data = pn.Column( # top stack, dataset and basin options
         'Choose input data either based on basin location or ID',
         pn.Param(
-            glider_explorer,
+            glider_dashboard,
             parameters=["pick_toggle"],
             widgets={'pick_toggle':pn.widgets.RadioButtonGroup, 'button_type': 'success'},
             #css_classes=["widget-button"],
@@ -909,7 +909,7 @@ def create_app_instance():
             #width=100,
         ),
         pn.Param(
-            glider_explorer,
+            glider_dashboard,
             parameters=["pick_basin"],
             #widgets={'pick_basin':pn.widgets.MultiChoice(max_items=1)}
             default_layout=pn.Column,
@@ -917,7 +917,7 @@ def create_app_instance():
             show_name=False,
         ),
         pn.Param(
-            glider_explorer,
+            glider_dashboard,
             parameters=["pick_dsids"],
             widgets={'pick_dsids':pn.widgets.MultiChoice},
             show_name=False,
@@ -928,26 +928,26 @@ def create_app_instance():
     # contour plot options
     ctrl_contour = pn.Column(
         pn.Param(
-            glider_explorer,
+            glider_dashboard,
             parameters=["pick_variable"],
             default_layout=pn.Column,
             show_name=False,
         ),
         pn.Param(
-            glider_explorer,
+            glider_dashboard,
             parameters=["pick_cnorm"],
             widgets={'pick_cnorm': pn.widgets.RadioButtonGroup},
             show_name=False,
         ),
         pn.Param(
-            glider_explorer,
+            glider_dashboard,
             parameters=["pick_aggregation"],
             widgets={'pick_aggregation': pn.widgets.RadioButtonGroup},
             show_name=False,
             show_labels=True,
         ),
         pn.Param(
-            glider_explorer,
+            glider_dashboard,
             parameters=["pick_contours"],
             show_name=False,
         ),
@@ -957,14 +957,14 @@ def create_app_instance():
     # scatter options
     ctrl_scatter = pn.Column(
         pn.Param(
-            glider_explorer,
+            glider_dashboard,
             parameters=["pick_TS", "pick_TS_colored_by_variable"],
             default_layout=pn.Row,
             show_name=False,
             # display_threshold=10,
         ),
         pn.Param(
-            glider_explorer,
+            glider_dashboard,
             parameters=["pick_profiles"],
             show_name=False,
             # display_threshold=10,
@@ -981,31 +981,31 @@ def create_app_instance():
 
     ctrl_more = pn.Column(
             pn.Param(
-            glider_explorer,
+            glider_dashboard,
             parameters=["startX"],
             show_name=False,
             # display_threshold=10,
         ),
         pn.Param(
-            glider_explorer,
+            glider_dashboard,
             parameters=["pick_high_resolution"],
             show_name=False,
             # display_threshold=10,
         ),
         pn.Param(
-            glider_explorer,
+            glider_dashboard,
             parameters=["pick_mld"],
             show_name=False,
             # display_threshold=0.5,
         ),
         pn.Param(
-            glider_explorer,
+            glider_dashboard,
             parameters=["button_inflow"],
             show_name=False,
             # display_threshold=10,
         ),
         pn.Param(
-            glider_explorer,
+            glider_dashboard,
             parameters=["endX"],
             show_name=False,
             # display_threshold=10,
@@ -1021,21 +1021,21 @@ def create_app_instance():
                 ('Linked (scatter-)plots', ctrl_scatter),
                 ('more', ctrl_more)],
                 visible=True,),
-            pn.Column(glider_explorer.create_dynmap,
+            pn.Column(glider_dashboard.create_dynmap,
                 pn.Param(
-                    glider_explorer,
+                    glider_dashboard,
                     parameters=["pick_show_ctrls"],
                     show_name=False,),),
             height=600,
         ),
-        pn.Row(glider_explorer.markdown),
+        pn.Row(glider_dashboard.markdown),
         pn.Row(
             pn.Column(
-                meta_explorer.param,
+                meta_dashboard.param,
                 height=500,
             ),
             pn.Column(
-                meta_explorer.create_timeline,
+                meta_dashboard.create_timeline,
                 height=500,
             ),
             height=500,
@@ -1047,7 +1047,7 @@ def create_app_instance():
     # this keeps the url in sync with the parameter choices and vice versa
     if pn.state.location:
         pn.state.location.sync(
-            glider_explorer,
+            glider_dashboard,
             {
                 "pick_basin": "pick_basin",
                 "pick_dsids": "pick_dsids",
