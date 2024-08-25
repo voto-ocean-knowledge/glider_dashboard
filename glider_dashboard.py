@@ -318,7 +318,7 @@ class GliderDashboard(param.Parameterized):
         if self.pick_toggle == 'SAMBA obs.':
             # first case, , user selected an aggregation, e.g. 'Bornholm Basin'
             meta = metadata[metadata["basin"] == self.pick_basin]
-            meta = utils.drop_overlaps(meta)
+            meta = utils.drop_overlaps_fast(meta)
         else:
             # second case, user selected dids
             meta = metadata.loc[self.pick_dsids]
@@ -551,7 +551,7 @@ class GliderDashboard(param.Parameterized):
         if self.pick_toggle == 'SAMBA obs.':
             # first case, , user selected an aggregation, e.g. 'Bornholm Basin'
             meta = metadata[metadata["basin"] == self.pick_basin]
-            meta = utils.drop_overlaps(meta)
+            meta = utils.drop_overlaps_fast(meta)
         else:
             # second case, user selected dids
             meta = metadata.loc[self.pick_dsids]
@@ -648,8 +648,8 @@ class GliderDashboard(param.Parameterized):
 
         self.pick_startX = pd.to_datetime(x0)  # setters
         self.pick_endX = pd.to_datetime(x1)
-        t1 = time.perf_counter()
-        print("start raster")
+        #t1 = time.perf_counter()
+        #print("start raster")
         meta, plt_props = self.load_viewport_datasets(x_range)
         plotslist1 = []
 
@@ -698,8 +698,8 @@ class GliderDashboard(param.Parameterized):
                     dsconc = dsconc.drop_duplicates(subset=["temperature", "salinity"])
             self.data_in_view = dsconc
             mplt = create_single_ds_plot_raster(data=dsconc, variable=variable)
-            t2 = time.perf_counter()
-            print(t2 - t1)
+            #t2 = time.perf_counter()
+            #print(t2 - t1)
             return mplt
         else:
             return create_None_element("Overlay")

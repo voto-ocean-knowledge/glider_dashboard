@@ -4,6 +4,11 @@ from ast import literal_eval
 import pandas as pd
 import numpy as np
 
+project = 'SAMBA'
+basin = 'Bornholm Basin'
+year = 2024
+month = 4
+
 
 def load_metadata():
     server = "https://erddap.observations.voiceoftheocean.org/erddap"
@@ -93,12 +98,12 @@ def filter_metadata():
     mode = 'all' # 'nrt', 'delayed'
     metadata, all_datasets = load_metadata()
     metadata = metadata[
-        #(metadata['project']=='SAMBA') &
-        (metadata['basin']=='Bornholm Basin') &
+        (metadata['project']==project) &
+        (metadata['basin']==basin) &
         #(metadata['basin']=='Åland Sea') &
-        #(metadata['time_coverage_start (UTC)'].dt.year<2021) #&
-        (metadata['time_coverage_start (UTC)'].dt.year==2022) &
-        (metadata['time_coverage_start (UTC)'].dt.month==10)
+        #(metadata['time_coverage_start (UTC)'].dt.year>2022) &
+        #(metadata['time_coverage_start (UTC)'].dt.year==year) &
+        #(metadata['time_coverage_start (UTC)'].dt.month==month)
         #(metadata['time_coverage_start (UTC)'].dt.day<15)
         ]
     #for basins
@@ -143,9 +148,19 @@ def drop_overlaps(metadata):
                         dropped_datasets.append(meta.index[index])
                         color = 'red'
 
-    print('dropping datasets {}'.format(dropped_datasets))
+    #print('dropping datasets {}'.format(dropped_datasets))
     metadata = metadata.drop(dropped_datasets)
     return metadata
+
+
+def drop_overlaps_fast(metadata):
+    metadata['duration'] = metadata['time_coverage_end (UTC)'] - metadata['time_coverage_start (UTC)']
+    metadata['startdate'] = metadata['time_coverage_start (UTC)'].dt.date
+    remaining = metadata.sort_values(['startdate', 'duration'], ascending=[True, False])[['startdate']].drop_duplicates().index
+    # import pdb; pdb.set_trace();
+    print(f'returning {len(metadata.loc[remaining])} datasets of {len(metadata)}')
+    return metadata.loc[remaining]
+
 
 def voto_seaexplorer_dataset(ds):
     """
