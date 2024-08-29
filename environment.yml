@@ -16,3 +16,4 @@ dependencies:
   - argopy
   - shapely
   - plotly
+  - spatialpandas

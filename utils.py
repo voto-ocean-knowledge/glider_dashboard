@@ -99,7 +99,7 @@ def filter_metadata():
     metadata, all_datasets = load_metadata()
     metadata = metadata[
         (metadata['project']==project) &
-        (metadata['basin']==basin) &
+        (metadata['basin']==basin) #&
         #(metadata['basin']=='Åland Sea') &
         #(metadata['time_coverage_start (UTC)'].dt.year>2022) &
         #(metadata['time_coverage_start (UTC)'].dt.year==year) &
