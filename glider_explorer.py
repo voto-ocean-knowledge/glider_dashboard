@@ -154,6 +154,9 @@ class GliderDashboard(param.Parameterized):
     pick_mld = param.Boolean(
         default=False, label="MLD", doc="Show Mixed Layer Depth", precedence=1
     )
+    #pick_mean = param.Boolean(
+    #    default=False, label="mean", doc="Show column mean", precedence=1
+    #)
     pick_startX = param.Date(
         default=metadata["time_coverage_start (UTC)"].min(),
         label="startX", doc="startX", precedence=1
@@ -261,6 +264,7 @@ class GliderDashboard(param.Parameterized):
             "pick_cnorm",
             "pick_aggregation",
             "pick_mld",
+            #"pick_mean",
             "pick_TS",
             "pick_profiles",
             "pick_TS_colored_by_variable",
@@ -342,6 +346,7 @@ class GliderDashboard(param.Parameterized):
         "pick_variable",
         "pick_aggregation",
         "pick_mld",
+        #"pick_mean",
         "pick_basin",
         "pick_dsids",
         "pick_toggle",
@@ -542,6 +547,30 @@ class GliderDashboard(param.Parameterized):
                 responsive=True,
             )
 
+
+
+    def create_mean(self):
+
+        self.startX = self.pick_startX
+        self.endX = self.pick_endX
+
+        # in case coming in over json link
+        self.startX = np.datetime64(self.startX)
+        self.endX = np.datetime64(self.endX)
+        x_range = (self.startX, self.endX)
+        y_range = (self.startY, self.endY)
+        range_stream = RangeXY(x_range=x_range, y_range=y_range).rename()
+        #dmap_raster = hv.DynamicMap(
+        #    self.get_xsection_raster,
+        #    streams=[range_stream],
+        #)
+        dmap = hv.DynamicMap(self.get_xsection, streams=[range_stream], cache_size=1)
+        dmap_mean = hv.DynamicMap(
+                self.get_xsection_mean, streams=[range_stream], cache_size=1
+            )*dmap#.opts(responsive=True)
+
+        return dmap_mean
+
     def load_viewport_datasets(self, x_range):
         (x0, x1) = x_range
         dt = x1 - x0
@@ -643,11 +672,51 @@ class GliderDashboard(param.Parameterized):
         )
         return mldscatter
 
+    def get_xsection_mean(self, x_range, y_range):
+        try:
+            dscopy = utils.add_dive_column(self.data_in_view).compute()
+        except:
+            dscopy = utils.add_dive_column(self.data_in_view)
+        #dscopy["depth"] = -dscopy["depth"]
+        #mld = gt.physics.mixed_layer_depth(
+        #    dscopy.to_xarray(), "temperature", thresh=0.3, verbose=True, ref_depth=5
+        #)
+        groups = dscopy.reset_index()[['time', self.pick_variable, 'profile_num']].groupby(by="profile_num").mean()#.time
+        gtime = groups.time
+        gmean = groups[self.pick_variable]
+        #gtmean = dscopy.reset_index().groupby(by="profile_num")[self.pick_variable].mean()
+
+        #import pdb; pdb.set_trace();
+
+
+        dfmean = (
+            pd.DataFrame.from_dict(
+                dict(time=gtime.values, mean=gmean.values)
+            )
+            .sort_values(by="time")
+            .dropna()
+        )
+
+        #if len(dfmld) == 0:
+        #    import pdb
+        #    pdb.set_trace()
+        #print(dfmld)
+        mldscatter = dfmean.hvplot.line(
+            x="time",
+            y="mean",
+            color="black",
+            alpha=0.5,
+            responsive=True,
+        )
+        return mldscatter
+
     def get_xsection_raster(self, x_range, y_range, contour_variable=None):
         (x0, x1) = x_range
-
-        self.pick_startX = pd.to_datetime(x0)  # setters
-        self.pick_endX = pd.to_datetime(x1)
+        #try:
+        #    self.pick_startX = pd.to_datetime(x0)  # setters
+        #    self.pick_endX = pd.to_datetime(x1)
+        #except:
+        #    import pdb; pdb.set_trace();
         #t1 = time.perf_counter()
         #print("start raster")
         meta, plt_props = self.load_viewport_datasets(x_range)
@@ -674,15 +743,16 @@ class GliderDashboard(param.Parameterized):
             # import pdb; pdb.set_trace();
             ds = ds[ds.profile_num % plt_props["subsample_freq"] == 0]
             varlist.append(ds)
-
-        if self.pick_mld:
-            varlist = utils.voto_concat_datasets(varlist)
+        # import pdb; pdb.set_trace();
+        #if self.pick_mld or self.pick_mean:
+        #    'VOTO CONCATTT'
+        varlist = utils.voto_concat_datasets(varlist)
         if varlist:
             # concat and drop_duplicates could potentially be done by pandarallel
             if self.pick_TS:
                 nanosecond_iterator = 1
                 for ndataset in varlist:
-                    ndataset.index = ndataset.index + +np.timedelta64(
+                    ndataset.index = ndataset.index + np.timedelta64(
                         nanosecond_iterator, "ns"
                     )
                     nanosecond_iterator += 1
@@ -811,6 +881,18 @@ class GliderDashboard(param.Parameterized):
             .opts(color="grey", spike_length=20)
             .opts(position=-10)
         )
+        """
+        startvlines = (
+            hv.Vlines(meta_start_in_view["time_coverage_start (UTC)"])
+            .opts(color="grey")
+            #.opts(position=-10)
+        )
+        endvlines = (
+            hv.Vlines(meta_end_in_view["time_coverage_end (UTC)"])
+            .opts(color="red")
+            #.opts(position=-10)
+        )
+        """
 
         data = pd.DataFrame.from_dict(
             dict(
@@ -998,12 +1080,19 @@ def create_app_instance():
             show_name=False,
             # display_threshold=0.5,
         ),
+        #pn.Param(
+        #    glider_dashboard,
+        #    parameters=["pick_mean"],
+        #    show_name=False,
+        #    # display_threshold=0.5,
+        #),
         pn.Param(
             glider_dashboard,
             parameters=["button_inflow"],
             show_name=False,
             # display_threshold=10,
         ),
+        #button_cols,
         pn.Param(
             glider_dashboard,
             parameters=["endX"],
@@ -1012,6 +1101,41 @@ def create_app_instance():
         ),
     )
 
+    def create_column(hex_id=None):
+        """
+        Dynamically add a new row to the app.
+        """
+        value = random.randint(0, 100)
+        column = pn.widgets.TextInput(name="Enter a number", value=str(value))
+        contentcolumn.append(#column
+                    pn.Column(
+                        glider_dashboard.create_mean(),
+                        height=500,
+                        #glider_dashboard.create_mean,
+                        #pn.Param(
+                        #glider_dashboard2,
+                        #parameters=["pick_show_ctrls"],
+                        #show_name=False,),
+                        )
+                        )
+
+    import random
+
+    add_row = pn.widgets.Button(name="Add new row")
+
+    clear_rows = pn.widgets.Button(name="Clear all rows")
+    button_cols = pn.Row(add_row, clear_rows)
+
+    contentcolumn = pn.Column(
+        pn.Row(glider_dashboard.create_dynmap,
+            #glider_dashboard.create_mean,
+            pn.Param(
+            glider_dashboard,
+            parameters=["pick_show_ctrls"],
+            show_name=False,),),
+        pn.Row("# Dynamically add new rows", button_cols
+    ),)
+
     layout = pn.Column(
         pn.Row( # row with controls, trajectory plot and TS plot
             pn.Accordion(
@@ -1019,14 +1143,10 @@ def create_app_instance():
                 objects=[('Choose dataset(s)', ctrl_data),
                 ('Contour plot options', ctrl_contour),
                 ('Linked (scatter-)plots', ctrl_scatter),
-                ('more', ctrl_more)],
+                ('more', [ctrl_more, pn.Row(button_cols)])],
                 visible=True,),
-            pn.Column(glider_dashboard.create_dynmap,
-                pn.Param(
-                    glider_dashboard,
-                    parameters=["pick_show_ctrls"],
-                    show_name=False,),),
-            height=600,
+            contentcolumn,
+            #height=500,
         ),
         pn.Row(glider_dashboard.markdown),
         pn.Row(
@@ -1041,8 +1161,17 @@ def create_app_instance():
             height=500,
             scroll=True,
         ),
+        #pn.Row("# Dynamically add new rows", button_cols)
         # visible=False, # works, but hides everything!
     )
+
+    #main = pn.Column("# Dynamically add new rows", button_cols, layout)
+
+    # Add interactivity
+    clear_rows.on_click(lambda _: rows.clear())
+    add_row.on_click(lambda _: create_column())
+
+
 
     # this keeps the url in sync with the parameter choices and vice versa
     if pn.state.location:
@@ -1055,6 +1184,7 @@ def create_app_instance():
                 "pick_variable": "pick_variable",
                 "pick_aggregation": "pick_aggregation",
                 "pick_mld": "pick_mld",
+                #"pick_mean": "pick_mean",
                 "pick_cnorm": "pick_cnorm",
                 "pick_TS": "pick_TS",
                 "pick_profiles": "pick_profiles",
