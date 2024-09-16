@@ -57,6 +57,8 @@ def load_metadata():
             return 'Skagerrak, Kattegat'
         elif basin=='\\u00c3\\u0085land Sea':
             return 'Åland Sea'
+        elif basin=='\\u00c5land Sea':
+            return 'Åland Sea'
         else:
             return basin
 
