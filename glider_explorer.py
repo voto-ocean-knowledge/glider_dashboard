@@ -106,6 +106,7 @@ class GliderDashboard(param.Parameterized):
             "cdom",
             "backscatter_scaled",
             "phycocyanin",
+            "phycocyanin_tridente",
             "methane_concentration",
         ],
         label="variable",
@@ -126,7 +127,7 @@ class GliderDashboard(param.Parameterized):
     objectsdict = dict(zip(alldslabels,alldslist))
     # import pdb; pdb.set_trace();
     pick_dsids = param.ListSelector(
-        default=[alldslist[0]],#dslist[0]],
+        default=[],#[alldslist[0]],#dslist[0]],
         objects=objectsdict,#alldslist,
         label="DatasetID",
         precedence=-10,
@@ -194,6 +195,8 @@ class GliderDashboard(param.Parameterized):
             "oxygen_concentration",
             "cdom",
             "backscatter_scaled",
+            "phycocyanin",
+            "phycocyanin_tridente",
             "methane_concentration",
         ],
         label="contour variable",
@@ -311,7 +314,7 @@ class GliderDashboard(param.Parameterized):
 
         return  # self.dynmap*text_annotation
 
-    @param.depends("pick_basin", "pick_dsids", watch=True)
+    @param.depends("pick_basin", "pick_dsids", "pick_toggle", watch=True)
     def change_basin(self):
         # bug: setting watch=True enables correct reset of (y-) coordinates, but leads to double initialization (slow)
         # setting watch=False fixes initialization but does not keep y-coordinate.
@@ -323,13 +326,19 @@ class GliderDashboard(param.Parameterized):
             # second case, user selected dids
             meta = metadata.loc[self.pick_dsids]
         # hacky way to differentiate if called via synclink or refreshed with UI buttons
+        if not len(meta):
+            self.startX = np.datetime64('2021-01-01')
+            self.endX = np.datetime64('2024-01-01')
+            self.pick_startX = np.datetime64('2021-01-01')
+            self.pick_endX = np.datetime64('2024-01-01')
+            return
         incoming_link=not(isinstance(self.pick_startX, pd.Timestamp))
         #print('ISINSTANCE', isinstance(self.pick_startX, pd.Timestamp))
         #print('INCOMING VIA LINK:', incoming_link)
         if not incoming_link:
             mintime = meta['time_coverage_start (UTC)'].min()
             maxtime = meta['time_coverage_end (UTC)'].max()
-            #self.startX, self.endX = (mintime.to_datetime64(), maxtime.to_datetime64())
+            self.startX, self.endX = (mintime.to_datetime64(), maxtime.to_datetime64())
             self.pick_startX, self.pick_endX = (mintime, maxtime)
         else:
             self.pick_startX, self.pick_endX = (self.pick_startX, self.pick_endX)
@@ -552,38 +561,41 @@ class GliderDashboard(param.Parameterized):
             # first case, , user selected an aggregation, e.g. 'Bornholm Basin'
             meta = metadata[metadata["basin"] == self.pick_basin]
             meta = utils.drop_overlaps_fast(meta)
+
+            meta = meta[
+                # x0 and x1 are the time start and end of our view, the other times
+                # are the start and end of the individual datasets. To increase
+                # perfomance, datasets are loaded only if visible, so if
+                # 1. it starts within our view...
+                (
+                    (metadata["time_coverage_start (UTC)"] >= x0)
+                    & (metadata["time_coverage_start (UTC)"] <= x1)
+                )
+                |
+                # 2. it ends within our view...
+                (
+                    (metadata["time_coverage_end (UTC)"] >= x0)
+                    & (metadata["time_coverage_end (UTC)"] <= x1)
+                )
+                |
+                # 3. it starts before and ends after our view (zoomed in)...
+                (
+                    (metadata["time_coverage_start (UTC)"] <= x0)
+                    & (metadata["time_coverage_end (UTC)"] >= x1)
+                )
+                |
+                # 4. or it both, starts and ends within our view (zoomed out)...
+                (
+                    (metadata["time_coverage_start (UTC)"] >= x0)
+                    & (metadata["time_coverage_end (UTC)"] <= x1)
+                )
+            ]
+
         else:
             # second case, user selected dids
+            print('pick_dsids is', self.pick_dsids)
+            #import pdb; pdb.set_trace();
             meta = metadata.loc[self.pick_dsids]
-
-        meta = meta[
-            # x0 and x1 are the time start and end of our view, the other times
-            # are the start and end of the individual datasets. To increase
-            # perfomance, datasets are loaded only if visible, so if
-            # 1. it starts within our view...
-            (
-                (metadata["time_coverage_start (UTC)"] >= x0)
-                & (metadata["time_coverage_start (UTC)"] <= x1)
-            )
-            |
-            # 2. it ends within our view...
-            (
-                (metadata["time_coverage_end (UTC)"] >= x0)
-                & (metadata["time_coverage_end (UTC)"] <= x1)
-            )
-            |
-            # 3. it starts before and ends after our view (zoomed in)...
-            (
-                (metadata["time_coverage_start (UTC)"] <= x0)
-                & (metadata["time_coverage_end (UTC)"] >= x1)
-            )
-            |
-            # 4. or it both, starts and ends within our view (zoomed out)...
-            (
-                (metadata["time_coverage_start (UTC)"] >= x0)
-                & (metadata["time_coverage_end (UTC)"] <= x1)
-            )
-        ]
 
         # print(f'len of meta is {len(meta)} in load_viewport_datasets')
         if (x1 - x0) > np.timedelta64(720, "D"):
@@ -610,7 +622,7 @@ class GliderDashboard(param.Parameterized):
             plt_props["zoomed_out"] = False
             plt_props["dynfontsize"] = 10
             plt_props["subsample_freq"] = 1
-
+        print('RETURNING', meta)
         return meta, plt_props
 
     def get_xsection_mld(self, x_range, y_range):
@@ -1051,6 +1063,7 @@ def create_app_instance():
             {
                 "pick_basin": "pick_basin",
                 "pick_dsids": "pick_dsids",
+                "pick_toggle": "pick_toggle",
                 "pick_show_ctrls": "pick_show_ctrls",
                 "pick_variable": "pick_variable",
                 "pick_aggregation": "pick_aggregation",
