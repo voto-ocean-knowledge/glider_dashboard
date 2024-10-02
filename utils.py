@@ -100,7 +100,8 @@ def filter_metadata():
     mode = 'all' # 'nrt', 'delayed'
     metadata, all_datasets = load_metadata()
     metadata = metadata[
-        (metadata['project']==project) &
+        metadata['project'].isin(['SAMBA']) #&
+        #(metadata['project']==project) #&
         #(metadata['basin']==basin) &
         #(metadata['basin']=='Åland Sea') &
         #(metadata['time_coverage_start (UTC)'].dt.year>2023) &
@@ -156,11 +157,11 @@ def drop_overlaps(metadata):
 
 
 def drop_overlaps_fast(metadata):
-    metadata['duration'] = metadata['time_coverage_end (UTC)'] - metadata['time_coverage_start (UTC)']
-    metadata['startdate'] = metadata['time_coverage_start (UTC)'].dt.date
+    with pd.option_context('mode.chained_assignment', None):
+        metadata['duration'] = metadata['time_coverage_end (UTC)'] - metadata['time_coverage_start (UTC)']
+        metadata['startdate'] = metadata['time_coverage_start (UTC)'].dt.date
     remaining = metadata.sort_values(['startdate', 'duration'], ascending=[True, False])[['startdate']].drop_duplicates().index
     # import pdb; pdb.set_trace();
-    print(f'returning {len(metadata.loc[remaining])} datasets of {len(metadata)}')
     return metadata.loc[remaining]
 
 

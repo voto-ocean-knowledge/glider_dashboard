@@ -1,4 +1,4 @@
-name: glider_explorer_new
+name: glider_dashboard
 channels:
   - conda-forge
 dependencies:
@@ -17,3 +17,4 @@ dependencies:
   - shapely
   - plotly
   - spatialpandas
+  - pytest

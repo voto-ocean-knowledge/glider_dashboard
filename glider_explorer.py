@@ -81,18 +81,6 @@ def create_single_ds_plot_raster(data, variable):
     return raster
 
 
-def create_None_element(type):
-    # This is just a hack because I can't return None to dynamic maps
-    if type == "Overlay":
-        element = hv.Overlay(
-            hv.HLine(0).opts(color="black", alpha=0.1)
-            * hv.HLine(0).opts(color="black", alpha=0.1)
-        )
-    elif type == "Spikes":
-        element = hv.Spikes().opts(color="black", alpha=0.1)
-    return element
-
-
 class GliderDashboard(param.Parameterized):
 
     pick_variable = param.Selector(
@@ -221,7 +209,6 @@ class GliderDashboard(param.Parameterized):
     )
     data_in_view = None
     contour_processing = False
-    # import pdb; pdb.set_trace();
     startX, endX = (
         #metadata["time_coverage_start (UTC)"].min().to_datetime64(),
         metadata["time_coverage_end (UTC)"].max().to_datetime64()-np.timedelta64(6*30*24,'s'), # last six months
@@ -237,11 +224,8 @@ class GliderDashboard(param.Parameterized):
             Ocean {self.pick_variable} in [{dictionaries.units_dict[self.pick_variable]}] for """
         if self.pick_toggle == "DatasetID":
             p2 = f""" the datasets {self.pick_dsids} """
-        elif self.pick_toggle == "SAMBA obs.":
+        else: #self.pick_toggle == "SAMBA obs.":
             p2 = f""" the region {self.pick_basin} """
-        else:
-            import pdb; pdb.set_trace();
-        print(self.pick_toggle)
         p3 = f"""from {np.datetime_as_string(self.startX, unit='s')} to {np.datetime_as_string(self.endX, unit='s')}"""
         # import pdb; pdb.set_trace();
 
@@ -443,7 +427,7 @@ class GliderDashboard(param.Parameterized):
                 cnorm="eq_hist",
             )
 
-        dmap = hv.DynamicMap(self.get_xsection, streams=[range_stream], cache_size=1)
+        dmap = hv.DynamicMap(self.get_xsection, streams=[range_stream], cache_size=1)        
         dmap_rasterized = rasterize(
             dmap_raster,
             aggregator=means,
@@ -471,7 +455,7 @@ class GliderDashboard(param.Parameterized):
         self.dynmap = spread(dmap_rasterized, px=1, how="source").opts(
             # invert_yaxis=True,
             ylim=(self.startY, self.endY),
-        )
+            )
         if self.pick_contours:
             if self.pick_contours == self.pick_variable:
                 self.dynmap = self.dynmap * hv.operation.contours(
@@ -593,7 +577,6 @@ class GliderDashboard(param.Parameterized):
 
         else:
             # second case, user selected dids
-            print('pick_dsids is', self.pick_dsids)
             #import pdb; pdb.set_trace();
             meta = metadata.loc[self.pick_dsids]
 
@@ -622,7 +605,6 @@ class GliderDashboard(param.Parameterized):
             plt_props["zoomed_out"] = False
             plt_props["dynfontsize"] = 10
             plt_props["subsample_freq"] = 1
-        print('RETURNING', meta)
         return meta, plt_props
 
     def get_xsection_mld(self, x_range, y_range):
@@ -645,7 +627,6 @@ class GliderDashboard(param.Parameterized):
         #if len(dfmld) == 0:
         #    import pdb
         #    pdb.set_trace()
-        print(dfmld)
         mldscatter = dfmld.hvplot.line(
             x="time",
             y="mld",
@@ -714,7 +695,14 @@ class GliderDashboard(param.Parameterized):
             #print(t2 - t1)
             return mplt
         else:
-            return create_None_element("Overlay")
+            #data = {"time":[], "depth":[], variable:[]}  # Declaration line
+            #data = pd.DataFrame.from_dict(data)
+            #raster = data.hvplot.points(
+            #    x="time",
+            #    y="depth",
+            #    c=variable,
+            #)
+            return self.create_None_element("Overlay")
 
     def get_xsection_raster_contour(self, x_range, y_range):
         # This function exists because I cannot pass variables directly
@@ -805,6 +793,24 @@ class GliderDashboard(param.Parameterized):
         # also, maybe the contour color should be something more discrete
         return dcont
 
+
+    def create_None_element(self, type):
+        # This is just a hack because I can't return None to dynamic maps
+        if type == "Overlay":
+            element = hv.Overlay(
+                hv.HLine(0).opts(color="black", alpha=0.1)
+                * hv.HLine(0).opts(color="black", alpha=0.1)
+                #* hv.Text(
+                #    x=self.startX,
+                #    y=-20,
+                #    text="There is no data here!",
+                #    fontsize=10,)
+            )
+        elif type == "Spikes":
+            element = hv.Spikes().opts(color="black", alpha=0.1)
+        return element
+
+
     def get_xsection(self, x_range, y_range):
         (x0, x1) = x_range
         t1 = time.perf_counter()
@@ -843,7 +849,7 @@ class GliderDashboard(param.Parameterized):
         if plotslist:
             return hv.Overlay(plotslist)  # reduce(lambda x, y: x*y, plotslist)
         else:
-            return create_None_element("Overlay")
+            return self.create_None_element("Overlay")
 
 
 class MetaDashboard(param.Parameterized):
