@@ -686,9 +686,6 @@ class GliderDashboard(param.Parameterized):
         gmean = groups[self.pick_variable]
         #gtmean = dscopy.reset_index().groupby(by="profile_num")[self.pick_variable].mean()
 
-        #import pdb; pdb.set_trace();
-
-
         dfmean = (
             pd.DataFrame.from_dict(
                 dict(time=gtime.values, mean=gmean.values)
@@ -696,19 +693,13 @@ class GliderDashboard(param.Parameterized):
             .sort_values(by="time")
             .dropna()
         )
-
-        #if len(dfmld) == 0:
-        #    import pdb
-        #    pdb.set_trace()
-        #print(dfmld)
-        mldscatter = dfmean.hvplot.line(
+        meanline = dfmean.hvplot.line(
             x="time",
             y="mean",
-            color="black",
-            alpha=0.5,
             responsive=True,
         )
-        return mldscatter
+
+        return meanline
 
     def get_xsection_raster(self, x_range, y_range, contour_variable=None):
         (x0, x1) = x_range
@@ -872,14 +863,14 @@ class GliderDashboard(param.Parameterized):
         meta_end_in_view = meta[(meta["time_coverage_end (UTC)"] < x1)]
 
         startvlines = (
-            hv.Spikes(meta_start_in_view["time_coverage_start (UTC)"])
-            .opts(color="grey", spike_length=20)
-            .opts(position=-10)
+            hv.VLines(meta_start_in_view["time_coverage_start (UTC)"])
+            .opts(color="grey")#, spike_length=20)
+            #.opts(position=-10)
         )
         endvlines = (
-            hv.Spikes(meta_end_in_view["time_coverage_end (UTC)"])
-            .opts(color="grey", spike_length=20)
-            .opts(position=-10)
+            hv.VLines(meta_end_in_view["time_coverage_end (UTC)"])
+            .opts(color="grey")#, spike_length=20)
+            #.opts(position=-10)
         )
         """
         startvlines = (
@@ -1086,12 +1077,12 @@ def create_app_instance():
         #    show_name=False,
         #    # display_threshold=0.5,
         #),
-        pn.Param(
-            glider_dashboard,
-            parameters=["button_inflow"],
-            show_name=False,
-            # display_threshold=10,
-        ),
+        #pn.Param(
+        #    glider_dashboard,
+        #    parameters=["button_inflow"],
+        #    show_name=False,
+        #    # display_threshold=10,
+        #),
         #button_cols,
         pn.Param(
             glider_dashboard,
@@ -1121,20 +1112,22 @@ def create_app_instance():
 
     import random
 
-    add_row = pn.widgets.Button(name="Add new row")
-
-    clear_rows = pn.widgets.Button(name="Clear all rows")
+    add_row = pn.widgets.Button(name="Add aggregation row")
+    clear_rows = pn.widgets.Button(name="Clear additional rows")
     button_cols = pn.Row(add_row, clear_rows)
+    ctrl_more.extend([add_row])
 
     contentcolumn = pn.Column(
-        pn.Row(glider_dashboard.create_dynmap,
+        #pn.Row(
+        glider_dashboard.create_dynmap,
             #glider_dashboard.create_mean,
             pn.Param(
             glider_dashboard,
             parameters=["pick_show_ctrls"],
-            show_name=False,),),
-        pn.Row("# Dynamically add new rows", button_cols
-    ),)
+            show_name=False,),
+            #),
+        #pn.Row("# Add data aggregations (mean, max, std...)", button_cols),
+    )
 
     layout = pn.Column(
         pn.Row( # row with controls, trajectory plot and TS plot
@@ -1143,9 +1136,13 @@ def create_app_instance():
                 objects=[('Choose dataset(s)', ctrl_data),
                 ('Contour plot options', ctrl_contour),
                 ('Linked (scatter-)plots', ctrl_scatter),
-                ('more', [ctrl_more, pn.Row(button_cols)])],
-                visible=True,),
-            contentcolumn,
+                ('more', ctrl_more),
+                ('WIP', add_row),
+                ],),
+                contentcolumn,
+                #, pn.Row(button_cols)])],
+                visible=True,
+            
             #height=500,
         ),
         pn.Row(glider_dashboard.markdown),
