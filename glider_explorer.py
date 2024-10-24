@@ -734,12 +734,22 @@ class GliderDashboard(param.Parameterized):
             thresh = thresh.compute()  # .iloc[0]
         except:
             thresh = thresh
+        """
         mplt = dsconc.hvplot.scatter(
             x=self.pick_variable,
             y="depth",
             # No clue if this was good or bad. Needs to be testeded!
             c=self.pick_variable,
-        )  # [thresh.iloc[0]-(0.1*thresh.iloc[0]):thresh.iloc[1]+(0.1*thresh.iloc[1])]
+        )
+        """
+        mplt = hv.Curve(
+            dsconc, 
+            kdims=[self.pick_variable, 'depth'],
+            #rasterize=True
+            )
+
+
+        # [thresh.iloc[0]-(0.1*thresh.iloc[0]):thresh.iloc[1]+(0.1*thresh.iloc[1])]
         # [thresh.iloc[0]-(0.1*thresh.iloc[0]):thresh.iloc[1]+(0.1*thresh.iloc[1])]#,
         # thresh['temperature'].iloc[0]-0.5:thresh['temperature'].iloc[1]+0.5]
 
