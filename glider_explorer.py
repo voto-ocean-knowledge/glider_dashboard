@@ -567,7 +567,22 @@ class GliderDashboard(param.Parameterized):
         dmap = hv.DynamicMap(self.get_xsection, streams=[range_stream], cache_size=1)
         dmap_mean = hv.DynamicMap(
                 self.get_xsection_mean, streams=[range_stream], cache_size=1
-            )*dmap#.opts(responsive=True)
+            ).opts(
+            # invert_yaxis=True, # Would like to activate this, but breaks the hover tool
+            # colorbar=True,
+            # cmap=dictionaries.cmap_dict[self.pick_variable],
+            # toolbar="above",
+            color="black",
+            tools=["xwheel_zoom", "reset", "xpan"],
+            default_tools=[],
+            # responsive=True, # this currently breaks when activated with MLD
+            # width=800,
+            # height=commonheights,
+            # cnorm=self.pick_cnorm,
+            active_tools=["xpan", "xwheel_zoom"],
+            bgcolor="dimgrey",
+            # clabel=self.pick_variable,
+        )*dmap#.opts(responsive=True)
 
         return dmap_mean
 
@@ -685,14 +700,16 @@ class GliderDashboard(param.Parameterized):
         gtime = groups.time
         gmean = groups[self.pick_variable]
         #gtmean = dscopy.reset_index().groupby(by="profile_num")[self.pick_variable].mean()
-
+#mld=-mld.rolling(10, center=True).mean().values
         dfmean = (
             pd.DataFrame.from_dict(
                 dict(time=gtime.values, mean=gmean.values)
             )
             .sort_values(by="time")
             .dropna()
-        )
+        )#.rolling(window=4).mean()
+        dfmean['mean'] = dfmean['mean'].rolling(4, center=True).mean().values
+
         meanline = dfmean.hvplot.line(
             x="time",
             y="mean",
@@ -864,12 +881,12 @@ class GliderDashboard(param.Parameterized):
 
         startvlines = (
             hv.VLines(meta_start_in_view["time_coverage_start (UTC)"])
-            .opts(color="grey")#, spike_length=20)
+            .opts(color="grey", line_width=1)#, spike_length=20)
             #.opts(position=-10)
         )
         endvlines = (
             hv.VLines(meta_end_in_view["time_coverage_end (UTC)"])
-            .opts(color="grey")#, spike_length=20)
+            .opts(color="grey", line_width=1)#, spike_length=20)
             #.opts(position=-10)
         )
         """
@@ -1096,26 +1113,29 @@ def create_app_instance():
         """
         Dynamically add a new row to the app.
         """
-        value = random.randint(0, 100)
-        column = pn.widgets.TextInput(name="Enter a number", value=str(value))
-        contentcolumn.append(#column
-                    pn.Column(
+        # value = random.randint(0, 100)
+        # column = pn.widgets.TextInput(name="Enter a number", value=str(value))
+        global meancolumn 
+        meancolumn = pn.Column(
                         glider_dashboard.create_mean(),
                         height=500,
-                        #glider_dashboard.create_mean,
-                        #pn.Param(
-                        #glider_dashboard2,
-                        #parameters=["pick_show_ctrls"],
-                        #show_name=False,),
                         )
-                        )
+        contentcolumn.append(meancolumn)
 
-    import random
+    def remove_column(hex_id=None):
+        """
+        Dynamically remove a column from the app.
+        """
+        # value = random.randint(0, 100)
+        # column = pn.widgets.TextInput(name="Enter a number", value=str(value))
+        contentcolumn.remove(meancolumn)
+
+    # import random
 
     add_row = pn.widgets.Button(name="Add aggregation row")
     clear_rows = pn.widgets.Button(name="Clear additional rows")
     button_cols = pn.Row(add_row, clear_rows)
-    ctrl_more.extend([add_row])
+    # ctrl_more.extend([add_row])
 
     contentcolumn = pn.Column(
         #pn.Row(
@@ -1136,8 +1156,9 @@ def create_app_instance():
                 objects=[('Choose dataset(s)', ctrl_data),
                 ('Contour plot options', ctrl_contour),
                 ('Linked (scatter-)plots', ctrl_scatter),
+                ('Aggregations', pn.Column(add_row, clear_rows)),
                 ('more', ctrl_more),
-                ('WIP', add_row),
+                #('WIP',add_row),
                 ],),
                 contentcolumn,
                 #, pn.Row(button_cols)])],
@@ -1165,7 +1186,7 @@ def create_app_instance():
     #main = pn.Column("# Dynamically add new rows", button_cols, layout)
 
     # Add interactivity
-    clear_rows.on_click(lambda _: rows.clear())
+    clear_rows.on_click(lambda _: remove_column())
     add_row.on_click(lambda _: create_column())
 
 

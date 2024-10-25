@@ -1,4 +1,4 @@
-import glider_dashboard as gdb
+import glider_explorer as gdb
 import numpy as np
 import time
 import panel as pn
