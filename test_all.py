@@ -5,6 +5,11 @@ import panel as pn
 import pytest
 import timeit
 import functools
+from holoviews.operation.datashader import ResampleOperation2D
+ResampleOperation2D.width=5000
+ResampleOperation2D.height=1000
+#ResampleOperation2D.pixel_ratio=2
+
 from os.path import join
 
 # tests to add:
@@ -53,13 +58,14 @@ def test_temperature():
     #GDB.startX = np.datetime64('2024-03-01')
     #GDB.endX = np.datetime64('2024-05-01')
 
-    GDB.pick_startX = np.datetime64('2024-04-18')
-    GDB.pick_endX = np.datetime64('2024-04-19')
+    #GDB.pick_startX = np.datetime64('2024-04-18')
+    #GDB.pick_endX = np.datetime64('2024-04-19')
 
     # create output for variable temperature
     t1 = time.perf_counter()
     GDB.pick_variable = 'temperature'
-    dyn = GDB.create_dynmap().opts(width=500, height=500)
+    GDB.pick_high_resolution = True
+    dyn = GDB.create_dynmap().opts(width=5000, height=500)
     pn.pane.HoloViews(dyn).save(join(outpath, 'temperature.png'))
     t2 = time.perf_counter()
     print('creating the second serve took',t2-t1)
