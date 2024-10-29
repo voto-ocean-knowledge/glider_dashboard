@@ -720,6 +720,8 @@ class GliderDashboard(param.Parameterized):
         #    import pdb; pdb.set_trace();
         #t1 = time.perf_counter()
         #print("start raster")
+        self.pick_startX = pd.to_datetime(x0)  # setters
+        self.pick_endX = pd.to_datetime(x1)
         meta, plt_props = self.load_viewport_datasets(x_range)
         plotslist1 = []
 
