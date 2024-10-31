@@ -1141,6 +1141,7 @@ def create_app_instance():
                         height=500,
                         )
         contentcolumn.append(meancolumn)
+        contentcolumn.height=1050
 
     def remove_column(hex_id=None):
         """
@@ -1149,6 +1150,7 @@ def create_app_instance():
         # value = random.randint(0, 100)
         # column = pn.widgets.TextInput(name="Enter a number", value=str(value))
         contentcolumn.remove(meancolumn)
+        contentcolumn.height=500
 
     # import random
 
@@ -1165,6 +1167,7 @@ def create_app_instance():
             glider_dashboard,
             parameters=["pick_show_ctrls"],
             show_name=False,),
+            height=500,
             #),
         #pn.Row("# Add data aggregations (mean, max, std...)", button_cols),
     )
@@ -1183,7 +1186,6 @@ def create_app_instance():
                 contentcolumn,
                 #, pn.Row(button_cols)])],
                 visible=True,
-            
             #height=500,
         ),
         pn.Row(glider_dashboard.markdown),
