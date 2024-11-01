@@ -1156,7 +1156,6 @@ def create_app_instance():
 
     add_row = pn.widgets.Button(name="Add aggregation row")
     clear_rows = pn.widgets.Button(name="Clear additional rows")
-    button_cols = pn.Row(add_row, clear_rows)
     # ctrl_more.extend([add_row])
 
     contentcolumn = pn.Column(
@@ -1211,8 +1210,6 @@ def create_app_instance():
     clear_rows.on_click(lambda _: remove_column())
     add_row.on_click(lambda _: create_column())
 
-
-
     # this keeps the url in sync with the parameter choices and vice versa
     if pn.state.location:
         pn.state.location.sync(
@@ -1237,8 +1234,7 @@ def create_app_instance():
                 "pick_display_threshold": "pick_display_threshold",
             },
         )
-
-
+    layout[0][0].visible = glider_dashboard.pick_show_ctrls
     return layout
 
 
