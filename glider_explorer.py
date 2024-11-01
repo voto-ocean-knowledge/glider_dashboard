@@ -263,7 +263,11 @@ class GliderDashboard(param.Parameterized):
 
     @param.depends("pick_show_ctrls", watch=True)
     def update_display_threshold(self):
-        layout[0][0].visible = self.pick_show_ctrls
+        try:
+            # first run, when layout does not exist, this fails deliberately.
+            layout[0][0].visible = self.pick_show_ctrls
+        except:
+            pass
 
     @param.depends("pick_toggle","pick_basin", watch=True)
     def update_datasource(self):
@@ -1152,11 +1156,8 @@ def create_app_instance():
         contentcolumn.remove(meancolumn)
         contentcolumn.height=500
 
-    # import random
-
     add_row = pn.widgets.Button(name="Add aggregation row")
     clear_rows = pn.widgets.Button(name="Clear additional rows")
-    # ctrl_more.extend([add_row])
 
     contentcolumn = pn.Column(
         #pn.Row(
@@ -1234,7 +1235,9 @@ def create_app_instance():
                 "pick_display_threshold": "pick_display_threshold",
             },
         )
-    layout[0][0].visible = glider_dashboard.pick_show_ctrls
+    # this is at the very end because layout needs to exist
+    if glider_dashboard.pick_show_ctrls == False:
+        layout[0][0].visible = glider_dashboard.pick_show_ctrls
     return layout
 
 
