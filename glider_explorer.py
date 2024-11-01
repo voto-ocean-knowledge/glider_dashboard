@@ -1167,7 +1167,7 @@ def create_app_instance():
             glider_dashboard,
             parameters=["pick_show_ctrls"],
             show_name=False,),
-            height=500,
+            height=550,
             #),
         #pn.Row("# Add data aggregations (mean, max, std...)", button_cols),
     )
