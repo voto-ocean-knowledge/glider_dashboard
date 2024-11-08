@@ -154,6 +154,14 @@ class GliderDashboard(param.Parameterized):
         default=metadata["time_coverage_end (UTC)"].max(),
         label="endX", doc="endX", precedence=1
     )
+    pick_startY = param.Number(
+        default=None,
+        label="startY", doc="startY", precedence=1
+    )
+    pick_endY = param.Number(
+        default=8,
+        label="endY", doc="endY", precedence=1
+    )
     pick_display_threshold = param.Number(
         default=1, step=1, bounds=(-10, 10), label="display_treshold"
     )
@@ -218,7 +226,9 @@ class GliderDashboard(param.Parameterized):
         metadata["time_coverage_end (UTC)"].max().to_datetime64(),
     )
 
-    startY, endY = (None, 8)
+    #startY, endY = (None, 8)
+    #import pdb; pdb.set_trace();
+    #
     annotations = []
 
     def update_markdown(self):
@@ -361,6 +371,11 @@ class GliderDashboard(param.Parameterized):
 
         self.startX = self.pick_startX
         self.endX = self.pick_endX
+
+        self.startY, self.endY = (self.pick_startY, self.pick_endY)
+
+        #self.startY = self.pick_startY
+        #self.endY = self.pick_endY
 
         # in case coming in over json link
         self.startX = np.datetime64(self.startX)
@@ -1131,6 +1146,18 @@ def create_app_instance():
             show_name=False,
             # display_threshold=10,
         ),
+        pn.Param(
+            glider_dashboard,
+            parameters=["startY"],
+            show_name=False,
+            # display_threshold=10,
+        ),
+        pn.Param(
+            glider_dashboard,
+            parameters=["endY"],
+            show_name=False,
+            # display_threshold=10,
+        ),
     )
 
     def create_column(hex_id=None):
@@ -1232,6 +1259,8 @@ def create_app_instance():
                 "pick_high_resolution": "pick_high_resolution",
                 "pick_startX": "pick_startX",
                 "pick_endX": "pick_endX",
+                "pick_startY": "pick_startY",
+                "pick_endY": "pick_endY",
                 "pick_display_threshold": "pick_display_threshold",
             },
         )
