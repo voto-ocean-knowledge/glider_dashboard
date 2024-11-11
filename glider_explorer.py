@@ -162,6 +162,10 @@ class GliderDashboard(param.Parameterized):
         default=8,
         label="endY", doc="endY", precedence=1
     )
+    pick_contour_heigth = param.Number(
+        default=550,
+        label="contour_heigth", precedence=1
+    )
     pick_display_threshold = param.Number(
         default=1, step=1, bounds=(-10, 10), label="display_treshold"
     )
@@ -381,7 +385,7 @@ class GliderDashboard(param.Parameterized):
         self.startX = np.datetime64(self.startX)
         self.endX = np.datetime64(self.endX)
 
-        commonheights = 500
+        # commonheights = 1000
         x_range = (self.startX, self.endX)
         y_range = (self.startY, self.endY)
 
@@ -467,7 +471,7 @@ class GliderDashboard(param.Parameterized):
             default_tools=[],
             # responsive=True, # this currently breaks when activated with MLD
             # width=800,
-            height=commonheights,
+            # height=commonheights,
             cnorm=self.pick_cnorm,
             active_tools=["xpan", "xwheel_zoom"],
             bgcolor="dimgrey",
@@ -1186,6 +1190,40 @@ def create_app_instance():
     add_row = pn.widgets.Button(name="Add aggregation row")
     clear_rows = pn.widgets.Button(name="Clear additional rows")
 
+    #main = pn.Column("# Dynamically add new rows", button_cols, layout)
+
+    # Add interactivity
+    clear_rows.on_click(lambda _: remove_column())
+    add_row.on_click(lambda _: create_column())
+
+    # this keeps the url in sync with the parameter choices and vice versa
+    if pn.state.location:
+        pn.state.location.sync(
+            glider_dashboard,
+            {
+                "pick_basin": "pick_basin",
+                "pick_dsids": "pick_dsids",
+                "pick_toggle": "pick_toggle",
+                "pick_show_ctrls": "pick_show_ctrls",
+                "pick_variable": "pick_variable",
+                "pick_aggregation": "pick_aggregation",
+                "pick_mld": "pick_mld",
+                #"pick_mean": "pick_mean",
+                "pick_cnorm": "pick_cnorm",
+                "pick_TS": "pick_TS",
+                "pick_profiles": "pick_profiles",
+                "pick_TS_colored_by_variable": "pick_TS_colored_by_variable",
+                "pick_contours": "pick_contours",
+                "pick_high_resolution": "pick_high_resolution",
+                "pick_startX": "pick_startX",
+                "pick_endX": "pick_endX",
+                "pick_startY": "pick_startY",
+                "pick_endY": "pick_endY",
+                "pick_display_threshold": "pick_display_threshold",
+                "pick_contour_heigth": "pick_contour_heigth",
+            },
+        )
+
     contentcolumn = pn.Column(
         #pn.Row(
         glider_dashboard.create_dynmap,
@@ -1194,7 +1232,7 @@ def create_app_instance():
             glider_dashboard,
             parameters=["pick_show_ctrls"],
             show_name=False,),
-            height=550,
+            height=glider_dashboard.pick_contour_heigth,
             #),
         #pn.Row("# Add data aggregations (mean, max, std...)", button_cols),
     )
@@ -1232,39 +1270,8 @@ def create_app_instance():
         # visible=False, # works, but hides everything!
     )
 
-    #main = pn.Column("# Dynamically add new rows", button_cols, layout)
-
-    # Add interactivity
-    clear_rows.on_click(lambda _: remove_column())
-    add_row.on_click(lambda _: create_column())
-
-    # this keeps the url in sync with the parameter choices and vice versa
-    if pn.state.location:
-        pn.state.location.sync(
-            glider_dashboard,
-            {
-                "pick_basin": "pick_basin",
-                "pick_dsids": "pick_dsids",
-                "pick_toggle": "pick_toggle",
-                "pick_show_ctrls": "pick_show_ctrls",
-                "pick_variable": "pick_variable",
-                "pick_aggregation": "pick_aggregation",
-                "pick_mld": "pick_mld",
-                #"pick_mean": "pick_mean",
-                "pick_cnorm": "pick_cnorm",
-                "pick_TS": "pick_TS",
-                "pick_profiles": "pick_profiles",
-                "pick_TS_colored_by_variable": "pick_TS_colored_by_variable",
-                "pick_contours": "pick_contours",
-                "pick_high_resolution": "pick_high_resolution",
-                "pick_startX": "pick_startX",
-                "pick_endX": "pick_endX",
-                "pick_startY": "pick_startY",
-                "pick_endY": "pick_endY",
-                "pick_display_threshold": "pick_display_threshold",
-            },
-        )
-    # this is at the very end because layout needs to exist
+    # it is necessary to hide the controls as a very last option, because hidden controls cannot be accessed as variables
+    # in the control flow above. So hiding the controls earlier "defaults" all url and manual settings. 
     if glider_dashboard.pick_show_ctrls == False:
         layout[0][0].visible = glider_dashboard.pick_show_ctrls
     return layout
