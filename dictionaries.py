@@ -1,5 +1,6 @@
 import cmocean.cm
 
+
 cmap_dict = dict(
     conservative_temperature=cmocean.cm.thermal,
     potential_density=cmocean.cm.dense,
@@ -19,7 +20,9 @@ cmap_dict = dict(
     turbidity=cmocean.cm.turbid,
     profile_num=cmocean.cm.haline,
     methane_concentration=cmocean.cm.thermal,
-    methane_raw_concentration=cmocean.cm.thermal
+    methane_raw_concentration=cmocean.cm.thermal,
+    longitude='hsv',
+    latitude='hsv',
 )
 
 
@@ -42,7 +45,9 @@ units_dict = dict(
     turbidity="NTU",
     profile_num="",
     methane_concentration="mg/m³",
-    methane_raw_concentration=""
+    methane_raw_concentration="",
+    longitude='°E',
+    latitude='°N',
 )
 
 
