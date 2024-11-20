@@ -96,6 +96,8 @@ class GliderDashboard(param.Parameterized):
             "phycocyanin",
             "phycocyanin_tridente",
             "methane_concentration",
+            "longitude",
+            "latitude",
         ],
         label="variable",
         doc="Variable used to create colormesh",
@@ -154,6 +156,18 @@ class GliderDashboard(param.Parameterized):
         default=metadata["time_coverage_end (UTC)"].max(),
         label="endX", doc="endX", precedence=1
     )
+    pick_startY = param.Number(
+        default=None,
+        label="startY", doc="startY", precedence=1
+    )
+    pick_endY = param.Number(
+        default=8,
+        label="endY", doc="endY", precedence=1
+    )
+    pick_contour_heigth = param.Number(
+        default=550,
+        label="contour_heigth", precedence=1
+    )
     pick_display_threshold = param.Number(
         default=1, step=1, bounds=(-10, 10), label="display_treshold"
     )
@@ -189,6 +203,8 @@ class GliderDashboard(param.Parameterized):
             "phycocyanin",
             "phycocyanin_tridente",
             "methane_concentration",
+            "longitude",
+            "latitude",
         ],
         label="contour variable",
         doc="Variable presented as contour",
@@ -218,7 +234,9 @@ class GliderDashboard(param.Parameterized):
         metadata["time_coverage_end (UTC)"].max().to_datetime64(),
     )
 
-    startY, endY = (None, 8)
+    #startY, endY = (None, 8)
+    #import pdb; pdb.set_trace();
+    #
     annotations = []
 
     def update_markdown(self):
@@ -263,7 +281,11 @@ class GliderDashboard(param.Parameterized):
 
     @param.depends("pick_show_ctrls", watch=True)
     def update_display_threshold(self):
-        layout[0][0].visible = self.pick_show_ctrls
+        try:
+            # first run, when layout does not exist, this fails deliberately.
+            layout[0][0].visible = self.pick_show_ctrls
+        except:
+            pass
 
     @param.depends("pick_toggle","pick_basin", watch=True)
     def update_datasource(self):
@@ -358,11 +380,16 @@ class GliderDashboard(param.Parameterized):
         self.startX = self.pick_startX
         self.endX = self.pick_endX
 
+        self.startY, self.endY = (self.pick_startY, self.pick_endY)
+
+        #self.startY = self.pick_startY
+        #self.endY = self.pick_endY
+
         # in case coming in over json link
         self.startX = np.datetime64(self.startX)
         self.endX = np.datetime64(self.endX)
 
-        commonheights = 500
+        # commonheights = 1000
         x_range = (self.startX, self.endX)
         y_range = (self.startY, self.endY)
 
@@ -448,7 +475,7 @@ class GliderDashboard(param.Parameterized):
             default_tools=[],
             # responsive=True, # this currently breaks when activated with MLD
             # width=800,
-            height=commonheights,
+            # height=commonheights,
             cnorm=self.pick_cnorm,
             active_tools=["xpan", "xwheel_zoom"],
             bgcolor="dimgrey",
@@ -720,6 +747,8 @@ class GliderDashboard(param.Parameterized):
         #    import pdb; pdb.set_trace();
         #t1 = time.perf_counter()
         #print("start raster")
+        self.pick_startX = pd.to_datetime(x0)  # setters
+        self.pick_endX = pd.to_datetime(x1)
         meta, plt_props = self.load_viewport_datasets(x_range)
         plotslist1 = []
 
@@ -1125,6 +1154,18 @@ def create_app_instance():
             show_name=False,
             # display_threshold=10,
         ),
+        pn.Param(
+            glider_dashboard,
+            parameters=["startY"],
+            show_name=False,
+            # display_threshold=10,
+        ),
+        pn.Param(
+            glider_dashboard,
+            parameters=["endY"],
+            show_name=False,
+            # display_threshold=10,
+        ),
     )
 
     def create_column(hex_id=None):
@@ -1139,6 +1180,7 @@ def create_app_instance():
                         height=500,
                         )
         contentcolumn.append(meancolumn)
+        contentcolumn.height=1050
 
     def remove_column(hex_id=None):
         """
@@ -1147,67 +1189,16 @@ def create_app_instance():
         # value = random.randint(0, 100)
         # column = pn.widgets.TextInput(name="Enter a number", value=str(value))
         contentcolumn.remove(meancolumn)
-
-    # import random
+        contentcolumn.height=500
 
     add_row = pn.widgets.Button(name="Add aggregation row")
     clear_rows = pn.widgets.Button(name="Clear additional rows")
-    button_cols = pn.Row(add_row, clear_rows)
-    # ctrl_more.extend([add_row])
-
-    contentcolumn = pn.Column(
-        #pn.Row(
-        glider_dashboard.create_dynmap,
-            #glider_dashboard.create_mean,
-            pn.Param(
-            glider_dashboard,
-            parameters=["pick_show_ctrls"],
-            show_name=False,),
-            #),
-        #pn.Row("# Add data aggregations (mean, max, std...)", button_cols),
-    )
-
-    layout = pn.Column(
-        pn.Row( # row with controls, trajectory plot and TS plot
-            pn.Accordion(
-                toggle=True,
-                objects=[('Choose dataset(s)', ctrl_data),
-                ('Contour plot options', ctrl_contour),
-                ('Linked (scatter-)plots', ctrl_scatter),
-                ('Aggregations', pn.Column(add_row, clear_rows)),
-                ('more', ctrl_more),
-                #('WIP',add_row),
-                ],),
-                contentcolumn,
-                #, pn.Row(button_cols)])],
-                visible=True,
-            
-            #height=500,
-        ),
-        pn.Row(glider_dashboard.markdown),
-        pn.Row(
-            pn.Column(
-                meta_dashboard.param,
-                height=500,
-            ),
-            pn.Column(
-                meta_dashboard.create_timeline,
-                height=500,
-            ),
-            height=500,
-            scroll=True,
-        ),
-        #pn.Row("# Dynamically add new rows", button_cols)
-        # visible=False, # works, but hides everything!
-    )
 
     #main = pn.Column("# Dynamically add new rows", button_cols, layout)
 
     # Add interactivity
     clear_rows.on_click(lambda _: remove_column())
     add_row.on_click(lambda _: create_column())
-
-
 
     # this keeps the url in sync with the parameter choices and vice versa
     if pn.state.location:
@@ -1230,11 +1221,63 @@ def create_app_instance():
                 "pick_high_resolution": "pick_high_resolution",
                 "pick_startX": "pick_startX",
                 "pick_endX": "pick_endX",
+                "pick_startY": "pick_startY",
+                "pick_endY": "pick_endY",
                 "pick_display_threshold": "pick_display_threshold",
+                "pick_contour_heigth": "pick_contour_heigth",
             },
         )
 
+    contentcolumn = pn.Column(
+        #pn.Row(
+        glider_dashboard.create_dynmap,
+            #glider_dashboard.create_mean,
+            pn.Param(
+            glider_dashboard,
+            parameters=["pick_show_ctrls"],
+            show_name=False,),
+            height=glider_dashboard.pick_contour_heigth,
+            #),
+        #pn.Row("# Add data aggregations (mean, max, std...)", button_cols),
+    )
 
+    layout = pn.Column(
+        pn.Row( # row with controls, trajectory plot and TS plot
+            pn.Accordion(
+                toggle=True,
+                objects=[('Choose dataset(s)', ctrl_data),
+                ('Contour plot options', ctrl_contour),
+                ('Linked (scatter-)plots', ctrl_scatter),
+                ('Aggregations', pn.Column(add_row, clear_rows)),
+                ('more', ctrl_more),
+                #('WIP',add_row),
+                ],),
+                contentcolumn,
+                #, pn.Row(button_cols)])],
+                visible=True,
+            #height=500,
+        ),
+        pn.Row(glider_dashboard.markdown),
+        pn.Row(
+            pn.Column(
+                meta_dashboard.param,
+                height=500,
+            ),
+            pn.Column(
+                meta_dashboard.create_timeline,
+                height=500,
+            ),
+            height=500,
+            scroll=True,
+        ),
+        #pn.Row("# Dynamically add new rows", button_cols)
+        # visible=False, # works, but hides everything!
+    )
+
+    # it is necessary to hide the controls as a very last option, because hidden controls cannot be accessed as variables
+    # in the control flow above. So hiding the controls earlier "defaults" all url and manual settings. 
+    if glider_dashboard.pick_show_ctrls == False:
+        layout[0][0].visible = glider_dashboard.pick_show_ctrls
     return layout
 
 

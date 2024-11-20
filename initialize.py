@@ -18,8 +18,7 @@ variables=['temperature', 'salinity', 'depth',
            'potential_density', 'profile_num',
            'profile_direction', 'chlorophyll',
            'oxygen_concentration', 'phycocyanin', 'phycocyanin_tridente',
-	       #'methane_concentration',
-           'cdom', 'backscatter_scaled', 'longitude']
+           'cdom', 'backscatter_scaled', 'longitude', 'latitude']
 # dsids = ['../voto_erddap_data_cache/'+element+'.nc' for element in metadata.index]
 dsdict = dutils.download_glider_dataset(
     all_dataset_ids, # all_dataset_ids are actually the filtered dataserts from utils.filter_metadata...

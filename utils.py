@@ -36,6 +36,8 @@ def load_metadata():
         return variable in x
 
     def basin_simplify(basin):
+        if basin=='Bornholm Basin, Arkona Basin':
+            return 'Bornholm Basin'
         if basin=='Eastern Gotland Basin, Northern Baltic Proper':
             return 'Eastern Gotland'
         if basin=='Northern Baltic Proper, Eastern Gotland Basin':
