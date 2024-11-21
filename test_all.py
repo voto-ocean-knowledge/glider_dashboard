@@ -88,22 +88,17 @@ def test_temperature():
     GDB.pick_profiles = False
 
     # toggle to DatasetID
-    GDB.pick_toggle = 'DatasetID'
-    dyn = GDB.create_dynmap().opts(width=500, height=500)
-    myapp = pn.panel(dyn)
-    pn.pane.HoloViews(dyn).save(join(outpath, 'DatasetID.png'))
-    GDB.pick_toggle = 'SAMBA obs.'
+    # GDB.pick_toggle = 'DatasetID'
+    # dyn = GDB.create_dynmap().opts(width=500, height=500)
+    # myapp = pn.panel(dyn)
+    # pn.pane.HoloViews(dyn).save(join(outpath, 'DatasetID.png'))
+    # GDB.pick_toggle = 'SAMBA obs.'
 
     # colorbar
     GDB.cnorm = 'eq_hist'
     dyn = GDB.create_dynmap().opts(width=500, height=500)
     myapp = pn.panel(dyn)
     pn.pane.HoloViews(dyn).save(join(outpath, 'eq_hist.png'))
-    GDB.pick_toggle = 'linear.'
-
-
-
-
-
+    GDB.pick_cnorm = 'linear'
 
     assert 1==1
