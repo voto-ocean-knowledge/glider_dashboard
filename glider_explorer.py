@@ -248,19 +248,11 @@ class GliderDashboard(param.Parameterized):
 
     pick_filter_lower_threshold = param.Number(
         allow_None=True,
-        #start=0,
-        #end=100,
-        #step=1,
-        #value=3,
         label='lower threshold',
     )
 
     pick_filter_upper_threshold = param.Number(
         allow_None=True,
-        #start=0,
-        #end=100,
-        #step=1,
-        #value=3,
         label='upper threshold',
     )
 
@@ -1152,14 +1144,6 @@ def create_app_instance():
             show_name=False,
             # display_threshold=10,
         ),
-        # This is a hidden parameter, which can be specified in url
-        # to show or hide the menus. Can be useful when emedding interactive
-        # figures in webpages or presentations for example.
-        # pn.Param(glider_explorer,
-        #    parameters=['pick_display_threshold'],
-        #    show_name=False,
-        #    display_threshold=10,),
-
     )
 
 
@@ -1180,14 +1164,6 @@ def create_app_instance():
             show_name=False,
             # display_threshold=10,
         ),
-        # This is a hidden parameter, which can be specified in url
-        # to show or hide the menus. Can be useful when emedding interactive
-        # figures in webpages or presentations for example.
-        # pn.Param(glider_explorer,
-        #    parameters=['pick_display_threshold'],
-        #    show_name=False,
-        #    display_threshold=10,),
-
     )
 
 
