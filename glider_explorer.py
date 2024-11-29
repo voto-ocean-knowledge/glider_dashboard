@@ -226,6 +226,44 @@ class GliderDashboard(param.Parameterized):
         label="show controls",
         precedence=1,
     )
+    pick_filter_variable = param.Selector(
+        default=None,
+        objects=[
+            None,
+            "temperature",
+            "salinity",
+            "potential_density",
+            "chlorophyll",
+            "oxygen_concentration",
+            "cdom",
+            "backscatter_scaled",
+            "phycocyanin",
+            "phycocyanin_tridente",
+            "methane_concentration",
+            "longitude",
+            "latitude",
+            "depth",
+        ],
+        label='filter variable')
+
+    pick_filter_lower_threshold = param.Number(
+        allow_None=True,
+        #start=0,
+        #end=100,
+        #step=1,
+        #value=3,
+        label='lower threshold',
+    )
+
+    pick_filter_upper_threshold = param.Number(
+        allow_None=True,
+        #start=0,
+        #end=100,
+        #step=1,
+        #value=3,
+        label='upper threshold',
+    )
+
     data_in_view = None
     contour_processing = False
     startX, endX = (
@@ -370,6 +408,9 @@ class GliderDashboard(param.Parameterized):
         "pick_TS_colored_by_variable",
         "pick_high_resolution",
         "pick_profiles",
+        "pick_filter_variable",
+        "pick_filter_upper_threshold",
+        "pick_filter_lower_threshold",
         "pick_display_threshold",  #'pick_startX', 'pick_endX',
         #watch=True,
     )  # outcommenting this means just depend on all, redraw always
@@ -796,6 +837,11 @@ class GliderDashboard(param.Parameterized):
                     ).compute()
                 except:
                     dsconc = dsconc.drop_duplicates(subset=["temperature", "salinity"])
+
+            if self.pick_filter_variable:
+                dsconc = dsconc[dsconc[self.pick_filter_variable]>self.pick_filter_lower_threshold]
+                dsconc = dsconc[dsconc[self.pick_filter_variable]<self.pick_filter_upper_threshold]
+
             self.data_in_view = dsconc
             mplt = create_single_ds_plot_raster(data=dsconc, variable=variable)
             #t2 = time.perf_counter()
@@ -1116,6 +1162,36 @@ def create_app_instance():
 
     )
 
+
+
+    # filter options
+    ctrl_filter = pn.Column(
+        pn.Param(
+            glider_dashboard,
+            parameters=["pick_filter_variable"],
+            default_layout=pn.Row,
+            show_name=False,
+            # display_threshold=10,
+        ),
+        pn.Param(
+            glider_dashboard,
+            parameters=["pick_filter_lower_threshold", "pick_filter_upper_threshold"],
+            default_layout=pn.Row,
+            show_name=False,
+            # display_threshold=10,
+        ),
+        # This is a hidden parameter, which can be specified in url
+        # to show or hide the menus. Can be useful when emedding interactive
+        # figures in webpages or presentations for example.
+        # pn.Param(glider_explorer,
+        #    parameters=['pick_display_threshold'],
+        #    show_name=False,
+        #    display_threshold=10,),
+
+    )
+
+
+
     ctrl_more = pn.Column(
             pn.Param(
             glider_dashboard,
@@ -1218,6 +1294,9 @@ def create_app_instance():
                 "pick_profiles": "pick_profiles",
                 "pick_TS_colored_by_variable": "pick_TS_colored_by_variable",
                 "pick_contours": "pick_contours",
+                "pick_filter_variable": "pick_filter_variable",
+                "pick_filter_upper_threshold": "pick_filter_upper_threshold",
+                "pick_filter_lower_threshold": "pick_filter_lower_threshold",
                 "pick_high_resolution": "pick_high_resolution",
                 "pick_startX": "pick_startX",
                 "pick_endX": "pick_endX",
@@ -1249,6 +1328,7 @@ def create_app_instance():
                 ('Contour plot options', ctrl_contour),
                 ('Linked (scatter-)plots', ctrl_scatter),
                 ('Aggregations', pn.Column(add_row, clear_rows)),
+                ('Filters', ctrl_filter),
                 ('more', ctrl_more),
                 #('WIP',add_row),
                 ],),
