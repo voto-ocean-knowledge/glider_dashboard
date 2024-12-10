@@ -248,11 +248,13 @@ class GliderDashboard(param.Parameterized):
 
     pick_filter_lower_threshold = param.Number(
         allow_None=True,
+        default=None,
         label='lower threshold',
     )
 
     pick_filter_upper_threshold = param.Number(
         allow_None=True,
+        default=None,
         label='upper threshold',
     )
 
@@ -831,9 +833,11 @@ class GliderDashboard(param.Parameterized):
                     dsconc = dsconc.drop_duplicates(subset=["temperature", "salinity"])
 
             if self.pick_filter_variable:
-                dsconc = dsconc[dsconc[self.pick_filter_variable]>self.pick_filter_lower_threshold]
-                dsconc = dsconc[dsconc[self.pick_filter_variable]<self.pick_filter_upper_threshold]
-
+                if self.pick_filter_lower_threshold is not None:
+                    dsconc = dsconc[dsconc[self.pick_filter_variable]>self.pick_filter_lower_threshold]
+                if self.pick_filter_upper_threshold is not None:
+                    dsconc = dsconc[dsconc[self.pick_filter_variable]<self.pick_filter_upper_threshold]
+                # self.keep_zoom(x_range, y_range)
             self.data_in_view = dsconc
             mplt = create_single_ds_plot_raster(data=dsconc, variable=variable)
             #t2 = time.perf_counter()
