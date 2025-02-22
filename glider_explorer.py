@@ -135,6 +135,7 @@ class GliderDashboard(param.Parameterized):
         label="Colourbar Scale",
         precedence=1,
     )
+    # This could be extended with vertical gradient/diff possibly?
     pick_aggregation = param.Selector(
         default="mean",
         objects=["mean", "std"],
@@ -142,6 +143,15 @@ class GliderDashboard(param.Parameterized):
         doc="Method that is applied after binning",
         precedence=1,
     )
+
+    pick_aggregation_method = param.Selector(
+        default="mean",
+        objects=["mean", "min", "max"],#, "std"],
+        label="1D Data Aggregation",
+        doc="Method that is applied to aggregate column",
+        precedence=1,
+    )
+
     pick_mld = param.Boolean(
         default=False, label="MLD", doc="Show Mixed Layer Depth", precedence=1
     )
@@ -239,7 +249,7 @@ class GliderDashboard(param.Parameterized):
     #
     annotations = []
 
-    def update_markdown(self):
+    def update_markdown(self, x_range, y_range):
         p1 = f"""\
             # About
             Ocean {self.pick_variable} in [{dictionaries.units_dict[self.pick_variable]}] for """
@@ -249,8 +259,12 @@ class GliderDashboard(param.Parameterized):
             p2 = f""" the region {self.pick_basin} """
         p3 = f"""from {np.datetime_as_string(self.startX, unit='s')} to {np.datetime_as_string(self.endX, unit='s')}"""
         # import pdb; pdb.set_trace();
+        p4 = f""" Number of Profiles: {
+            self.data_in_view.profile_num.max()-self.data_in_view.profile_num.min()}"""
+        self.markdown.object = p1+p2+p3+p4 
 
-        return p1+p2+p3
+        #import pdb; pdb.set_trace();
+        return p1+p2+p3+p4
 
     # empty initialization for use later
     markdown = pn.pane.Markdown("")
@@ -375,7 +389,7 @@ class GliderDashboard(param.Parameterized):
     )  # outcommenting this means just depend on all, redraw always
     def create_dynmap(self):
 
-        self.markdown.object = self.update_markdown()
+        # self.markdown.object = self.update_markdown()
 
         self.startX = self.pick_startX
         self.endX = self.pick_endX
@@ -395,6 +409,7 @@ class GliderDashboard(param.Parameterized):
 
         range_stream = RangeXY(x_range=x_range, y_range=y_range).rename()
         range_stream.add_subscriber(self.keep_zoom)
+        # range_stream.add_subscriber(self.update_markdown) # Is always one step after, thus deactivated here
 
         t1 = time.perf_counter()
         pick_cnorm = "linear"
@@ -442,7 +457,7 @@ class GliderDashboard(param.Parameterized):
                 ).opts(
                     cnorm="eq_hist",
                     cmap=dictionaries.cmap_dict[self.pick_variable],
-                    clabel=self.pick_variable,
+                    #clabel=f"{self.pick_variable}  [{dictionaries.units_dict[self.pick_variable]}]",
                     colorbar=True,
                 )
 
@@ -479,7 +494,7 @@ class GliderDashboard(param.Parameterized):
             cnorm=self.pick_cnorm,
             active_tools=["xpan", "xwheel_zoom"],
             bgcolor="dimgrey",
-            clabel=self.pick_variable,
+            clabel=f"{self.pick_variable}  [{dictionaries.units_dict[self.pick_variable]}]",#self.pick_variable,
         )
 
         # Here it is important where the xlims are set. If set on rasterized_dmap,
@@ -493,10 +508,13 @@ class GliderDashboard(param.Parameterized):
                 self.dynmap = self.dynmap * hv.operation.contours(
                     self.dynmap,
                     levels=10,
+                    #group_label='blipp',
                 ).opts(
                     # cmap=dictionaries.cmap_dict[self.pick_contours],
+                    # group_label='blubb',
                     line_width=2.0,
-                )
+                ).opts(legend_position='bottom_right',
+                       legend_opts={'title':'blubb'})
             else:
                 dmap_contour = hv.DynamicMap(
                     self.get_xsection_raster_contour,
@@ -512,17 +530,25 @@ class GliderDashboard(param.Parameterized):
                 self.dynmap = self.dynmap * hv.operation.contours(
                     dmap_contour_rasterized,
                     levels=10,
+                    #group_label='blipp',
                 ).opts(
                     line_width=2.0,
-                )
+                    # group_label='blubb',
+                    # clabel=self.pick_variable,
+                ).opts(legend_position='bottom_right',
+                       legend_opts={'title':'blubb'})
 
         if self.pick_mld:
             dmap_mld = hv.DynamicMap(
                 self.get_xsection_mld, streams=[range_stream], cache_size=1
             ).opts(responsive=True)
-            self.dynmap = (
-                self.dynmap.opts(responsive=True) * dmap_mld.opts(responsive=True)
-            ).opts(responsive=True)
+            self.dynmap = (self.dynmap.opts(responsive=True) * dmap_mld.opts(responsive=True)
+                ).opts(responsive=True)
+            #self.dynmap = (
+                #self.dynmap.opts(responsive=True)*dmap_mld).opts(ylim=(self.startY, self.endY),)#, 
+                # invert_yaxis=True,) # invert_yaxis=True, # Would like to activate this, but breaks the hover tool) 
+                #* dmap_mld.opts(responsive=True)
+            #).opts(responsive=True)
         for annotation in self.annotations:
             print("insert text annotations defined in events")
             self.dynmap = self.dynmap * annotation
@@ -716,7 +742,15 @@ class GliderDashboard(param.Parameterized):
         #mld = gt.physics.mixed_layer_depth(
         #    dscopy.to_xarray(), "temperature", thresh=0.3, verbose=True, ref_depth=5
         #)
-        groups = dscopy.reset_index()[['time', self.pick_variable, 'profile_num']].groupby(by="profile_num").mean()#.time
+        if self.pick_aggregation_method == 'mean':
+            groups = dscopy.reset_index()[['time', self.pick_variable, 'profile_num']].groupby(by="profile_num").mean()#.time
+        elif self.pick_aggregation_method == 'max':
+            groups = dscopy.reset_index()[['time', self.pick_variable, 'profile_num']].groupby(by="profile_num").max()#.time
+        elif self.pick_aggregation_method == 'min':
+            groups = dscopy.reset_index()[['time', self.pick_variable, 'profile_num']].groupby(by="profile_num").min()#.time
+        #elif self.pick_aggregation_method == 'std':
+        #    groups = dscopy.reset_index()[['time', self.pick_variable, 'profile_num']].groupby(by="profile_num").std()#.time
+
         gtime = groups.time
         gmean = groups[self.pick_variable]
         #gtmean = dscopy.reset_index().groupby(by="profile_num")[self.pick_variable].mean()
@@ -797,6 +831,8 @@ class GliderDashboard(param.Parameterized):
                 except:
                     dsconc = dsconc.drop_duplicates(subset=["temperature", "salinity"])
             self.data_in_view = dsconc
+            self.update_markdown(x_range, y_range)
+
             mplt = create_single_ds_plot_raster(data=dsconc, variable=variable)
             #t2 = time.perf_counter()
             #print(t2 - t1)
@@ -1168,6 +1204,13 @@ def create_app_instance():
         ),
     )
 
+    pick_aggregation_method = pn.Param(
+            glider_dashboard,
+            parameters=["pick_aggregation_method"],
+            widgets={'pick_aggregation_method': pn.widgets.RadioButtonGroup},
+            show_name=False,
+            show_labels=True,)
+
     def create_column(hex_id=None):
         """
         Dynamically add a new row to the app.
@@ -1211,6 +1254,7 @@ def create_app_instance():
                 "pick_show_ctrls": "pick_show_ctrls",
                 "pick_variable": "pick_variable",
                 "pick_aggregation": "pick_aggregation",
+                "pick_aggregation_method": "pick_aggregation_method",
                 "pick_mld": "pick_mld",
                 #"pick_mean": "pick_mean",
                 "pick_cnorm": "pick_cnorm",
@@ -1248,7 +1292,11 @@ def create_app_instance():
                 objects=[('Choose dataset(s)', ctrl_data),
                 ('Contour plot options', ctrl_contour),
                 ('Linked (scatter-)plots', ctrl_scatter),
-                ('Aggregations', pn.Column(add_row, clear_rows)),
+                ('Aggregations (WIP)', pn.Column(
+                    pick_aggregation_method,
+                    add_row, 
+                    clear_rows, 
+                    )),
                 ('more', ctrl_more),
                 #('WIP',add_row),
                 ],),
