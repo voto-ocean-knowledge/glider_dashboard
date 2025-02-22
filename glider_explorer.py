@@ -260,11 +260,19 @@ class GliderDashboard(param.Parameterized):
         p3 = f"""from {np.datetime_as_string(self.startX, unit='s')} to {np.datetime_as_string(self.endX, unit='s')}"""
         # import pdb; pdb.set_trace();
         try:
-            p4 = f""" Number of Profiles: {
-                self.data_in_view.profile_num.max().compute()-self.data_in_view.profile_num.min().compute()}"""
+            #p4 = f""" Number of Profiles: {
+            #    self.data_in_view.profile_num.max().compute()-self.data_in_view.profile_num.min().compute()}"""
+            p4 = f"""or Number of profiles {
+                    self.data_in_view.profile_num.compute().iloc[-1]
+                    -self.data_in_view.profile_num.compute().iloc[0]}"""
         except:
-            p4 = f""" Number of Profiles: {
-                self.data_in_view.profile_num.max()-self.data_in_view.profile_num.min()}"""
+            # import pdb; pdb.set_trace();
+            #p4 = f""" Number of Profiles: {
+            #    self.data_in_view.profile_num.max()-self.data_in_view.profile_num.min()}"""
+            p4 = f"""or Number of profiles {
+                        self.data_in_view.profile_num.iloc[-1]
+                        -self.data_in_view.profile_num.iloc[0]}"""
+
         
         self.markdown.object = p1+p2+p3+p4 
 
