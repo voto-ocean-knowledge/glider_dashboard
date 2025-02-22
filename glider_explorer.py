@@ -259,8 +259,13 @@ class GliderDashboard(param.Parameterized):
             p2 = f""" the region {self.pick_basin} """
         p3 = f"""from {np.datetime_as_string(self.startX, unit='s')} to {np.datetime_as_string(self.endX, unit='s')}"""
         # import pdb; pdb.set_trace();
-        p4 = f""" Number of Profiles: {
-            self.data_in_view.profile_num.max()-self.data_in_view.profile_num.min()}"""
+        try:
+            p4 = f""" Number of Profiles: {
+                self.data_in_view.profile_num.max().compute()-self.data_in_view.profile_num.min().compute()}"""
+        except:
+            p4 = f""" Number of Profiles: {
+                self.data_in_view.profile_num.max()-self.data_in_view.profile_num.min()}"""
+        
         self.markdown.object = p1+p2+p3+p4 
 
         #import pdb; pdb.set_trace();
