@@ -24,7 +24,7 @@ from download_glider_data import utils as dutils
 import utils
 import dictionaries
 
-pn.extension("plotly")
+pn.extension("plotly", "mathjax") # mathjax is currently not used, but could render latex in markdown
 try:
     # cudf support works, but is currently not faster
     import hvplot.cudf
@@ -271,10 +271,10 @@ class GliderDashboard(param.Parameterized):
             #    self.data_in_view.profile_num.max()-self.data_in_view.profile_num.min()}"""
             p4 = f"""Number of profiles {
                         self.data_in_view.profile_num.iloc[-1]
-                        -self.data_in_view.profile_num.iloc[0]}"""
+                        -self.data_in_view.profile_num.iloc[0]} """
 
-        
-        self.markdown.object = p1+p2+p3+p4 
+
+        self.markdown.object = p1+p2+p3+p4#+r"$$\frac{1}{n}$$"
 
         #import pdb; pdb.set_trace();
         return p1+p2+p3+p4
@@ -487,7 +487,7 @@ class GliderDashboard(param.Parameterized):
                 cnorm="eq_hist",
             )
 
-        dmap = hv.DynamicMap(self.get_xsection, streams=[range_stream], cache_size=1)        
+        dmap = hv.DynamicMap(self.get_xsection, streams=[range_stream], cache_size=1)
         dmap_rasterized = rasterize(
             dmap_raster,
             aggregator=means,
@@ -558,8 +558,8 @@ class GliderDashboard(param.Parameterized):
             self.dynmap = (self.dynmap.opts(responsive=True) * dmap_mld.opts(responsive=True)
                 ).opts(responsive=True)
             #self.dynmap = (
-                #self.dynmap.opts(responsive=True)*dmap_mld).opts(ylim=(self.startY, self.endY),)#, 
-                # invert_yaxis=True,) # invert_yaxis=True, # Would like to activate this, but breaks the hover tool) 
+                #self.dynmap.opts(responsive=True)*dmap_mld).opts(ylim=(self.startY, self.endY),)#,
+                # invert_yaxis=True,) # invert_yaxis=True, # Would like to activate this, but breaks the hover tool)
                 #* dmap_mld.opts(responsive=True)
             #).opts(responsive=True)
         for annotation in self.annotations:
@@ -1230,7 +1230,7 @@ def create_app_instance():
         """
         # value = random.randint(0, 100)
         # column = pn.widgets.TextInput(name="Enter a number", value=str(value))
-        global meancolumn 
+        global meancolumn
         meancolumn = pn.Column(
                         glider_dashboard.create_mean(),
                         height=500,
@@ -1307,8 +1307,8 @@ def create_app_instance():
                 ('Linked (scatter-)plots', ctrl_scatter),
                 ('Aggregations (WIP)', pn.Column(
                     pick_aggregation_method,
-                    add_row, 
-                    clear_rows, 
+                    add_row,
+                    clear_rows,
                     )),
                 ('more', ctrl_more),
                 #('WIP',add_row),
@@ -1336,7 +1336,7 @@ def create_app_instance():
     )
 
     # it is necessary to hide the controls as a very last option, because hidden controls cannot be accessed as variables
-    # in the control flow above. So hiding the controls earlier "defaults" all url and manual settings. 
+    # in the control flow above. So hiding the controls earlier "defaults" all url and manual settings.
     if glider_dashboard.pick_show_ctrls == False:
         layout[0][0].visible = glider_dashboard.pick_show_ctrls
     return layout
