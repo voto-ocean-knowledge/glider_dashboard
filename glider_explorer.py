@@ -71,6 +71,110 @@ def plot_limits(plot, element):
     plot.handles["y_range"].max_interval = 500
 
 
+def mixed_layer_depth(ds, variable, thresh=0.01, ref_depth=-10, verbose=True):
+    """
+    Calculates the MLD for ungridded glider array.
+
+    You can provide density or temperature.
+    The default threshold is set for density (0.01).
+
+    Parameters
+    ----------
+    ds : xarray.Dataset Glider dataset
+    variable : str
+         variable that will be used for the threshold criteria
+    thresh : float=0.01 threshold for difference of variable
+    ref_depth : float=10 reference depth for difference
+    return_as_mask : bool, optional
+    verbose : bool, optional
+
+    Return
+    ------
+    mld : array
+        will be an array of depths the length of the
+        number of unique dives.
+    """
+    groups = group_by_profiles(ds, [variable, "depth"])
+    mld = groups.apply(mld_profile, variable, thresh, ref_depth, verbose)
+    return mld
+
+
+
+def group_by_profiles(ds, variables=None):
+    """
+    Group profiles by dives column. Each group member is one dive. The
+    returned profiles can be evaluated statistically, e.g. by
+    pandas.DataFrame.mean or other aggregating methods. To filter out one
+    specific profile, use xarray.Dataset.where instead.
+
+    Parameters
+    ----------
+    ds : xarray.Dataset
+        1-dimensional Glider dataset
+    variables : list of strings, optional
+        specify variables if only a subset of the dataset should be grouped
+        into profiles. Grouping only a subset is considerably faster and more
+        memory-effective.
+    Return
+    ------
+    profiles:
+    dataset grouped by profiles (dives variable), as created by the
+    pandas.groupby methods.
+    """
+    ds = ds.reset_coords().to_pandas().reset_index().set_index("dives")
+    if variables:
+        return ds[variables].groupby("dives")
+    else:
+        return ds.groupby("dives")
+
+
+def mld_profile(df, variable, thresh, ref_depth, verbose=True):
+    exception = False
+    divenum = df.index[0]
+    df = df.dropna(subset=[variable, "depth"])
+    if len(df) == 0:
+        mld = np.nan
+        exception = True
+        message = """no observations found for specified variable in dive {}
+                """.format(
+            divenum
+        )
+    elif np.nanmin(np.abs(df.depth.values + ref_depth)) > 5:
+        exception = True
+        message = """no observations within 5 m of ref_depth for dive {}
+                """.format(
+            divenum
+        )
+        mld = np.nan
+    else:
+        direction = 1 if np.unique(df.index % 1 == 0) else -1
+        # create arrays in order of increasing depth
+        var_arr = df[variable].values[:: int(direction)]
+        depth = df.depth.values[:: int(direction)]
+        # get index closest to ref_depth
+        i = np.nanargmin(np.abs(depth + ref_depth))
+        # create difference array for threshold variable
+        dd = var_arr - var_arr[i]
+        # mask out all values that are shallower then ref_depth
+        dd[depth > ref_depth] = np.nan
+        # get all values in difference array within treshold range
+        mixed = dd[abs(dd) > thresh]
+        if len(mixed) > 0:
+            idx_mld = np.argmax(abs(dd) > thresh)
+            mld = depth[idx_mld]
+        else:
+            exception = True
+            mld = np.nan
+            message = """threshold criterion never true (all mixed or \
+                shallow profile) for profile {}""".format(
+                divenum
+            )
+    if verbose and exception:
+        print(message)
+    return mld
+
+
+
 def create_single_ds_plot_raster(data, variable):
     # https://stackoverflow.com/questions/32318751/holoviews-how-to-plot-dataframe-with-time-index
     raster = data.hvplot.points(
@@ -722,14 +826,14 @@ class GliderDashboard(param.Parameterized):
             dscopy = utils.add_dive_column(self.data_in_view).compute()
         except:
             dscopy = utils.add_dive_column(self.data_in_view)
-        dscopy["depth"] = -dscopy["depth"]
-        mld = gt.physics.mixed_layer_depth(
+        # dscopy["depth"] = -dscopy["depth"]
+        mld = mixed_layer_depth(
             dscopy.to_xarray(), "temperature", thresh=0.3, verbose=True, ref_depth=5
         )
         gtime = dscopy.reset_index().groupby(by="profile_num").mean().time
         dfmld = (
             pd.DataFrame.from_dict(
-                dict(time=gtime.values, mld=-mld.rolling(10, center=True).mean().values)
+                dict(time=gtime.values, mld=mld.rolling(10, center=True).mean().values)
             )
             .sort_values(by="time")
             .dropna()
