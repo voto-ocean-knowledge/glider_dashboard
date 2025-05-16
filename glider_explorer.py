@@ -73,15 +73,21 @@ def plot_limits(plot, element):
 
 def create_ds_plots_raster(data, variables):
     # https://stackoverflow.com/questions/32318751/holoviews-how-to-plot-dataframe-with-time-index
-    # raster = data.hvplot.points(
-    #    x="time",
-    #    y="depth",
-    #    c=variable,
-    #)
+    """
+    raster = data.hvplot.points(
+       x="time",
+       y="depth",
+       c="temperature"#variable,
+    )
+    """
+    variables = set(variables)
+    variables.add('temperature') # inplace operations
+    variables.add('salinity')
     raster = hv.Points(
         data=data,
         kdims=['time', 'depth'],
-        vdims=variables,
+        vdims=list(variables),
+        # temp and salinity need to always be present for TS lasso to work, set for unique elements
     )
     return raster
 
@@ -543,7 +549,7 @@ class GliderDashboard(param.Parameterized):
                 default_tools=[],
                 # responsive=True, # this currently breaks when activated with MLD
                 # width=800,
-                height=int((500+100*len(self.pick_variables))/len(self.pick_variables)),#int(500/(len(self.pick_variables))),#250+int(250*2/len(self.pick_variables)), #500, 250,
+                height=int((400+100*len(self.pick_variables))/len(self.pick_variables)),#int(500/(len(self.pick_variables))),#250+int(250*2/len(self.pick_variables)), #500, 250,
                 cnorm=self.pick_cnorm,
                 active_tools=["xpan", "xwheel_zoom"],
                 bgcolor="dimgrey",
@@ -557,8 +563,6 @@ class GliderDashboard(param.Parameterized):
 
             if self.pick_mld:
                 dmap_rasterized = dmap_rasterized * dmap_mld#hv.Overlay(dmap_rasterized + dmap_mld)#.opts(responsive=True)
-
-
 
             if self.pick_contours:
                 # !!! important!!! Compute contours only once and apply to all.
@@ -595,49 +599,8 @@ class GliderDashboard(param.Parameterized):
                         line_width=2.0,
                     ).opts(legend_position='bottom_right',
                         legend_opts={'title':'blubb'})
-                    # dmap_rasterized = dmap_rasterized * dmap_contour_rasterized
-                    """
-                    dmap_rasterized = hv.Layout(dmap_rasterized * hv.operation.contours(
-                        dmap_contour_rasterized,
-                        levels=10,
-                        #group_label='blipp',
-                    ).opts(
-                        line_width=2.0,
-                        # group_label='blubb',
-                        # clabel=self.pick_variable,
-                    ).opts(legend_position='bottom_right',
-                        legend_opts={'title':'blubb'})
-                    ).cols(1)
-                    """
-                    #dmap_rasterized = dmap_rasterized * dmap_contour_rasterized
-
-
-
 
             cntr_plts.append(dmap_rasterized * dmap)
-
-        """
-        dmap_rasterized2 = rasterize(
-            dmap_raster,
-            aggregator=dsh.mean('salinity'),
-            # x_sampling=8.64e13/48,
-            y_sampling=0.2,
-            pixel_ratio=pixel_ratio,
-        ).opts(
-            # invert_yaxis=True, # Would like to activate this, but breaks the hover tool
-            colorbar=True,
-            cmap=dictionaries.cmap_dict[self.pick_variable],
-            toolbar="above",
-            tools=["xwheel_zoom", "reset", "xpan", "ywheel_zoom", "ypan", "hover"],
-            default_tools=[],
-            # responsive=True, # this currently breaks when activated with MLD
-            # width=800,
-            # height=commonheights,
-            cnorm=self.pick_cnorm,
-            active_tools=["xpan", "xwheel_zoom"],
-            bgcolor="dimgrey",
-            clabel=f"{self.pick_variable}  [{dictionaries.units_dict[self.pick_variable]}]",#self.pick_variable,
-        )"""
 
         # Here it is important where the xlims are set. If set on rasterized_dmap,
         # zoom limits are kept, if applied in the end zoom limits won't work
@@ -663,36 +626,39 @@ class GliderDashboard(param.Parameterized):
             print("insert text annotations defined in events")
             self.dynmap = self.dynmap * annotation
         if self.pick_TS:
-            linked_plots = link_selections(
-                hv.Layout(cntr_plts)
-                + dmapTSr.opts(
+            linked_plots = link_selections(#cntr_plts[0]) +
+                hv.Layout(cntr_plts) +
+              dmapTSr.opts(
+                    height=500,
                     responsive=True,
                     bgcolor="white"
                 ).opts(
                     padding=(0.05, 0.05)
                 ),
                 unselected_alpha=0.3,
-                #cross_filter_mode="overwrite", # could also be union to enable combined selections. More confusing?
-            )
+            ).cols(2)
+            #    unselected_alpha=0.3,
+            #    cross_filter_mode="overwrite", # could also be union to enable combined selections. More confusing?
 
+            """
             linked_plots.DynamicMap.II = (
                 dcont.opts(xlabel="salinity", ylabel="temperature")
                 * linked_plots.DynamicMap.II)
             #)
+            """
             return linked_plots
         if self.pick_profiles:
             linked_plots = link_selections(
-                hv.Layout(cntr_plts).opts(
-                    #responsive=True
-                )
-                + dmap_profilesr.opts(
+                hv.Layout(cntr_plts) +
+              dmap_profilesr.opts(
                     responsive=True,
                     bgcolor="white",
+                    height=500,
                 ).opts(
                     padding=(0.05, 0.05),
                 ),
                 unselected_alpha=0.3,
-            )
+            ).cols(2)
             #linked_plots.DynamicMap.II = linked_plots.DynamicMap.II
 
             return linked_plots
@@ -824,7 +790,7 @@ class GliderDashboard(param.Parameterized):
             dscopy = utils.add_dive_column(self.data_in_view)
         dscopy["depth"] = -dscopy["depth"]
         mld = gt.physics.mixed_layer_depth(
-            dscopy.to_xarray(), "temperature", thresh=0.3, verbose=True, ref_depth=5
+            dscopy.to_xarray(), "temperature", thresh=0.3, verbose=False, ref_depth=5
         )
         gtime = dscopy.reset_index().groupby(by="profile_num").mean().time
         dfmld = (
