@@ -604,10 +604,10 @@ class GliderDashboard(param.Parameterized):
                 dmapTSr = rasterize(
                     dmap_TS,
                     pixel_ratio=pixel_ratio,
-                    aggregator=means,
+                    aggregator=dsh.mean(self.pick_variables[0]),
                 ).opts(
                     cnorm="eq_hist",
-                    cmap=dictionaries.cmap_dict[self.pick_variable],
+                    cmap=dictionaries.cmap_dict[self.pick_variables[0]],
                     #clabel=f"{self.pick_variable}  [{dictionaries.units_dict[self.pick_variable]}]",
                     colorbar=True,
                 )
@@ -1042,14 +1042,16 @@ class GliderDashboard(param.Parameterized):
         t1 = time.perf_counter()
         thresh = dsconc[["temperature", "salinity"]].quantile(q=[0.001, 0.999])
         t2 = time.perf_counter()
+
         mplt = dsconc.hvplot.scatter(
             x="salinity",
             y="temperature",
-            c=self.pick_variable,
+            c=self.pick_variables[0],
         )[
             thresh["salinity"].iloc[0] - 0.5 : thresh["salinity"].iloc[1] + 0.5,
             thresh["temperature"].iloc[0] - 0.5 : thresh["temperature"].iloc[1] + 0.5,
         ]
+
 
         return mplt
 
@@ -1480,23 +1482,23 @@ def create_app_instance():
 
     layout = pn.Column(
         pn.Row( # row with controls, trajectory plot and TS plot
-            contentcolumn,
             pn.Accordion(
                 toggle=True,
                 objects=[('Choose dataset(s)', ctrl_data),
                 ('Contour plot options', ctrl_contour),
                 ('Linked (scatter-)plots', ctrl_scatter),
-                ('Aggregations (WIP)', pn.Column(
-                    pick_aggregation_method,
-                    add_row,
-                    clear_rows,
-                    )),
+                #('Aggregations (WIP)', pn.Column(
+                #    pick_aggregation_method,
+                #    add_row,
+                #    clear_rows,
+                #    )),
                 ('more', ctrl_more),
                 #('WIP',add_row),
                 ],),
+            contentcolumn,
             #, pn.Row(button_cols)])],
             visible=True,
-            #height=500,
+            height=800,
         ),
         pn.Row(pn.Column(),glider_dashboard.markdown),
         pn.Row(
