@@ -198,7 +198,8 @@ def create_single_ds_plot_raster(data, variables):
 
 
 class GliderDashboard(param.Parameterized):
-
+    """
+    replaced by pick_variables
     pick_variable = param.Selector(
         default="temperature",
         objects=[
@@ -219,6 +220,7 @@ class GliderDashboard(param.Parameterized):
         doc="Variable used to create colormesh",
         precedence=1,
     )
+    """
 
     pick_variables = param.ListSelector(
             default=["temperature"],
@@ -393,7 +395,7 @@ class GliderDashboard(param.Parameterized):
     def update_markdown(self, x_range, y_range):
         p1 = f"""\
             # About
-            Ocean {self.pick_variable} in [{dictionaries.units_dict[self.pick_variable]}] for """
+            Ocean {self.pick_variables[0]} in [{dictionaries.units_dict[self.pick_variables[0]]}] for """
         if self.pick_toggle == "DatasetID":
             p2 = f""" the datasets {self.pick_dsids} """
         else: #self.pick_toggle == "SAMBA obs.":
@@ -430,7 +432,8 @@ class GliderDashboard(param.Parameterized):
     @param.depends("pick_display_threshold", watch=True)
     def update_display_threshold(self):
         for var in [
-            "pick_variable",
+            #"pick_variable",
+            "pick_variables",
             "pick_basin",
             "pick_toggle",
             "pick_dsids",
@@ -488,7 +491,7 @@ class GliderDashboard(param.Parameterized):
         self.startX = np.datetime64("2024-01-15")
         self.endX = np.datetime64("2024-03-20")
         self.annotations.append(text_annotation)
-        self.pick_variable = "oxygen_concentration"
+        self.pick_variables = ["oxygen_concentration"]
 
         return  # self.dynmap*text_annotation
 
@@ -526,7 +529,7 @@ class GliderDashboard(param.Parameterized):
 
     @param.depends(
         "pick_cnorm",
-        "pick_variable",
+        #"pick_variable",
         "pick_variables",
         "pick_aggregation",
         "pick_mld",
@@ -919,6 +922,7 @@ class GliderDashboard(param.Parameterized):
         return mldscatter
 
     def get_xsection_mean(self, x_range, y_range):
+        # This method is not adapted for multiple variables (pick_variables) yet
         try:
             dscopy = utils.add_dive_column(self.data_in_view).compute()
         except:
@@ -1058,17 +1062,17 @@ class GliderDashboard(param.Parameterized):
     def get_xsection_profiles(self, x_range, y_range):
         dsconc = self.data_in_view
         t1 = time.perf_counter()
-        thresh = dsconc[self.pick_variable].quantile(q=[0.001, 0.999])
+        thresh = dsconc[self.pick_variables[0]].quantile(q=[0.001, 0.999])
         t2 = time.perf_counter()
         try:
             thresh = thresh.compute()  # .iloc[0]
         except:
             thresh = thresh
         mplt = dsconc.hvplot.scatter(
-            x=self.pick_variable,
+            x=self.pick_variables[0],
             y="depth",
             # No clue if this was good or bad. Needs to be testeded!
-            c=self.pick_variable,
+            c=self.pick_variables[0],
         )  # [thresh.iloc[0]-(0.1*thresh.iloc[0]):thresh.iloc[1]+(0.1*thresh.iloc[1])]
         # [thresh.iloc[0]-(0.1*thresh.iloc[0]):thresh.iloc[1]+(0.1*thresh.iloc[1])]#,
         # thresh['temperature'].iloc[0]-0.5:thresh['temperature'].iloc[1]+0.5]
@@ -1289,12 +1293,6 @@ def create_app_instance():
     ctrl_contour = pn.Column(
         pn.Param(
             glider_dashboard,
-            parameters=["pick_variable"],
-            default_layout=pn.Column,
-            show_name=False,
-        ),
-        pn.Param(
-            glider_dashboard,
             parameters=["pick_variables"],
             widgets={'pick_variables': pn.widgets.CheckBoxGroup},
             default_layout=pn.Column,
@@ -1446,7 +1444,7 @@ def create_app_instance():
                 "pick_dsids": "pick_dsids",
                 "pick_toggle": "pick_toggle",
                 "pick_show_ctrls": "pick_show_ctrls",
-                "pick_variable": "pick_variable",
+                # "pick_variable": "pick_variable", # replaced by pick_variables
                 "pick_variables": "pick_variables",
                 "pick_aggregation": "pick_aggregation",
                 "pick_aggregation_method": "pick_aggregation_method",
