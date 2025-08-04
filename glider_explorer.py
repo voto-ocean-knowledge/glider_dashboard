@@ -71,7 +71,6 @@ def plot_limits(plot, element):
     plot.handles["y_range"].max_interval = 500
 
 
-
 def mixed_layer_depth(ds, variable, thresh=0.01, ref_depth=-10, verbose=True):
     """
     Calculates the MLD for ungridded glider array.
@@ -98,7 +97,6 @@ def mixed_layer_depth(ds, variable, thresh=0.01, ref_depth=-10, verbose=True):
     groups = group_by_profiles(ds, [variable, "depth"])
     mld = groups.apply(mld_profile, variable, thresh, ref_depth, verbose)
     return mld
-
 
 
 def group_by_profiles(ds, variables=None):
@@ -175,16 +173,8 @@ def mld_profile(df, variable, thresh, ref_depth, verbose=True):
     return mld
 
 
-
 def create_single_ds_plot_raster(data, variables):
     # https://stackoverflow.com/questions/32318751/holoviews-how-to-plot-dataframe-with-time-index
-    """
-    raster = data.hvplot.points(
-       x="time",
-       y="depth",
-       c="temperature"#variable,
-    )
-    """
     variables = set(variables)
     variables.add('temperature') # inplace operations
     variables.add('salinity')
@@ -198,29 +188,6 @@ def create_single_ds_plot_raster(data, variables):
 
 
 class GliderDashboard(param.Parameterized):
-    """
-    replaced by pick_variables
-    pick_variable = param.Selector(
-        default="temperature",
-        objects=[
-            "temperature",
-            "salinity",
-            "potential_density",
-            "chlorophyll",
-            "oxygen_concentration",
-            "cdom",
-            "backscatter_scaled",
-            "phycocyanin",
-            "phycocyanin_tridente",
-            "methane_concentration",
-            "longitude",
-            "latitude",
-        ],
-        label="variable",
-        doc="Variable used to create colormesh",
-        precedence=1,
-    )
-    """
 
     pick_variables = param.ListSelector(
             default=["temperature"],
@@ -263,7 +230,6 @@ class GliderDashboard(param.Parameterized):
         label="DatasetID",
         precedence=-10,
     )
-    #param.
 
     pick_toggle = param.Selector(
         objects=['SAMBA obs.', 'DatasetID'],
@@ -387,9 +353,6 @@ class GliderDashboard(param.Parameterized):
         metadata["time_coverage_end (UTC)"].max().to_datetime64(),
     )
 
-    #startY, endY = (None, 8)
-    #import pdb; pdb.set_trace();
-    #
     annotations = []
 
     def update_markdown(self, x_range, y_range):
@@ -432,7 +395,6 @@ class GliderDashboard(param.Parameterized):
     @param.depends("pick_display_threshold", watch=True)
     def update_display_threshold(self):
         for var in [
-            #"pick_variable",
             "pick_variables",
             "pick_basin",
             "pick_toggle",
@@ -529,7 +491,6 @@ class GliderDashboard(param.Parameterized):
 
     @param.depends(
         "pick_cnorm",
-        #"pick_variable",
         "pick_variables",
         "pick_aggregation",
         "pick_mld",
@@ -745,16 +706,9 @@ class GliderDashboard(param.Parameterized):
                 ),
                 unselected_alpha=0.3,
             ).cols(2)
-            #    unselected_alpha=0.3,
             #    cross_filter_mode="overwrite", # could also be union to enable combined selections. More confusing?
-
-            """
-            linked_plots.DynamicMap.II = (
-                dcont.opts(xlabel="salinity", ylabel="temperature")
-                * linked_plots.DynamicMap.II)
-            #)
-            """
             return linked_plots
+
         if self.pick_profiles:
             linked_plots = link_selections(
                 hv.Layout(cntr_plts) +
@@ -767,7 +721,6 @@ class GliderDashboard(param.Parameterized):
                 ),
                 unselected_alpha=0.3,
             ).cols(2)
-            #linked_plots.DynamicMap.II = linked_plots.DynamicMap.II
 
             return linked_plots
 
@@ -775,10 +728,7 @@ class GliderDashboard(param.Parameterized):
             #self.dynmap = #self.dynmap * dmap.opts(
                 # opts.Labels(text_font_size='6pt')
             #)
-            #import pdb; pdb.set_trace();
-            return hv.Layout(cntr_plts).cols(1)#dmap_rasterized#self.dynmap.opts(
-                #responsive=True,
-            #)
+            return hv.Layout(cntr_plts).cols(1)
 
 
 
