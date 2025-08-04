@@ -36,30 +36,17 @@ def load_metadata():
         return variable in x
 
     def basin_simplify(basin):
-        if basin=='Bornholm Basin, Arkona Basin':
+        if basin.split(',')[0]=='Bornholm Basin':
             return 'Bornholm Basin'
-        if basin=='Eastern Gotland Basin, Northern Baltic Proper':
+        elif basin.split(',')[0]=='Eastern Gotland Basin':
             return 'Eastern Gotland'
-        if basin=='Northern Baltic Proper, Eastern Gotland Basin':
+        elif basin in ['Northern Baltic Proper, Eastern Gotland Basin', 'Northern Baltic Proper']:
             return 'Eastern Gotland'
-        elif basin=='Western Gotland Basin':
+        elif basin.split(',')[0] in ['Skagerrak', 'Kattegat']:
+            return 'Skagerrak, Kattegat'
+        elif basin.split(',')[0] == 'Western Gotland Basin':
             return 'Western Gotland'
-        elif basin=='Eastern Gotland Basin':
-            return 'Eastern Gotland'
-        elif basin=='Western Gotland Basin, Eastern Gotland Basin':
-            return 'Western Gotland'
-        elif basin=='Kattegat':
-            return 'Skagerrak, Kattegat'
-        elif basin=='Kattegat, Skagerrak':
-            return 'Skagerrak, Kattegat'
-        elif basin=='Skagerrak':
-            return 'Skagerrak, Kattegat'
-        elif basin=='Northern Baltic Proper':
-            return 'Eastern Gotland'
-            return 'Skagerrak, Kattegat'
-        elif basin=='\\u00c3\\u0085land Sea':
-            return 'Åland Sea'
-        elif basin=='\\u00c5land Sea':
+        elif basin.split(',')[0] == 'Åland Sea':
             return 'Åland Sea'
         else:
             return basin
@@ -273,4 +260,3 @@ def add_dive_column(ds):
     #ds["dives"] = np.where(ds.profile_direction == 1, ds.profile_num, ds.profile_num + 0.5)
     ds["dives"] = ds.profile_num.where(ds.profile_direction==1, ds.profile_num+0.5)
     return ds
-
