@@ -545,6 +545,9 @@ class GliderDashboard(param.Parameterized):
         # if self.pick_aggregation=='var':
         #    means = dsh.var(self.pick_variable)
 
+        # initialize dictionary for resulting plots:
+        # plot_elements_dict = dict()
+
         if self.pick_TS:
             dmap_TS = hv.DynamicMap(
                 self.get_xsection_TS,
@@ -589,21 +592,22 @@ class GliderDashboard(param.Parameterized):
                 cnorm="eq_hist",
             )
 
-        dmap = hv.DynamicMap(self.get_xsection, streams=[range_stream], cache_size=1)
+        dmap_decorators = hv.DynamicMap(self.get_xsection, streams=[range_stream], cache_size=1)
         if self.pick_mld:
             # Important!!! Compute MLD only once and apply it to all plots!!!
             dmap_mld = hv.DynamicMap(
                 self.get_xsection_mld, streams=[range_stream], cache_size=1
             )#.opts(responsive=True)
 
-        cntr_plts = []
+        #cntr_plts = []
+        plots_dict = dict(dmap_rasterized=dict(), dmap_rasterized_contour=dict())
         for variable in self.pick_variables:
             if self.pick_aggregation == "mean":
                 means = dsh.mean(variable)
             if self.pick_aggregation == "std":
                 means = dsh.std(variable)
 
-            dmap_rasterized = rasterize(
+            plots_dict['dmap_rasterized'][variable] = rasterize(
                 dmap_raster,
                 aggregator=means,
                 # x_sampling=8.64e13/48,
@@ -623,7 +627,9 @@ class GliderDashboard(param.Parameterized):
                 active_tools=["xpan", "xwheel_zoom"],
                 bgcolor="dimgrey",
                 clabel=f"{variable}  [{dictionaries.units_dict[variable]}]",#self.pick_variable,
+                responsive=True
             )
+            """
             dmap_rasterized = spread(dmap_rasterized, px=1, how="source").opts(
                 # invert_yaxis=True,
                 ylim=(self.startY, self.endY),
@@ -632,7 +638,9 @@ class GliderDashboard(param.Parameterized):
 
             if self.pick_mld:
                 dmap_rasterized = dmap_rasterized * dmap_mld#hv.Overlay(dmap_rasterized + dmap_mld)#.opts(responsive=True)
+            """
 
+            """
             if self.pick_contours:
                 # !!! important!!! Compute contours only once and apply to all.
                 if self.pick_contours == 'same as above':#self.pick_variable:
@@ -668,8 +676,25 @@ class GliderDashboard(param.Parameterized):
                         line_width=2.0,
                     ).opts(legend_position='bottom_right',
                         legend_opts={'title':'blubb'})
+            """
 
-            cntr_plts.append(dmap_rasterized * dmap)
+        def raster_to_contour(dmap):
+            if self.pick_contours == 'same as above':
+                hv.operation.contours(
+                    dmap_rasterized,
+                    levels=10,
+                    #group_label='blipp',
+                ).opts(
+                    # cmap=dictionaries.cmap_dict[self.pick_contours],
+                    # group_label='blubb',
+                    line_width=2.0,
+                ).opts(legend_position='bottom_right',
+                    legend_opts={'title':'blubb'})
+            else:
+                pass
+
+            #cntr_plts.append(dmap_rasterized * dmap)
+
 
         # Here it is important where the xlims are set. If set on rasterized_dmap,
         # zoom limits are kept, if applied in the end zoom limits won't work
@@ -684,7 +709,51 @@ class GliderDashboard(param.Parameterized):
                 responsive=True,
                 )).cols(1)
         """
+        """
+        if self.pick_TS:
+            # the density contours dcont are defined above, but not in use currently.
+            linked_plots = link_selections(#cntr_plts[0]) +
+                hv.Layout(cntr_plts) +
+                dmapTSr.opts(
+                    height=500,
+                    responsive=True,
+                    bgcolor="white"
+                ).opts(
+                    padding=(0.05, 0.05)
+                ),
+                unselected_alpha=0.3,
+            ).cols(2)
+        """
+        mpg_ls = link_selections.instance()
+        # link_selections(hv.Layout(plots_dict['dmap_rasterized'].values())+dmapTSr)
+        contourplots = hv.Layout([element * hv.operation.contours(element) for element in plots_dict['dmap_rasterized'].values()])
+        #contourlines = hv.operation.contours(contourplots)
+        if self.pick_TS:
+            # link the contourplots with the scatterplot
+            contourplots = mpg_ls(contourplots)
+            dmapTSr = mpg_ls(dmapTSr)
 
+        #contourplots =
+        #contourplots = hv.Overlay(contourplots*contourlines)
+        #contourplots = hv.operation.contours(contourplots)*contourplots
+        contourplots = contourplots*dmap_decorators
+        contourplots = contourplots*dmap_mld if self.pick_mld else contourplots
+        #contourplots = hv.operation.contours(contourplots)
+        contourplots = ((contourplots)+dmapTSr).cols(2) if self.pick_TS else contourplots#.cols(1)
+
+
+        #contourplots
+        #if (self.pick_TS:
+        return contourplots #*dmap_mld*dmap_decorators + dmapTSr
+       #linked_plots = link_selections(
+        #for element in plots_dict['dmap_rasterized'].values():
+
+        #return
+        #hv.operation.contours(
+            #hv.Layout(
+            #    plots_dict['dmap_rasterized'].values()#*raster_to_contour(plots_dict['dmap_rasterized'].values())
+            #    )
+                #, px=1, how="source")*dmap_mld#cntr_plts).cols(1)
             #)#.opts(responsive=True)
             #self.dynmap = (
                 #self.dynmap.opts(responsive=True)*dmap_mld).opts(ylim=(self.startY, self.endY),)#,
@@ -694,18 +763,7 @@ class GliderDashboard(param.Parameterized):
         for annotation in self.annotations:
             print("insert text annotations defined in events")
             self.dynmap = self.dynmap * annotation
-        if self.pick_TS:
-            linked_plots = link_selections(#cntr_plts[0]) +
-                hv.Layout(cntr_plts) +
-              dmapTSr.opts(
-                    height=500,
-                    responsive=True,
-                    bgcolor="white"
-                ).opts(
-                    padding=(0.05, 0.05)
-                ),
-                unselected_alpha=0.3,
-            ).cols(2)
+
             #    cross_filter_mode="overwrite", # could also be union to enable combined selections. More confusing?
             return linked_plots
 
