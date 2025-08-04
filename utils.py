@@ -46,7 +46,7 @@ def load_metadata():
             return 'Skagerrak, Kattegat'
         elif basin.split(',')[0] == 'Western Gotland Basin':
             return 'Western Gotland'
-        elif basin.split(',')[0] == 'Åland Sea':
+        elif basin.split(',')[0] in ['Åland Sea', '\\u00c5land Sea', '\\u00c3\\u0085land Sea']:
             return 'Åland Sea'
         else:
             return basin
