@@ -99,7 +99,6 @@ def mixed_layer_depth(ds, variable, thresh=0.01, ref_depth=-10, verbose=True):
     return mld
 
 
-
 def group_by_profiles(ds, variables=None):
     """
     Group profiles by dives column. Each group member is one dive. The
@@ -174,39 +173,44 @@ def mld_profile(df, variable, thresh, ref_depth, verbose=True):
     return mld
 
 
-
-def create_single_ds_plot_raster(data, variable):
+def create_single_ds_plot_raster(data, variables):
     # https://stackoverflow.com/questions/32318751/holoviews-how-to-plot-dataframe-with-time-index
-    raster = data.hvplot.points(
-        x="time",
-        y="depth",
-        c=variable,
+    variables = set(variables)
+    variables.add('temperature') # inplace operations
+    variables.add('salinity')
+    raster = hv.Points(
+        data=data,
+        kdims=['time', 'depth'],
+        vdims=list(variables),
+        # temp and salinity need to always be present for TS lasso to work, set for unique elements
     )
     return raster
 
 
 class GliderDashboard(param.Parameterized):
 
-    pick_variable = param.Selector(
-        default="temperature",
-        objects=[
-            "temperature",
-            "salinity",
-            "potential_density",
-            "chlorophyll",
-            "oxygen_concentration",
-            "cdom",
-            "backscatter_scaled",
-            "phycocyanin",
-            "phycocyanin_tridente",
-            "methane_concentration",
-            "longitude",
-            "latitude",
-        ],
-        label="variable",
-        doc="Variable used to create colormesh",
-        precedence=1,
+    pick_variables = param.ListSelector(
+            default=["temperature"],
+            allow_None=False,
+            objects=[
+                "temperature",
+                "salinity",
+                "potential_density",
+                "chlorophyll",
+                "oxygen_concentration",
+                "cdom",
+                "backscatter_scaled",
+                "phycocyanin",
+                "phycocyanin_tridente",
+                "methane_concentration",
+                "longitude",
+                "latitude",
+            ],
+            label="variable",
+            doc="Variable used to create colormesh",
+            precedence=1,
     )
+
     # show all the basins and all the datasets. I use the nrt data
     # from the metadatatables as keys, so I skip the 'delayed' sets
     # with the lambda function.
@@ -307,6 +311,7 @@ class GliderDashboard(param.Parameterized):
         default=None,
         objects=[
             None,
+            "same as above",
             "temperature",
             "salinity",
             "potential_density",
@@ -348,15 +353,12 @@ class GliderDashboard(param.Parameterized):
         metadata["time_coverage_end (UTC)"].max().to_datetime64(),
     )
 
-    #startY, endY = (None, 8)
-    #import pdb; pdb.set_trace();
-    #
     annotations = []
 
     def update_markdown(self, x_range, y_range):
         p1 = f"""\
             # About
-            Ocean {self.pick_variable} in [{dictionaries.units_dict[self.pick_variable]}] for """
+            Ocean {self.pick_variables[0]} in [{dictionaries.units_dict[self.pick_variables[0]]}] for """
         if self.pick_toggle == "DatasetID":
             p2 = f""" the datasets {self.pick_dsids} """
         else: #self.pick_toggle == "SAMBA obs.":
@@ -393,7 +395,7 @@ class GliderDashboard(param.Parameterized):
     @param.depends("pick_display_threshold", watch=True)
     def update_display_threshold(self):
         for var in [
-            "pick_variable",
+            "pick_variables",
             "pick_basin",
             "pick_toggle",
             "pick_dsids",
@@ -451,7 +453,7 @@ class GliderDashboard(param.Parameterized):
         self.startX = np.datetime64("2024-01-15")
         self.endX = np.datetime64("2024-03-20")
         self.annotations.append(text_annotation)
-        self.pick_variable = "oxygen_concentration"
+        self.pick_variables = ["oxygen_concentration"]
 
         return  # self.dynmap*text_annotation
 
@@ -489,7 +491,7 @@ class GliderDashboard(param.Parameterized):
 
     @param.depends(
         "pick_cnorm",
-        "pick_variable",
+        "pick_variables",
         "pick_aggregation",
         "pick_mld",
         #"pick_mean",
@@ -536,10 +538,6 @@ class GliderDashboard(param.Parameterized):
             streams=[range_stream],
         )
 
-        if self.pick_aggregation == "mean":
-            means = dsh.mean(self.pick_variable)
-        if self.pick_aggregation == "std":
-            means = dsh.std(self.pick_variable)
         if self.pick_high_resolution:
             pixel_ratio = 1.0
         else:
@@ -570,10 +568,10 @@ class GliderDashboard(param.Parameterized):
                 dmapTSr = rasterize(
                     dmap_TS,
                     pixel_ratio=pixel_ratio,
-                    aggregator=means,
+                    aggregator=dsh.mean(self.pick_variables[0]),
                 ).opts(
                     cnorm="eq_hist",
-                    cmap=dictionaries.cmap_dict[self.pick_variable],
+                    cmap=dictionaries.cmap_dict[self.pick_variables[0]],
                     #clabel=f"{self.pick_variable}  [{dictionaries.units_dict[self.pick_variable]}]",
                     colorbar=True,
                 )
@@ -592,75 +590,102 @@ class GliderDashboard(param.Parameterized):
             )
 
         dmap = hv.DynamicMap(self.get_xsection, streams=[range_stream], cache_size=1)
-        dmap_rasterized = rasterize(
-            dmap_raster,
-            aggregator=means,
-            # x_sampling=8.64e13/48,
-            y_sampling=0.2,
-            pixel_ratio=pixel_ratio,
-        ).opts(
-            # invert_yaxis=True, # Would like to activate this, but breaks the hover tool
-            colorbar=True,
-            cmap=dictionaries.cmap_dict[self.pick_variable],
-            toolbar="above",
-            tools=["xwheel_zoom", "reset", "xpan", "ywheel_zoom", "ypan", "hover"],
-            default_tools=[],
-            # responsive=True, # this currently breaks when activated with MLD
-            # width=800,
-            # height=commonheights,
-            cnorm=self.pick_cnorm,
-            active_tools=["xpan", "xwheel_zoom"],
-            bgcolor="dimgrey",
-            clabel=f"{self.pick_variable}  [{dictionaries.units_dict[self.pick_variable]}]",#self.pick_variable,
-        )
+        if self.pick_mld:
+            # Important!!! Compute MLD only once and apply it to all plots!!!
+            dmap_mld = hv.DynamicMap(
+                self.get_xsection_mld, streams=[range_stream], cache_size=1
+            )#.opts(responsive=True)
+
+        cntr_plts = []
+        for variable in self.pick_variables:
+            if self.pick_aggregation == "mean":
+                means = dsh.mean(variable)
+            if self.pick_aggregation == "std":
+                means = dsh.std(variable)
+
+            dmap_rasterized = rasterize(
+                dmap_raster,
+                aggregator=means,
+                # x_sampling=8.64e13/48,
+                y_sampling=0.2,
+                pixel_ratio=pixel_ratio,
+            ).opts(
+                # invert_yaxis=True, # Would like to activate this, but breaks the hover tool
+                colorbar=True,
+                cmap=dictionaries.cmap_dict[variable],
+                toolbar="above",
+                tools=["xwheel_zoom", "reset", "xpan", "ywheel_zoom", "ypan", "hover"],
+                default_tools=[],
+                # responsive=True, # this currently breaks when activated with MLD
+                # width=800,
+                height=int((400+100*len(self.pick_variables))/len(self.pick_variables)),#int(500/(len(self.pick_variables))),#250+int(250*2/len(self.pick_variables)), #500, 250,
+                cnorm=self.pick_cnorm,
+                active_tools=["xpan", "xwheel_zoom"],
+                bgcolor="dimgrey",
+                clabel=f"{variable}  [{dictionaries.units_dict[variable]}]",#self.pick_variable,
+            )
+            dmap_rasterized = spread(dmap_rasterized, px=1, how="source").opts(
+                # invert_yaxis=True,
+                ylim=(self.startY, self.endY),
+                responsive=True,
+                )
+
+            if self.pick_mld:
+                dmap_rasterized = dmap_rasterized * dmap_mld#hv.Overlay(dmap_rasterized + dmap_mld)#.opts(responsive=True)
+
+            if self.pick_contours:
+                # !!! important!!! Compute contours only once and apply to all.
+                if self.pick_contours == 'same as above':#self.pick_variable:
+                    dmap_rasterized = dmap_rasterized * hv.operation.contours(
+                        dmap_rasterized,
+                        levels=10,
+                        #group_label='blipp',
+                    ).opts(
+                        # cmap=dictionaries.cmap_dict[self.pick_contours],
+                        # group_label='blubb',
+                        line_width=2.0,
+                    ).opts(legend_position='bottom_right',
+                        legend_opts={'title':'blubb'})
+                else:
+                    dmap_contour = hv.DynamicMap(
+                        self.get_xsection_raster_contour,
+                        streams=[range_stream],
+                    )
+                    means_contour = dsh.mean(self.pick_contours)
+                    dmap_contour_rasterized = rasterize(
+                        dmap_contour,
+                        aggregator=means_contour,
+                        y_sampling=0.2,
+                        pixel_ratio=pixel_ratio,
+                    ).opts()
+                    dmap_rasterized = dmap_rasterized * hv.operation.contours(
+                        dmap_contour_rasterized,
+                        levels=10,
+                        #group_label='blipp',
+                    ).opts(
+                        # cmap=dictionaries.cmap_dict[self.pick_contours],
+                        # group_label='blubb',
+                        line_width=2.0,
+                    ).opts(legend_position='bottom_right',
+                        legend_opts={'title':'blubb'})
+
+            cntr_plts.append(dmap_rasterized * dmap)
 
         # Here it is important where the xlims are set. If set on rasterized_dmap,
         # zoom limits are kept, if applied in the end zoom limits won't work
-        self.dynmap = spread(dmap_rasterized, px=1, how="source").opts(
+        """
+        self.dynmap = (spread(dmap_rasterized, px=1, how="source").opts(
             # invert_yaxis=True,
             ylim=(self.startY, self.endY),
-            )
-        if self.pick_contours:
-            if self.pick_contours == self.pick_variable:
-                self.dynmap = self.dynmap * hv.operation.contours(
-                    self.dynmap,
-                    levels=10,
-                    #group_label='blipp',
-                ).opts(
-                    # cmap=dictionaries.cmap_dict[self.pick_contours],
-                    # group_label='blubb',
-                    line_width=2.0,
-                ).opts(legend_position='bottom_right',
-                       legend_opts={'title':'blubb'})
-            else:
-                dmap_contour = hv.DynamicMap(
-                    self.get_xsection_raster_contour,
-                    streams=[range_stream],
-                )
-                means_contour = dsh.mean(self.pick_contours)
-                dmap_contour_rasterized = rasterize(
-                    dmap_contour,
-                    aggregator=means_contour,
-                    y_sampling=0.2,
-                    pixel_ratio=pixel_ratio,
-                ).opts()
-                self.dynmap = self.dynmap * hv.operation.contours(
-                    dmap_contour_rasterized,
-                    levels=10,
-                    #group_label='blipp',
-                ).opts(
-                    line_width=2.0,
-                    # group_label='blubb',
-                    # clabel=self.pick_variable,
-                ).opts(legend_position='bottom_right',
-                       legend_opts={'title':'blubb'})
+            responsive=True,
+            ) + spread(dmap_rasterized2, px=1, how="source").opts(
+                # invert_yaxis=True,
+                ylim=(self.startY, self.endY),
+                responsive=True,
+                )).cols(1)
+        """
 
-        if self.pick_mld:
-            dmap_mld = hv.DynamicMap(
-                self.get_xsection_mld, streams=[range_stream], cache_size=1
-            ).opts(responsive=True)
-            self.dynmap = (self.dynmap.opts(responsive=True) * dmap_mld.opts(responsive=True)
-                ).opts(responsive=True)
+            #)#.opts(responsive=True)
             #self.dynmap = (
                 #self.dynmap.opts(responsive=True)*dmap_mld).opts(ylim=(self.startY, self.endY),)#,
                 # invert_yaxis=True,) # invert_yaxis=True, # Would like to activate this, but breaks the hover tool)
@@ -670,45 +695,40 @@ class GliderDashboard(param.Parameterized):
             print("insert text annotations defined in events")
             self.dynmap = self.dynmap * annotation
         if self.pick_TS:
-            linked_plots = link_selections(
-                self.dynmap.opts(
-                    responsive=True
-                )
-                + dmapTSr.opts(responsive=True, bgcolor="white").opts(
+            linked_plots = link_selections(#cntr_plts[0]) +
+                hv.Layout(cntr_plts) +
+              dmapTSr.opts(
+                    height=500,
+                    responsive=True,
+                    bgcolor="white"
+                ).opts(
                     padding=(0.05, 0.05)
                 ),
                 unselected_alpha=0.3,
-                cross_filter_mode="overwrite", # could also be union to enable combined selections. More confusing?
-            )
-            linked_plots.DynamicMap.II = (
-                dcont.opts(xlabel="salinity", ylabel="temperature")
-                * linked_plots.DynamicMap.II
-            )
+            ).cols(2)
+            #    cross_filter_mode="overwrite", # could also be union to enable combined selections. More confusing?
             return linked_plots
+
         if self.pick_profiles:
             linked_plots = link_selections(
-                self.dynmap.opts(
-                    responsive=True
-                )
-                + dmap_profilesr.opts(
+                hv.Layout(cntr_plts) +
+              dmap_profilesr.opts(
                     responsive=True,
                     bgcolor="white",
+                    height=500,
                 ).opts(
                     padding=(0.05, 0.05),
                 ),
                 unselected_alpha=0.3,
-            )
-            linked_plots.DynamicMap.II = linked_plots.DynamicMap.II
+            ).cols(2)
 
             return linked_plots
 
         else:
-            self.dynmap = self.dynmap * dmap.opts(
+            #self.dynmap = #self.dynmap * dmap.opts(
                 # opts.Labels(text_font_size='6pt')
-            )
-            return self.dynmap.opts(
-                responsive=True,
-            )
+            #)
+            return hv.Layout(cntr_plts).cols(1)
 
 
 
@@ -828,7 +848,8 @@ class GliderDashboard(param.Parameterized):
             dscopy = utils.add_dive_column(self.data_in_view)
         # dscopy["depth"] = -dscopy["depth"]
         mld = mixed_layer_depth(
-            dscopy.to_xarray(), "temperature", thresh=0.3, verbose=True, ref_depth=5
+            dscopy.to_xarray(), "temperature", thresh=0.3, verbose=False, ref_depth=5
+
         )
         gtime = dscopy.reset_index().groupby(by="profile_num").mean().time
         dfmld = (
@@ -851,6 +872,7 @@ class GliderDashboard(param.Parameterized):
         return mldscatter
 
     def get_xsection_mean(self, x_range, y_range):
+        # This method is not adapted for multiple variables (pick_variables) yet
         try:
             dscopy = utils.add_dive_column(self.data_in_view).compute()
         except:
@@ -915,9 +937,9 @@ class GliderDashboard(param.Parameterized):
                 for element in meta.index
             ]
         if contour_variable:
-            variable = contour_variable
+            variables = [contour_variable]
         else:
-            variable = self.pick_variable
+            variables = self.pick_variables
         varlist = []
         for dsid in metakeys:
             ds = dsdict[dsid]
@@ -950,7 +972,7 @@ class GliderDashboard(param.Parameterized):
             self.data_in_view = dsconc
             self.update_markdown(x_range, y_range)
 
-            mplt = create_single_ds_plot_raster(data=dsconc, variable=variable)
+            mplt = create_single_ds_plot_raster(data=dsconc, variables=variables)
             #t2 = time.perf_counter()
             #print(t2 - t1)
             return mplt
@@ -974,31 +996,33 @@ class GliderDashboard(param.Parameterized):
         t1 = time.perf_counter()
         thresh = dsconc[["temperature", "salinity"]].quantile(q=[0.001, 0.999])
         t2 = time.perf_counter()
+
         mplt = dsconc.hvplot.scatter(
             x="salinity",
             y="temperature",
-            c=self.pick_variable,
+            c=self.pick_variables[0],
         )[
             thresh["salinity"].iloc[0] - 0.5 : thresh["salinity"].iloc[1] + 0.5,
             thresh["temperature"].iloc[0] - 0.5 : thresh["temperature"].iloc[1] + 0.5,
         ]
+
 
         return mplt
 
     def get_xsection_profiles(self, x_range, y_range):
         dsconc = self.data_in_view
         t1 = time.perf_counter()
-        thresh = dsconc[self.pick_variable].quantile(q=[0.001, 0.999])
+        thresh = dsconc[self.pick_variables[0]].quantile(q=[0.001, 0.999])
         t2 = time.perf_counter()
         try:
             thresh = thresh.compute()  # .iloc[0]
         except:
             thresh = thresh
         mplt = dsconc.hvplot.scatter(
-            x=self.pick_variable,
+            x=self.pick_variables[0],
             y="depth",
             # No clue if this was good or bad. Needs to be testeded!
-            c=self.pick_variable,
+            c=self.pick_variables[0],
         )  # [thresh.iloc[0]-(0.1*thresh.iloc[0]):thresh.iloc[1]+(0.1*thresh.iloc[1])]
         # [thresh.iloc[0]-(0.1*thresh.iloc[0]):thresh.iloc[1]+(0.1*thresh.iloc[1])]#,
         # thresh['temperature'].iloc[0]-0.5:thresh['temperature'].iloc[1]+0.5]
@@ -1219,7 +1243,8 @@ def create_app_instance():
     ctrl_contour = pn.Column(
         pn.Param(
             glider_dashboard,
-            parameters=["pick_variable"],
+            parameters=["pick_variables"],
+            widgets={'pick_variables': pn.widgets.CheckBoxGroup},
             default_layout=pn.Column,
             show_name=False,
         ),
@@ -1270,7 +1295,7 @@ def create_app_instance():
     )
 
     ctrl_more = pn.Column(
-            pn.Param(
+        pn.Param(
             glider_dashboard,
             parameters=["startX"],
             show_name=False,
@@ -1369,7 +1394,8 @@ def create_app_instance():
                 "pick_dsids": "pick_dsids",
                 "pick_toggle": "pick_toggle",
                 "pick_show_ctrls": "pick_show_ctrls",
-                "pick_variable": "pick_variable",
+                # "pick_variable": "pick_variable", # replaced by pick_variables
+                "pick_variables": "pick_variables",
                 "pick_aggregation": "pick_aggregation",
                 "pick_aggregation_method": "pick_aggregation_method",
                 "pick_mld": "pick_mld",
@@ -1397,7 +1423,7 @@ def create_app_instance():
             glider_dashboard,
             parameters=["pick_show_ctrls"],
             show_name=False,),
-            height=glider_dashboard.pick_contour_heigth,
+            #height=glider_dashboard.pick_contour_heigth,
             #),
         #pn.Row("# Add data aggregations (mean, max, std...)", button_cols),
     )
@@ -1409,20 +1435,20 @@ def create_app_instance():
                 objects=[('Choose dataset(s)', ctrl_data),
                 ('Contour plot options', ctrl_contour),
                 ('Linked (scatter-)plots', ctrl_scatter),
-                ('Aggregations (WIP)', pn.Column(
-                    pick_aggregation_method,
-                    add_row,
-                    clear_rows,
-                    )),
+                #('Aggregations (WIP)', pn.Column(
+                #    pick_aggregation_method,
+                #    add_row,
+                #    clear_rows,
+                #    )),
                 ('more', ctrl_more),
                 #('WIP',add_row),
                 ],),
-                contentcolumn,
-                #, pn.Row(button_cols)])],
-                visible=True,
-            #height=500,
+            contentcolumn,
+            #, pn.Row(button_cols)])],
+            visible=True,
+            height=800,
         ),
-        pn.Row(glider_dashboard.markdown),
+        pn.Row(pn.Column(),glider_dashboard.markdown),
         pn.Row(
             pn.Column(
                 meta_dashboard.param,
