@@ -695,19 +695,12 @@ class GliderDashboard(param.Parameterized):
             print("insert text annotations defined in events")
             self.dynmap = self.dynmap * annotation
         if self.pick_TS:
-            linked_plots = link_selections(#cntr_plts[0]) +
-                hv.Layout(cntr_plts) +
-              dmapTSr.opts(
-                    height=500,
-                    responsive=True,
-                    bgcolor="white"
-                ).opts(
-                    padding=(0.05, 0.05)
-                ),
-                unselected_alpha=0.3,
-            ).cols(2)
+            #linked_plots =
+            mpg_lsp = link_selections.instance() # as done in tutorial holoviews
+            result = mpg_lsp(hv.Layout(cntr_plts)+dmapTSr)
+            # ).cols(2)
             #    cross_filter_mode="overwrite", # could also be union to enable combined selections. More confusing?
-            return linked_plots
+            return result#hv.Layout(cntr_plts)#linked_plots
 
         if self.pick_profiles:
             linked_plots = link_selections(
