@@ -636,105 +636,7 @@ class GliderDashboard(param.Parameterized):
         if (self.pick_contours is not None) and (self.pick_contours != "same as above"):
             plots_dict['dmap_rasterized_contour'] = rasters(self.pick_contours)
 
-
-            """
-            dmap_rasterized = spread(dmap_rasterized, px=1, how="source").opts(
-                # invert_yaxis=True,
-                ylim=(self.startY, self.endY),
-                responsive=True,
-                )
-
-            if self.pick_mld:
-                dmap_rasterized = dmap_rasterized * dmap_mld#hv.Overlay(dmap_rasterized + dmap_mld)#.opts(responsive=True)
-            """
-
-            """
-            if self.pick_contours:
-                # !!! important!!! Compute contours only once and apply to all.
-                if self.pick_contours == 'same as above':#self.pick_variable:
-                    dmap_rasterized = dmap_rasterized * hv.operation.contours(
-                        dmap_rasterized,
-                        levels=10,
-                        #group_label='blipp',
-                    ).opts(
-                        # cmap=dictionaries.cmap_dict[self.pick_contours],
-                        # group_label='blubb',
-                        line_width=2.0,
-                    ).opts(legend_position='bottom_right',
-                        legend_opts={'title':'blubb'})
-                else:
-                    dmap_contour = hv.DynamicMap(
-                        self.get_xsection_raster_contour,
-                        streams=[range_stream],
-                    )
-                    means_contour = dsh.mean(self.pick_contours)
-                    dmap_contour_rasterized = rasterize(
-                        dmap_contour,
-                        aggregator=means_contour,
-                        y_sampling=0.2,
-                        pixel_ratio=pixel_ratio,
-                    ).opts()
-                    dmap_rasterized = dmap_rasterized * hv.operation.contours(
-                        dmap_contour_rasterized,
-                        levels=10,
-                        #group_label='blipp',
-                    ).opts(
-                        # cmap=dictionaries.cmap_dict[self.pick_contours],
-                        # group_label='blubb',
-                        line_width=2.0,
-                    ).opts(legend_position='bottom_right',
-                        legend_opts={'title':'blubb'})
-            """
-        """
-        def raster_to_contour(dmap):
-            if self.pick_contours == 'same as above':
-                hv.operation.contours(
-                    dmap_rasterized,
-                    levels=10,
-                    #group_label='blipp',
-                ).opts(
-                    # cmap=dictionaries.cmap_dict[self.pick_contours],
-                    # group_label='blubb',
-                    line_width=2.0,
-                ).opts(legend_position='bottom_right',
-                    legend_opts={'title':'blubb'})
-            else:
-                pass
-        """
-
-            #cntr_plts.append(dmap_rasterized * dmap)
-
-
-        # Here it is important where the xlims are set. If set on rasterized_dmap,
-        # zoom limits are kept, if applied in the end zoom limits won't work
-        """
-        self.dynmap = (spread(dmap_rasterized, px=1, how="source").opts(
-            # invert_yaxis=True,
-            ylim=(self.startY, self.endY),
-            responsive=True,
-            ) + spread(dmap_rasterized2, px=1, how="source").opts(
-                # invert_yaxis=True,
-                ylim=(self.startY, self.endY),
-                responsive=True,
-                )).cols(1)
-        """
-        """
-        if self.pick_TS:
-            # the density contours dcont are defined above, but not in use currently.
-            linked_plots = link_selections(#cntr_plts[0]) +
-                hv.Layout(cntr_plts) +
-                dmapTSr.opts(
-                    height=500,
-                    responsive=True,
-                    bgcolor="white"
-                ).opts(
-                    padding=(0.05, 0.05)
-                ),
-                unselected_alpha=0.3,
-            ).cols(2)
-        """
         mpg_ls = link_selections.instance()
-        # link_selections(hv.Layout(plots_dict['dmap_rasterized'].values())+dmapTSr)
         if self.pick_contours:
             if self.pick_contours=='same as above':
                 contourplots = hv.Layout([element * hv.operation.contours(element) for element in plots_dict['dmap_rasterized'].values()])
@@ -743,7 +645,6 @@ class GliderDashboard(param.Parameterized):
                 contourplots = hv.Layout([element * overlay_contours for element in plots_dict['dmap_rasterized'].values()])
         else:
             contourplots = hv.Layout([element for element in plots_dict['dmap_rasterized'].values()])
-        #contourlines = hv.operation.contours(contourplots)
         if self.pick_TS:
             # link the contourplots with the scatterplot
             contourplots = mpg_ls(contourplots)
@@ -752,34 +653,14 @@ class GliderDashboard(param.Parameterized):
             contourplots = mpg_ls(contourplots)
             dmap_profilesr = mpg_ls(dmap_profilesr)
 
-        #contourplots =
-        #contourplots = hv.Overlay(contourplots*contourlines)
-        #contourplots = hv.operation.contours(contourplots)*contourplots
         contourplots = contourplots*dmap_decorators
         contourplots = contourplots*dmap_mld if self.pick_mld else contourplots
-        #contourplots = hv.operation.contours(contourplots)
         contourplots = ((contourplots)+dmapTSr.opts(padding=(0.05, 0.05), height=500, responsive=True)).cols(2) if self.pick_TS else contourplots#.cols(1)
         contourplots = ((contourplots)+dmap_profilesr.opts(height=500, responsive=True)).cols(2) if self.pick_profiles else contourplots
 
 
-        #contourplots
-        #if (self.pick_TS:
-        return contourplots#.opts(responsive=True) #*dmap_mld*dmap_decorators + dmapTSr
-       #linked_plots = link_selections(
-        #for element in plots_dict['dmap_rasterized'].values():
+        return contourplots
 
-        #return
-        #hv.operation.contours(
-            #hv.Layout(
-            #    plots_dict['dmap_rasterized'].values()#*raster_to_contour(plots_dict['dmap_rasterized'].values())
-            #    )
-                #, px=1, how="source")*dmap_mld#cntr_plts).cols(1)
-            #)#.opts(responsive=True)
-            #self.dynmap = (
-                #self.dynmap.opts(responsive=True)*dmap_mld).opts(ylim=(self.startY, self.endY),)#,
-                # invert_yaxis=True,) # invert_yaxis=True, # Would like to activate this, but breaks the hover tool)
-                #* dmap_mld.opts(responsive=True)
-            #).opts(responsive=True)
         for annotation in self.annotations:
             print("insert text annotations defined in events")
             self.dynmap = self.dynmap * annotation
