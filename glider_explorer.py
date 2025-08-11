@@ -601,13 +601,14 @@ class GliderDashboard(param.Parameterized):
 
         #cntr_plts = []
         plots_dict = dict(dmap_rasterized=dict(), dmap_rasterized_contour=dict())
-        for variable in self.pick_variables:
+        #variables = self.pick_variables
+        def rasters(variable):
             if self.pick_aggregation == "mean":
                 means = dsh.mean(variable)
             if self.pick_aggregation == "std":
                 means = dsh.std(variable)
 
-            plots_dict['dmap_rasterized'][variable] = rasterize(
+            return rasterize(
                 dmap_raster,
                 aggregator=means,
                 # x_sampling=8.64e13/48,
@@ -629,6 +630,13 @@ class GliderDashboard(param.Parameterized):
                 clabel=f"{variable}  [{dictionaries.units_dict[variable]}]",#self.pick_variable,
                 responsive=True
             )
+
+        for variable in self.pick_variables:
+            plots_dict['dmap_rasterized'][variable] = rasters(variable)
+        if (self.pick_contours is not None) and (self.pick_contours != "same as above"):
+            plots_dict['dmap_rasterized_contour'] = rasters(self.pick_contours)
+
+
             """
             dmap_rasterized = spread(dmap_rasterized, px=1, how="source").opts(
                 # invert_yaxis=True,
@@ -677,7 +685,7 @@ class GliderDashboard(param.Parameterized):
                     ).opts(legend_position='bottom_right',
                         legend_opts={'title':'blubb'})
             """
-
+        """
         def raster_to_contour(dmap):
             if self.pick_contours == 'same as above':
                 hv.operation.contours(
@@ -692,6 +700,7 @@ class GliderDashboard(param.Parameterized):
                     legend_opts={'title':'blubb'})
             else:
                 pass
+        """
 
             #cntr_plts.append(dmap_rasterized * dmap)
 
@@ -726,12 +735,22 @@ class GliderDashboard(param.Parameterized):
         """
         mpg_ls = link_selections.instance()
         # link_selections(hv.Layout(plots_dict['dmap_rasterized'].values())+dmapTSr)
-        contourplots = hv.Layout([element * hv.operation.contours(element) for element in plots_dict['dmap_rasterized'].values()])
+        if self.pick_contours:
+            if self.pick_contours=='same as above':
+                contourplots = hv.Layout([element * hv.operation.contours(element) for element in plots_dict['dmap_rasterized'].values()])
+            else:
+                overlay_contours = hv.operation.contours(plots_dict['dmap_rasterized_contour'])
+                contourplots = hv.Layout([element * overlay_contours for element in plots_dict['dmap_rasterized'].values()])
+        else:
+            contourplots = hv.Layout([element for element in plots_dict['dmap_rasterized'].values()])
         #contourlines = hv.operation.contours(contourplots)
         if self.pick_TS:
             # link the contourplots with the scatterplot
             contourplots = mpg_ls(contourplots)
             dmapTSr = mpg_ls(dmapTSr)
+        elif self.pick_profiles:
+            contourplots = mpg_ls(contourplots)
+            dmap_profilesr = mpg_ls(dmap_profilesr)
 
         #contourplots =
         #contourplots = hv.Overlay(contourplots*contourlines)
@@ -739,12 +758,13 @@ class GliderDashboard(param.Parameterized):
         contourplots = contourplots*dmap_decorators
         contourplots = contourplots*dmap_mld if self.pick_mld else contourplots
         #contourplots = hv.operation.contours(contourplots)
-        contourplots = ((contourplots)+dmapTSr).cols(2) if self.pick_TS else contourplots#.cols(1)
+        contourplots = ((contourplots)+dmapTSr.opts(padding=(0.05, 0.05), height=500, responsive=True)).cols(2) if self.pick_TS else contourplots#.cols(1)
+        contourplots = ((contourplots)+dmap_profilesr.opts(height=500, responsive=True)).cols(2) if self.pick_profiles else contourplots
 
 
         #contourplots
         #if (self.pick_TS:
-        return contourplots #*dmap_mld*dmap_decorators + dmapTSr
+        return contourplots#.opts(responsive=True) #*dmap_mld*dmap_decorators + dmapTSr
        #linked_plots = link_selections(
         #for element in plots_dict['dmap_rasterized'].values():
 
@@ -969,7 +989,7 @@ class GliderDashboard(param.Parameterized):
 
         return meanline
 
-    def get_xsection_raster(self, x_range, y_range, contour_variable=None):
+    def get_xsection_raster(self, x_range, y_range):#, contour_variable=None):
         (x0, x1) = x_range
         #try:
         #    self.pick_startX = pd.to_datetime(x0)  # setters
@@ -994,10 +1014,13 @@ class GliderDashboard(param.Parameterized):
                 )
                 for element in meta.index
             ]
-        if contour_variable:
-            variables = [contour_variable]
-        else:
-            variables = self.pick_variables
+        #if contour_variable:
+        #    variables = [contour_variable]
+        #else:
+        #
+        variables = self.pick_variables
+        #if (self.pick_contours is not None) and (self.pick_contours != "same as above"):
+        #    variables.append(self.pick_contours)
         varlist = []
         for dsid in metakeys:
             ds = dsdict[dsid]
@@ -1030,7 +1053,10 @@ class GliderDashboard(param.Parameterized):
             self.data_in_view = dsconc
             self.update_markdown(x_range, y_range)
 
-            mplt = create_single_ds_plot_raster(data=dsconc, variables=variables)
+            if (self.pick_contours is not None) and (self.pick_contours != "same as above"):
+                mplt = create_single_ds_plot_raster(data=dsconc, variables=[*variables, self.pick_contours])
+            else:
+                mplt = create_single_ds_plot_raster(data=dsconc, variables=variables)
             #t2 = time.perf_counter()
             #print(t2 - t1)
             return mplt
