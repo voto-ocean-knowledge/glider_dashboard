@@ -653,14 +653,7 @@ class GliderDashboard(param.Parameterized):
             contourplots = mpg_ls(contourplots)
             dmap_profilesr = mpg_ls(dmap_profilesr)
 
-        contourplots = contourplots*dmap_decorators
-        contourplots = contourplots*dmap_mld if self.pick_mld else contourplots
-        contourplots = ((contourplots)+dmapTSr.opts(padding=(0.05, 0.05), height=500, responsive=True)).cols(2) if self.pick_TS else contourplots#.cols(1)
-        contourplots = ((contourplots)+dmap_profilesr.opts(height=500, responsive=True)).cols(2) if self.pick_profiles else contourplots
-
-
-        return contourplots
-
+        # annotations are currently broken, fix here
         for annotation in self.annotations:
             print("insert text annotations defined in events")
             self.dynmap = self.dynmap * annotation
@@ -668,27 +661,11 @@ class GliderDashboard(param.Parameterized):
             #    cross_filter_mode="overwrite", # could also be union to enable combined selections. More confusing?
             return linked_plots
 
-        if self.pick_profiles:
-            linked_plots = link_selections(
-                hv.Layout(cntr_plts) +
-              dmap_profilesr.opts(
-                    responsive=True,
-                    bgcolor="white",
-                    height=500,
-                ).opts(
-                    padding=(0.05, 0.05),
-                ),
-                unselected_alpha=0.3,
-            ).cols(2)
-
-            return linked_plots
-
-        else:
-            #self.dynmap = #self.dynmap * dmap.opts(
-                # opts.Labels(text_font_size='6pt')
-            #)
-            return hv.Layout(cntr_plts).cols(1)
-
+        contourplots = contourplots*dmap_decorators
+        contourplots = contourplots*dmap_mld if self.pick_mld else contourplots
+        contourplots = ((contourplots)+dmapTSr.opts(padding=(0.05, 0.05), height=500, responsive=True)).cols(2) if self.pick_TS else contourplots#.cols(1)
+        contourplots = ((contourplots)+dmap_profilesr.opts(height=500, responsive=True)).cols(2) if self.pick_profiles else contourplots
+        return contourplots
 
 
     def create_mean(self):
