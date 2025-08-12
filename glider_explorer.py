@@ -633,41 +633,26 @@ class GliderDashboard(param.Parameterized):
             if self.pick_mld:
                 dmap_rasterized = dmap_rasterized * dmap_mld#hv.Overlay(dmap_rasterized + dmap_mld)#.opts(responsive=True)
 
-            if self.pick_contours:
-                # !!! important!!! Compute contours only once and apply to all.
-                if self.pick_contours == 'same as above':#self.pick_variable:
-                    dmap_rasterized = dmap_rasterized * hv.operation.contours(
-                        dmap_rasterized,
-                        levels=10,
-                        #group_label='blipp',
-                    ).opts(
-                        # cmap=dictionaries.cmap_dict[self.pick_contours],
-                        # group_label='blubb',
-                        line_width=2.0,
-                    ).opts(legend_position='bottom_right',
-                        legend_opts={'title':'blubb'})
-                else:
-                    dmap_contour = hv.DynamicMap(
-                        self.get_xsection_raster_contour,
-                        streams=[range_stream],
-                    )
-                    means_contour = dsh.mean(self.pick_contours)
-                    dmap_contour_rasterized = rasterize(
-                        dmap_contour,
-                        aggregator=means_contour,
-                        y_sampling=0.2,
-                        pixel_ratio=pixel_ratio,
-                    ).opts()
-                    dmap_rasterized = dmap_rasterized * hv.operation.contours(
-                        dmap_contour_rasterized,
-                        levels=10,
-                        #group_label='blipp',
-                    ).opts(
-                        # cmap=dictionaries.cmap_dict[self.pick_contours],
-                        # group_label='blubb',
-                        line_width=2.0,
-                    ).opts(legend_position='bottom_right',
-                        legend_opts={'title':'blubb'})
+
+        mpg_ls = link_selections.instance()
+        if self.pick_contours:
+            if self.pick_contours=='same as above':
+                contourplots = hv.Layout([element * hv.operation.contours(element) for element in plots_dict['dmap_rasterized'].values()])
+            else:
+                overlay_contours = hv.operation.contours(plots_dict['dmap_rasterized_contour'])
+                contourplots = hv.Layout([element * overlay_contours for element in plots_dict['dmap_rasterized'].values()])
+        else:
+            contourplots = hv.Layout([element for element in plots_dict['dmap_rasterized'].values()])
+        ncols = 1
+        if self.pick_TS or self.pick_profiles:
+            # link the contourplots with the scatterplot
+            contourplots = mpg_ls(contourplots)
+            if self.pick_TS:
+                ncols += 1
+                dmapTSr = mpg_ls(dmapTSr)
+            if self.pick_profiles:
+                ncols += 1
+                dmap_profilesr = mpg_ls(dmap_profilesr)
 
             cntr_plts.append(dmap_rasterized * dmap)
 
@@ -709,26 +694,13 @@ class GliderDashboard(param.Parameterized):
             #    cross_filter_mode="overwrite", # could also be union to enable combined selections. More confusing?
             return linked_plots
 
-        if self.pick_profiles:
-            linked_plots = link_selections(
-                hv.Layout(cntr_plts) +
-              dmap_profilesr.opts(
-                    responsive=True,
-                    bgcolor="white",
-                    height=500,
-                ).opts(
-                    padding=(0.05, 0.05),
-                ),
-                unselected_alpha=0.3,
-            ).cols(2)
 
-            return linked_plots
-
-        else:
-            #self.dynmap = #self.dynmap * dmap.opts(
-                # opts.Labels(text_font_size='6pt')
-            #)
-            return hv.Layout(cntr_plts).cols(1)
+        contourplots = contourplots*dmap_decorators
+        contourplots = contourplots*dmap_mld if self.pick_mld else contourplots
+        contourplots = ((contourplots)+dmapTSr.opts(padding=(0.05, 0.05), height=500, responsive=True)) if self.pick_TS else contourplots
+        contourplots = ((contourplots)+dmap_profilesr.opts(height=500, responsive=True)) if self.pick_profiles else contourplots
+        # ncols = 2 if (self.pick_TS or self.pick_profiles) else 1
+        return contourplots.cols(ncols)
 
 
 
