@@ -934,11 +934,6 @@ class GliderDashboard(param.Parameterized):
             #)
             return self.create_None_element("Overlay")
 
-    def get_xsection_raster_contour(self, x_range, y_range):
-        # This function exists because I cannot pass variables directly
-        variable = self.pick_contours
-        return self.get_xsection_raster(x_range, y_range, contour_variable=variable)
-
     def get_xsection_TS(self, x_range, y_range):
         dsconc = self.data_in_view
         t1 = time.perf_counter()
@@ -953,8 +948,6 @@ class GliderDashboard(param.Parameterized):
             thresh["salinity"].iloc[0] - 0.5 : thresh["salinity"].iloc[1] + 0.5,
             thresh["temperature"].iloc[0] - 0.5 : thresh["temperature"].iloc[1] + 0.5,
         ]
-
-
         return mplt
 
     def get_xsection_profiles(self, x_range, y_range):
