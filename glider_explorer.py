@@ -652,11 +652,10 @@ class GliderDashboard(param.Parameterized):
             contourplots = mpg_ls(contourplots)
             if self.pick_TS:
                 ncols += 1
-                dmapTSr = mpg_ls(dmapTSr)
+                dmapTSr = mpg_ls(dmapTSr)*dcont
             if self.pick_profiles:
                 ncols += 1
-                dmap_profilesr = mpg_ls(dmap_profilesr)
-
+                dmap_profilesr = mpg_ls(dmap_profilesr)#mpg_ls(dmap_profilesr)
 
         # annotations are currently broken, fix here
         for annotation in self.annotations:
@@ -898,7 +897,7 @@ class GliderDashboard(param.Parameterized):
         varlist = utils.voto_concat_datasets(varlist)
         if varlist:
             # concat and drop_duplicates could potentially be done by pandarallel
-            if self.pick_TS:
+            if self.pick_TS or self.pick_profiles:
                 nanosecond_iterator = 1
                 for ndataset in varlist:
                     ndataset.index = ndataset.index + np.timedelta64(
@@ -908,7 +907,7 @@ class GliderDashboard(param.Parameterized):
             dsconc = dd.concat(varlist)
             dsconc = dsconc.loc[x_range[0] : x_range[1]]
             # could be parallelized
-            if self.pick_TS:
+            if self.pick_TS or self.pick_profiles:
                 try:
                     dsconc = dsconc.drop_duplicates(
                         subset=["temperature", "salinity"]
