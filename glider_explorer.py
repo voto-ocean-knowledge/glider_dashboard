@@ -1153,11 +1153,36 @@ class MetaDashboard(param.Parameterized):
         return fig
 
 
-def create_app_instance():
+def create_meta_instance(self):
+    meta_dashboard = MetaDashboard()
+    myrow = pn.Row(
+        pn.Column(
+            meta_dashboard.param,
+            height=500,
+        ),
+        pn.Column(
+            meta_dashboard.create_timeline,
+            height=500,
+        ),
+        height=500,
+        scroll=True,
+    )
+        #pn.Row("# Dynamically add new rows", button_cols)
+        # visible=False, # works, but hides everything!
+
+    # it is necessary to hide the controls as a very last option, because hidden controls cannot be accessed as variables
+    # in the control flow above. So hiding the controls earlier "defaults" all url and manual settings.
+    #if glider_dashboard.pick_show_ctrls == False:
+    #    layout[0][0].visible = glider_dashboard.pick_show_ctrls
+    mylayout = myrow
+    # mylayout.append(button_meta)
+    return mylayout
+
+@param.depends("toggle", watch=True)
+def create_app_instance(self):
+    print('called the create app instance')
     glider_dashboard = GliderDashboard()
     # glider_explorer2=GliderExplorer()
-
-    meta_dashboard = MetaDashboard()
 
     # Data options
     ctrl_data = pn.Column( # top stack, dataset and basin options
@@ -1398,6 +1423,7 @@ def create_app_instance():
             height=800,
         ),
         pn.Row(pn.Column(),glider_dashboard.markdown),
+        """
         pn.Row(
             pn.Column(
                 meta_dashboard.param,
@@ -1410,6 +1436,7 @@ def create_app_instance():
             height=500,
             scroll=True,
         ),
+        """
         #pn.Row("# Dynamically add new rows", button_cols)
         # visible=False, # works, but hides everything!
     )
@@ -1418,15 +1445,37 @@ def create_app_instance():
     # in the control flow above. So hiding the controls earlier "defaults" all url and manual settings.
     if glider_dashboard.pick_show_ctrls == False:
         layout[0][0].visible = glider_dashboard.pick_show_ctrls
-    return layout
+    mylayout.clear()# =
+    mylayout.append(layout)
+    return mylayout
+    #
+    # mylayout.append(toggle)
+    #return layout
 
 
 # usefull to create secondary plot, but not fully indepentently working yet:
 # glider_explorer2=GliderExplorer()
-layout = create_app_instance()
-# app = layout # create_app_instance()
-# app2 = create_app_instance()
-layout.servable()
+#toggle = pn.widgets.Toggle(name='ContourToggle')
+# toggle = param.Toggle(name='ContourToggle')
+#toggle = param.Boolean(
+#    default=False, label="Data Dashboard", doc="show data dashboard"
+#)
+"""
+pn.Param(
+    glider_dashboard,
+    parameters=["pick_high_resolution"],
+    show_name=False,
+),
+"""
+#watcher = toggle.param.watch(create_app_instance)#, ['options', 'value'], onlychanged=False)
+button = pn.widgets.Button(name="data_dashboard")
+button.on_click(create_app_instance)
+
+button_meta = pn.widgets.Button(name="meta_dashboard")
+button_meta.on_click(create_meta_instance)
+
+mylayout = pn.Column(button, button_meta)
+mylayout.servable()
 # app2.servable()
 #    port=12345,
 #    websocket_origin='*',
