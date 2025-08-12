@@ -1167,16 +1167,11 @@ def create_meta_instance(self):
         height=500,
         scroll=True,
     )
-        #pn.Row("# Dynamically add new rows", button_cols)
-        # visible=False, # works, but hides everything!
 
-    # it is necessary to hide the controls as a very last option, because hidden controls cannot be accessed as variables
-    # in the control flow above. So hiding the controls earlier "defaults" all url and manual settings.
-    #if glider_dashboard.pick_show_ctrls == False:
-    #    layout[0][0].visible = glider_dashboard.pick_show_ctrls
-    mylayout = myrow
-    # mylayout.append(button_meta)
+    mylayout.clear()# =
+    mylayout.append(myrow)
     return mylayout
+    #return mylayout
 
 @param.depends("toggle", watch=True)
 def create_app_instance(self):
@@ -1423,22 +1418,6 @@ def create_app_instance(self):
             height=800,
         ),
         pn.Row(pn.Column(),glider_dashboard.markdown),
-        """
-        pn.Row(
-            pn.Column(
-                meta_dashboard.param,
-                height=500,
-            ),
-            pn.Column(
-                meta_dashboard.create_timeline,
-                height=500,
-            ),
-            height=500,
-            scroll=True,
-        ),
-        """
-        #pn.Row("# Dynamically add new rows", button_cols)
-        # visible=False, # works, but hides everything!
     )
 
     # it is necessary to hide the controls as a very last option, because hidden controls cannot be accessed as variables
@@ -1448,26 +1427,7 @@ def create_app_instance(self):
     mylayout.clear()# =
     mylayout.append(layout)
     return mylayout
-    #
-    # mylayout.append(toggle)
-    #return layout
 
-
-# usefull to create secondary plot, but not fully indepentently working yet:
-# glider_explorer2=GliderExplorer()
-#toggle = pn.widgets.Toggle(name='ContourToggle')
-# toggle = param.Toggle(name='ContourToggle')
-#toggle = param.Boolean(
-#    default=False, label="Data Dashboard", doc="show data dashboard"
-#)
-"""
-pn.Param(
-    glider_dashboard,
-    parameters=["pick_high_resolution"],
-    show_name=False,
-),
-"""
-#watcher = toggle.param.watch(create_app_instance)#, ['options', 'value'], onlychanged=False)
 button = pn.widgets.Button(name="data_dashboard")
 button.on_click(create_app_instance)
 
