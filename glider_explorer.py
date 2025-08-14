@@ -345,6 +345,11 @@ class GliderDashboard(param.Parameterized):
         label="show controls",
         precedence=1,
     )
+    pick_show_decoration = param.Boolean(
+        default=False,
+        label="Show mission name and start",
+        precedence=1,
+    )
     data_in_view = None
     contour_processing = False
     startX, endX = (
@@ -503,7 +508,8 @@ class GliderDashboard(param.Parameterized):
         "pick_TS_colored_by_variable",
         "pick_high_resolution",
         "pick_profiles",
-        "pick_display_threshold",  #'pick_startX', 'pick_endX',
+        "pick_display_threshold",
+        "pick_show_decoration"#'pick_startX', 'pick_endX',
         #watch=True,
     )  # outcommenting this means just depend on all, redraw always
     def create_dynmap(self):
@@ -665,7 +671,8 @@ class GliderDashboard(param.Parameterized):
 
             #    cross_filter_mode="overwrite", # could also be union to enable combined selections. More confusing?
             return linked_plots
-        contourplots = contourplots*dmap_decorators
+        if self.pick_show_decoration:
+            contourplots = contourplots*dmap_decorators
         contourplots = contourplots*dmap_mld if self.pick_mld else contourplots
         contourplots = ((contourplots)+dmapTSr.opts(padding=(0.05, 0.05), height=500, responsive=True)) if self.pick_TS else contourplots
         contourplots = ((contourplots)+dmap_profilesr.opts(height=500, responsive=True)) if self.pick_profiles else contourplots
@@ -905,7 +912,10 @@ class GliderDashboard(param.Parameterized):
                         nanosecond_iterator, "ns"
                     )
                     nanosecond_iterator += 1
-            dsconc = dd.concat(varlist).persist()
+            try:
+                dsconc = dd.concat(varlist).persist()
+            except:
+                dsconc = dd.concat(varlist)
             dsconc = dsconc.loc[x_range[0] : x_range[1]]
             # could be parallelized
             if self.pick_TS or self.pick_profiles:
@@ -1255,6 +1265,12 @@ def create_app_instance():
             show_name=False,
             # display_threshold=0.5,
         ),
+        pn.Param(
+            glider_dashboard,
+            parameters=["pick_show_decoration"],
+            show_name=False,
+            # display_threshold=0.5,
+        ),
         #pn.Param(
         #    glider_dashboard,
         #    parameters=["pick_mean"],
@@ -1354,6 +1370,7 @@ def create_app_instance():
                 "pick_endY": "pick_endY",
                 "pick_display_threshold": "pick_display_threshold",
                 "pick_contour_heigth": "pick_contour_heigth",
+                "pick_show_decoration": "pick_show_decoration",
             },
         )
 

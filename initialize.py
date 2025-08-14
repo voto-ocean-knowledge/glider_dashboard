@@ -16,7 +16,7 @@ all_dataset_ids = utils.add_delayed_dataset_ids(metadata, all_datasets) # hacky
 dutils.cache_dir = pathlib.Path('../voto_erddap_data_cache')
 variables=['temperature', 'salinity', 'depth',
            'potential_density', 'profile_num',
-           'profile_direction', 'chlorophyll',
+           'profile_direction', 'chlorophyll', 'turbidity',
            'oxygen_concentration', 'phycocyanin', 'phycocyanin_tridente',
            'cdom', 'backscatter_scaled', 'longitude', 'latitude']
 # dsids = ['../voto_erddap_data_cache/'+element+'.nc' for element in metadata.index]
@@ -24,5 +24,3 @@ dsdict = dutils.download_glider_dataset(
     all_dataset_ids, # all_dataset_ids are actually the filtered dataserts from utils.filter_metadata...
     metadata,
     variables=variables)
-
-
