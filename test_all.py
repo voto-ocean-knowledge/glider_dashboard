@@ -35,8 +35,8 @@ def test_salinity():
     #GDB.startX = np.datetime64('2024-03-01')
     #GDB.endX = np.datetime64('2024-05-01')
 
-    GDB.pick_startX = np.datetime64('2024-04-18')
-    GDB.pick_endX = np.datetime64('2024-04-19')
+    GDB.pick_startX = np.datetime64('2024-01-01')
+    GDB.pick_endX = np.datetime64('2024-12-19')
     GDB.pick_variable = 'salinity'
     #import pdb; pdb.set_trace();
 
@@ -53,8 +53,8 @@ def test_temperature():
     #GDB.startX = np.datetime64('2024-03-01')
     #GDB.endX = np.datetime64('2024-05-01')
 
-    GDB.pick_startX = np.datetime64('2024-04-18')
-    GDB.pick_endX = np.datetime64('2024-04-19')
+    GDB.pick_startX = np.datetime64('2024-01-18')
+    GDB.pick_endX = np.datetime64('2024-12-19')
 
     # create output for variable temperature
     t1 = time.perf_counter()
@@ -65,12 +65,15 @@ def test_temperature():
     print('creating the second serve took',t2-t1)
     t = timeit.Timer(functools.partial(GDB.load_viewport_datasets, (GDB.pick_startX, GDB.pick_endX)))
     print('load_viewport_datasets takes:', t.timeit(10)/10)
-    
+
     # activate mld
+    t1 = time.perf_counter()
     GDB.pick_mld = True
     dyn = GDB.create_dynmap().opts(width=500, height=500)
     #myapp = pn.panel(dyn)
     pn.pane.HoloViews(dyn).save(join(outpath, 'mld.png'))
+    t2 = time.perf_counter()
+    print('creating the third serve took',t2-t1)
     GDB.pick_mld = False
 
     # activate scatter plot
@@ -80,7 +83,7 @@ def test_temperature():
     pn.pane.HoloViews(dyn).save(join(outpath, 'TS.png'))
     GDB.pick_TS = False
 
-    # activate profile plots    
+    # activate profile plots
     GDB.pick_profiles = True
     dyn = GDB.create_dynmap().opts(width=500, height=500)
     myapp = pn.panel(dyn)

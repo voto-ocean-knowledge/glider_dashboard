@@ -612,7 +612,7 @@ class GliderDashboard(param.Parameterized):
                 dmap_raster,
                 aggregator=means,
                 # x_sampling=8.64e13/48,
-                y_sampling=0.2,
+                y_sampling=0.3,
                 pixel_ratio=pixel_ratio,
             ).opts(
                 # invert_yaxis=True, # Would like to activate this, but breaks the hover tool
@@ -905,7 +905,7 @@ class GliderDashboard(param.Parameterized):
                         nanosecond_iterator, "ns"
                     )
                     nanosecond_iterator += 1
-            dsconc = dd.concat(varlist)
+            dsconc = dd.concat(varlist).persist()
             dsconc = dsconc.loc[x_range[0] : x_range[1]]
             # could be parallelized
             if self.pick_TS or self.pick_profiles:
