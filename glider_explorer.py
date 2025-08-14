@@ -617,6 +617,7 @@ class GliderDashboard(param.Parameterized):
             ).opts(
                 # invert_yaxis=True, # Would like to activate this, but breaks the hover tool
                 colorbar=True,
+                clim_percentile=True,
                 cmap=dictionaries.cmap_dict[variable],
                 toolbar="above",
                 tools=["xwheel_zoom", "reset", "xpan", "ywheel_zoom", "ypan", "hover"],
@@ -937,7 +938,7 @@ class GliderDashboard(param.Parameterized):
     def get_xsection_TS(self, x_range, y_range):
         dsconc = self.data_in_view
         t1 = time.perf_counter()
-        thresh = dsconc[["temperature", "salinity"]].quantile(q=[0.001, 0.999])
+        thresh = dsconc[["temperature", "salinity"]].quantile(q=[0.01, 0.99])
         t2 = time.perf_counter()
 
         mplt = dsconc.hvplot.scatter(
