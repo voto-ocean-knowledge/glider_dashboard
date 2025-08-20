@@ -1,35 +1,27 @@
 import time
-import glidertools as gt
-import hvplot.dask
-import hvplot.pandas
-import cmocean
-import holoviews as hv
-from holoviews import opts
-import pandas as pd
-import datashader as dsh
-from holoviews.operation.datashader import rasterize, spread, dynspread, regrid
-from holoviews.selection import link_selections
 
-# from bokeh.models import DatetimeTickFormatter, HoverTool
-from holoviews.streams import RangeX, RangeXY
+import datashader as dsh
+import holoviews as hv
+import hvplot.pandas  # noqa
 import numpy as np
-from functools import reduce
+import pandas as pd
 import panel as pn
 import param
 import plotly.express as px
-import initialize
-import dask
-import dask.dataframe as dd
-from download_glider_data import utils as dutils
-import utils
-import dictionaries
+from holoviews.operation.datashader import rasterize
+from holoviews.selection import link_selections
 
-pn.extension("plotly", "mathjax") # mathjax is currently not used, but could render latex in markdown
-try:
-    # cudf support works, but is currently not faster
-    import hvplot.cudf
-except:
-    print("no cudf available, that is fine but slower")
+# from bokeh.models import DatetimeTickFormatter, HoverTool
+from holoviews.streams import RangeXY
+
+import dictionaries
+import initialize
+import utils
+
+pn.extension(
+    "plotly", "mathjax"
+)  # mathjax is currently not used, but could be cool to render latex in markdown
+# cudf support works, but is currently not faster
 
 # all_metadata is loaded for the metadata visualisation
 all_metadata, _ = utils.load_metadata()
@@ -135,15 +127,11 @@ def mld_profile(df, variable, thresh, ref_depth, verbose=True):
         mld = np.nan
         exception = True
         message = """no observations found for specified variable in dive {}
-                """.format(
-            divenum
-        )
+                """.format(divenum)
     elif np.nanmin(np.abs(df.depth.values + ref_depth)) > 5:
         exception = True
         message = """no observations within 5 m of ref_depth for dive {}
-                """.format(
-            divenum
-        )
+                """.format(divenum)
         mld = np.nan
     else:
         direction = 1 if np.unique(df.index % 1 == 0) else -1
@@ -165,9 +153,7 @@ def mld_profile(df, variable, thresh, ref_depth, verbose=True):
             exception = True
             mld = np.nan
             message = """threshold criterion never true (all mixed or \
-                shallow profile) for profile {}""".format(
-                divenum
-            )
+                shallow profile) for profile {}""".format(divenum)
     if verbose and exception:
         print(message)
     return mld
@@ -176,11 +162,11 @@ def mld_profile(df, variable, thresh, ref_depth, verbose=True):
 def create_single_ds_plot_raster(data, variables):
     # https://stackoverflow.com/questions/32318751/holoviews-how-to-plot-dataframe-with-time-index
     variables = set(variables)
-    variables.add('temperature') # inplace operations
-    variables.add('salinity')
+    variables.add("temperature")  # inplace operations
+    variables.add("salinity")
     raster = hv.Points(
         data=data,
-        kdims=['time', 'depth'],
+        kdims=["time", "depth"],
         vdims=list(variables),
         # temp and salinity need to always be present for TS lasso to work, set for unique elements
     )
@@ -188,28 +174,27 @@ def create_single_ds_plot_raster(data, variables):
 
 
 class GliderDashboard(param.Parameterized):
-
     pick_variables = param.ListSelector(
-            default=["temperature"],
-            allow_None=False,
-            objects=[
-                "temperature",
-                "salinity",
-                "potential_density",
-                "chlorophyll",
-                "oxygen_concentration",
-                "cdom",
-                "backscatter_scaled",
-                "phycocyanin",
-                "phycocyanin_tridente",
-                "turbidity",
-                #"methane_concentration",
-                "longitude",
-                "latitude",
-            ],
-            label="variable",
-            doc="Variable used to create colormesh",
-            precedence=1,
+        default=["temperature"],
+        allow_None=False,
+        objects=[
+            "temperature",
+            "salinity",
+            "potential_density",
+            "chlorophyll",
+            "oxygen_concentration",
+            "cdom",
+            "backscatter_scaled",
+            "phycocyanin",
+            "phycocyanin_tridente",
+            "turbidity",
+            # "methane_concentration",
+            "longitude",
+            "latitude",
+        ],
+        label="variable",
+        doc="Variable used to create colormesh",
+        precedence=1,
     )
 
     # show all the basins and all the datasets. I use the nrt data
@@ -221,19 +206,19 @@ class GliderDashboard(param.Parameterized):
         label="SAMBA observatory",
         precedence=1,
     )
-    alldslist = list(filter(lambda k: 'nrt' in k, dsdict.keys()))
+    alldslist = list(filter(lambda k: "nrt" in k, dsdict.keys()))
     alldslabels = [element[4:] for element in alldslist]
-    objectsdict = dict(zip(alldslabels,alldslist))
+    objectsdict = dict(zip(alldslabels, alldslist))
     # import pdb; pdb.set_trace();
     pick_dsids = param.ListSelector(
-        default=[],#[alldslist[0]],#dslist[0]],
-        objects=objectsdict,#alldslist,
+        default=[],  # [alldslist[0]],#dslist[0]],
+        objects=objectsdict,  # alldslist,
         label="DatasetID",
         precedence=-10,
     )
 
     pick_toggle = param.Selector(
-        objects=['SAMBA obs.', 'DatasetID'],
+        objects=["SAMBA obs.", "DatasetID"],
         label="choose by SAMBA observatory or data ID",
     )
 
@@ -255,7 +240,7 @@ class GliderDashboard(param.Parameterized):
 
     pick_aggregation_method = param.Selector(
         default="mean",
-        objects=["mean", "min", "max"],#, "std"],
+        objects=["mean", "min", "max"],  # , "std"],
         label="1D Data Aggregation",
         doc="Method that is applied to aggregate column",
         precedence=1,
@@ -264,28 +249,25 @@ class GliderDashboard(param.Parameterized):
     pick_mld = param.Boolean(
         default=False, label="MLD", doc="Show Mixed Layer Depth", precedence=1
     )
-    #pick_mean = param.Boolean(
+    # pick_mean = param.Boolean(
     #    default=False, label="mean", doc="Show column mean", precedence=1
-    #)
+    # )
     pick_startX = param.Date(
         default=metadata["time_coverage_start (UTC)"].min(),
-        label="startX", doc="startX", precedence=1
+        label="startX",
+        doc="startX",
+        precedence=1,
     )
     pick_endX = param.Date(
         default=metadata["time_coverage_end (UTC)"].max(),
-        label="endX", doc="endX", precedence=1
+        label="endX",
+        doc="endX",
+        precedence=1,
     )
-    pick_startY = param.Number(
-        default=None,
-        label="startY", doc="startY", precedence=1
-    )
-    pick_endY = param.Number(
-        default=8,
-        label="endY", doc="endY", precedence=1
-    )
+    pick_startY = param.Number(default=None, label="startY", doc="startY", precedence=1)
+    pick_endY = param.Number(default=8, label="endY", doc="endY", precedence=1)
     pick_contour_heigth = param.Number(
-        default=550,
-        label="contour_heigth", precedence=1
+        default=550, label="contour_heigth", precedence=1
     )
     pick_display_threshold = param.Number(
         default=1, step=1, bounds=(-10, 10), label="display_treshold"
@@ -321,9 +303,9 @@ class GliderDashboard(param.Parameterized):
             "cdom",
             "backscatter_scaled",
             "turbidity",
-            "phycocyanin",
-            "phycocyanin_tridente",
-            #"methane_concentration",
+            # "phycocyanin",
+            # "phycocyanin_tridente",
+            # "methane_concentration",
             "longitude",
             "latitude",
         ],
@@ -355,8 +337,9 @@ class GliderDashboard(param.Parameterized):
     data_in_view = None
     contour_processing = False
     startX, endX = (
-        #metadata["time_coverage_start (UTC)"].min().to_datetime64(),
-        metadata["time_coverage_end (UTC)"].max().to_datetime64()-np.timedelta64(6*30*24,'s'), # last six months
+        # metadata["time_coverage_start (UTC)"].min().to_datetime64(),
+        metadata["time_coverage_end (UTC)"].max().to_datetime64()
+        - np.timedelta64(6 * 30 * 24, "s"),  # last six months
         metadata["time_coverage_end (UTC)"].max().to_datetime64(),
     )
 
@@ -368,29 +351,30 @@ class GliderDashboard(param.Parameterized):
             Ocean {self.pick_variables[0]} in [{dictionaries.units_dict[self.pick_variables[0]]}] for """
         if self.pick_toggle == "DatasetID":
             p2 = f""" the datasets {self.pick_dsids} """
-        else: #self.pick_toggle == "SAMBA obs.":
+        else:  # self.pick_toggle == "SAMBA obs.":
             p2 = f""" the region {self.pick_basin} """
-        p3 = f"""from {np.datetime_as_string(self.startX, unit='s')} to {np.datetime_as_string(self.endX, unit='s')}. """
+        p3 = f"""from {np.datetime_as_string(self.startX, unit="s")} to {np.datetime_as_string(self.endX, unit="s")}. """
         # import pdb; pdb.set_trace();
         try:
-            #p4 = f""" Number of Profiles: {
+            # p4 = f""" Number of Profiles: {
             #    self.data_in_view.profile_num.max().compute()-self.data_in_view.profile_num.min().compute()}"""
             p4 = f"""Number of profiles {
-                    self.data_in_view.profile_num.compute().iloc[-1]
-                    -self.data_in_view.profile_num.compute().iloc[0]}"""
+                self.data_in_view.profile_num.compute().iloc[-1]
+                - self.data_in_view.profile_num.compute().iloc[0]
+            }"""
         except:
             # import pdb; pdb.set_trace();
-            #p4 = f""" Number of Profiles: {
+            # p4 = f""" Number of Profiles: {
             #    self.data_in_view.profile_num.max()-self.data_in_view.profile_num.min()}"""
             p4 = f"""Number of profiles {
-                        self.data_in_view.profile_num.iloc[-1]
-                        -self.data_in_view.profile_num.iloc[0]} """
+                self.data_in_view.profile_num.iloc[-1]
+                - self.data_in_view.profile_num.iloc[0]
+            } """
 
+        self.markdown.object = p1 + p2 + p3 + p4  # +r"$$\frac{1}{n}$$"
 
-        self.markdown.object = p1+p2+p3+p4#+r"$$\frac{1}{n}$$"
-
-        #import pdb; pdb.set_trace();
-        return p1+p2+p3+p4
+        # import pdb; pdb.set_trace();
+        return p1 + p2 + p3 + p4
 
     # empty initialization for use later
     markdown = pn.pane.Markdown("")
@@ -409,7 +393,7 @@ class GliderDashboard(param.Parameterized):
             "pick_cnorm",
             "pick_aggregation",
             "pick_mld",
-            #"pick_mean",
+            # "pick_mean",
             "pick_TS",
             "pick_profiles",
             "pick_TS_colored_by_variable",
@@ -427,10 +411,10 @@ class GliderDashboard(param.Parameterized):
         except:
             pass
 
-    @param.depends("pick_toggle","pick_basin", watch=True)
+    @param.depends("pick_toggle", "pick_basin", watch=True)
     def update_datasource(self):
         # toggles visibility
-        if self.pick_toggle == 'DatasetID':
+        if self.pick_toggle == "DatasetID":
             self.param.pick_basin.precedence = -10
             self.param.pick_dsids.precedence = 1
         else:
@@ -445,9 +429,9 @@ class GliderDashboard(param.Parameterized):
         """
         # for i in range(10,20):
         self.startX = np.datetime64("2024-01-15")
-        self.endX = np.datetime64(f"2024-01-18")
+        self.endX = np.datetime64("2024-01-18")
         self.pick_startX = np.datetime64("2024-01-15")
-        self.pick_endX = np.datetime64(f"2024-01-18")
+        self.pick_endX = np.datetime64("2024-01-18")
 
         time.sleep(5)
         print("event:plot reloaded")
@@ -468,7 +452,7 @@ class GliderDashboard(param.Parameterized):
     def change_basin(self):
         # bug: setting watch=True enables correct reset of (y-) coordinates, but leads to double initialization (slow)
         # setting watch=False fixes initialization but does not keep y-coordinate.
-        if self.pick_toggle == 'SAMBA obs.':
+        if self.pick_toggle == "SAMBA obs.":
             # first case, , user selected an aggregation, e.g. 'Bornholm Basin'
             meta = metadata[metadata["basin"] == self.pick_basin]
             meta = utils.drop_overlaps_fast(meta)
@@ -477,17 +461,17 @@ class GliderDashboard(param.Parameterized):
             meta = metadata.loc[self.pick_dsids]
         # hacky way to differentiate if called via synclink or refreshed with UI buttons
         if not len(meta):
-            self.startX = np.datetime64('2021-01-01')
-            self.endX = np.datetime64('2024-01-01')
-            self.pick_startX = np.datetime64('2021-01-01')
-            self.pick_endX = np.datetime64('2024-01-01')
+            self.startX = np.datetime64("2021-01-01")
+            self.endX = np.datetime64("2024-01-01")
+            self.pick_startX = np.datetime64("2021-01-01")
+            self.pick_endX = np.datetime64("2024-01-01")
             return
-        incoming_link=not(isinstance(self.pick_startX, pd.Timestamp))
-        #print('ISINSTANCE', isinstance(self.pick_startX, pd.Timestamp))
-        #print('INCOMING VIA LINK:', incoming_link)
+        incoming_link = not (isinstance(self.pick_startX, pd.Timestamp))
+        # print('ISINSTANCE', isinstance(self.pick_startX, pd.Timestamp))
+        # print('INCOMING VIA LINK:', incoming_link)
         if not incoming_link:
-            mintime = meta['time_coverage_start (UTC)'].min()
-            maxtime = meta['time_coverage_end (UTC)'].max()
+            mintime = meta["time_coverage_start (UTC)"].min()
+            maxtime = meta["time_coverage_end (UTC)"].max()
             self.startX, self.endX = (mintime.to_datetime64(), maxtime.to_datetime64())
             self.pick_startX, self.pick_endX = (mintime, maxtime)
         else:
@@ -501,7 +485,7 @@ class GliderDashboard(param.Parameterized):
         "pick_variables",
         "pick_aggregation",
         "pick_mld",
-        #"pick_mean",
+        # "pick_mean",
         "pick_basin",
         "pick_dsids",
         "pick_toggle",
@@ -511,11 +495,10 @@ class GliderDashboard(param.Parameterized):
         "pick_high_resolution",
         "pick_profiles",
         "pick_display_threshold",
-        "pick_show_decoration"#'pick_startX', 'pick_endX',
-        #watch=True,
+        "pick_show_decoration",  #'pick_startX', 'pick_endX',
+        # watch=True,
     )  # outcommenting this means just depend on all, redraw always
     def create_dynmap(self):
-
         # self.markdown.object = self.update_markdown()
 
         self.startX = self.pick_startX
@@ -523,8 +506,8 @@ class GliderDashboard(param.Parameterized):
 
         self.startY, self.endY = (self.pick_startY, self.pick_endY)
 
-        #self.startY = self.pick_startY
-        #self.endY = self.pick_endY
+        # self.startY = self.pick_startY
+        # self.endY = self.pick_endY
 
         # in case coming in over json link
         self.startX = np.datetime64(self.startX)
@@ -583,7 +566,7 @@ class GliderDashboard(param.Parameterized):
                 ).opts(
                     cnorm="eq_hist",
                     cmap=dictionaries.cmap_dict[self.pick_variables[0]],
-                    #clabel=f"{self.pick_variable}  [{dictionaries.units_dict[self.pick_variable]}]",
+                    # clabel=f"{self.pick_variable}  [{dictionaries.units_dict[self.pick_variable]}]",
                     colorbar=True,
                 )
 
@@ -600,16 +583,19 @@ class GliderDashboard(param.Parameterized):
                 cnorm="eq_hist",
             )
 
-        dmap_decorators = hv.DynamicMap(self.get_xsection, streams=[range_stream], cache_size=1)
+        dmap_decorators = hv.DynamicMap(
+            self.get_xsection, streams=[range_stream], cache_size=1
+        )
         if self.pick_mld:
             # Important!!! Compute MLD only once and apply it to all plots!!!
             dmap_mld = hv.DynamicMap(
                 self.get_xsection_mld, streams=[range_stream], cache_size=1
-            )#.opts(responsive=True)
+            )  # .opts(responsive=True)
 
-        #cntr_plts = []
+        # cntr_plts = []
         plots_dict = dict(dmap_rasterized=dict(), dmap_rasterized_contour=dict())
-        #variables = self.pick_variables
+
+        # variables = self.pick_variables
         def rasters(variable):
             if self.pick_aggregation == "mean":
                 means = dsh.mean(variable)
@@ -632,39 +618,54 @@ class GliderDashboard(param.Parameterized):
                 default_tools=[],
                 # responsive=True, # this currently breaks when activated with MLD
                 # width=800,
-                height=int((400+100*len(self.pick_variables))/len(self.pick_variables)),#int(500/(len(self.pick_variables))),#250+int(250*2/len(self.pick_variables)), #500, 250,
+                height=int(
+                    (400 + 100 * len(self.pick_variables)) / len(self.pick_variables)
+                ),  # int(500/(len(self.pick_variables))),#250+int(250*2/len(self.pick_variables)), #500, 250,
                 cnorm=self.pick_cnorm,
                 active_tools=["xpan", "xwheel_zoom"],
                 bgcolor="dimgrey",
-                clabel=f"{variable}  [{dictionaries.units_dict[variable]}]",#self.pick_variable,
-                responsive=True
+                clabel=f"{variable}  [{dictionaries.units_dict[variable]}]",  # self.pick_variable,
+                responsive=True,
             )
 
         for variable in self.pick_variables:
-            plots_dict['dmap_rasterized'][variable] = rasters(variable)
+            plots_dict["dmap_rasterized"][variable] = rasters(variable)
         if (self.pick_contours is not None) and (self.pick_contours != "same as above"):
-            plots_dict['dmap_rasterized_contour'] = rasters(self.pick_contours)
-
+            plots_dict["dmap_rasterized_contour"] = rasters(self.pick_contours)
 
         mpg_ls = link_selections.instance()
         if self.pick_contours:
-            if self.pick_contours=='same as above':
-                contourplots = hv.Layout([element * hv.operation.contours(element) for element in plots_dict['dmap_rasterized'].values()])
+            if self.pick_contours == "same as above":
+                contourplots = hv.Layout(
+                    [
+                        element * hv.operation.contours(element)
+                        for element in plots_dict["dmap_rasterized"].values()
+                    ]
+                )
             else:
-                overlay_contours = hv.operation.contours(plots_dict['dmap_rasterized_contour'])
-                contourplots = hv.Layout([element * overlay_contours for element in plots_dict['dmap_rasterized'].values()])
+                overlay_contours = hv.operation.contours(
+                    plots_dict["dmap_rasterized_contour"]
+                )
+                contourplots = hv.Layout(
+                    [
+                        element * overlay_contours
+                        for element in plots_dict["dmap_rasterized"].values()
+                    ]
+                )
         else:
-            contourplots = hv.Layout([element for element in plots_dict['dmap_rasterized'].values()])
+            contourplots = hv.Layout(
+                [element for element in plots_dict["dmap_rasterized"].values()]
+            )
         ncols = 1
         if self.pick_TS or self.pick_profiles:
             # link the contourplots with the scatterplot
             contourplots = mpg_ls(contourplots)
             if self.pick_TS:
                 ncols += 1
-                dmapTSr = mpg_ls(dmapTSr)*dcont
+                dmapTSr = mpg_ls(dmapTSr) * dcont
             if self.pick_profiles:
                 ncols += 1
-                dmap_profilesr = mpg_ls(dmap_profilesr)#mpg_ls(dmap_profilesr)
+                dmap_profilesr = mpg_ls(dmap_profilesr)  # mpg_ls(dmap_profilesr)
 
         # annotations are currently broken, fix here
         for annotation in self.annotations:
@@ -674,18 +675,25 @@ class GliderDashboard(param.Parameterized):
             #    cross_filter_mode="overwrite", # could also be union to enable combined selections. More confusing?
             return linked_plots
         if self.pick_show_decoration:
-            contourplots = contourplots*dmap_decorators
-        contourplots = contourplots*dmap_mld if self.pick_mld else contourplots
-        contourplots = ((contourplots)+dmapTSr.opts(padding=(0.05, 0.05), height=500, responsive=True)) if self.pick_TS else contourplots
-        contourplots = ((contourplots)+dmap_profilesr.opts(height=500, responsive=True)) if self.pick_profiles else contourplots
+            contourplots = contourplots * dmap_decorators
+        contourplots = contourplots * dmap_mld if self.pick_mld else contourplots
+        contourplots = (
+            (
+                (contourplots)
+                + dmapTSr.opts(padding=(0.05, 0.05), height=500, responsive=True)
+            )
+            if self.pick_TS
+            else contourplots
+        )
+        contourplots = (
+            ((contourplots) + dmap_profilesr.opts(height=500, responsive=True))
+            if self.pick_profiles
+            else contourplots
+        )
         # ncols = 2 if (self.pick_TS or self.pick_profiles) else 1
         return contourplots.cols(ncols)
 
-
-
-
     def create_mean(self):
-
         self.startX = self.pick_startX
         self.endX = self.pick_endX
 
@@ -695,29 +703,32 @@ class GliderDashboard(param.Parameterized):
         x_range = (self.startX, self.endX)
         y_range = (self.startY, self.endY)
         range_stream = RangeXY(x_range=x_range, y_range=y_range).rename()
-        #dmap_raster = hv.DynamicMap(
+        # dmap_raster = hv.DynamicMap(
         #    self.get_xsection_raster,
         #    streams=[range_stream],
-        #)
+        # )
         dmap = hv.DynamicMap(self.get_xsection, streams=[range_stream], cache_size=1)
-        dmap_mean = hv.DynamicMap(
+        dmap_mean = (
+            hv.DynamicMap(
                 self.get_xsection_mean, streams=[range_stream], cache_size=1
             ).opts(
-            # invert_yaxis=True, # Would like to activate this, but breaks the hover tool
-            # colorbar=True,
-            # cmap=dictionaries.cmap_dict[self.pick_variable],
-            # toolbar="above",
-            color="black",
-            tools=["xwheel_zoom", "reset", "xpan"],
-            default_tools=[],
-            # responsive=True, # this currently breaks when activated with MLD
-            # width=800,
-            # height=commonheights,
-            # cnorm=self.pick_cnorm,
-            active_tools=["xpan", "xwheel_zoom"],
-            bgcolor="dimgrey",
-            # clabel=self.pick_variable,
-        )*dmap#.opts(responsive=True)
+                # invert_yaxis=True, # Would like to activate this, but breaks the hover tool
+                # colorbar=True,
+                # cmap=dictionaries.cmap_dict[self.pick_variable],
+                # toolbar="above",
+                color="black",
+                tools=["xwheel_zoom", "reset", "xpan"],
+                default_tools=[],
+                # responsive=True, # this currently breaks when activated with MLD
+                # width=800,
+                # height=commonheights,
+                # cnorm=self.pick_cnorm,
+                active_tools=["xpan", "xwheel_zoom"],
+                bgcolor="dimgrey",
+                # clabel=self.pick_variable,
+            )
+            * dmap
+        )  # .opts(responsive=True)
 
         return dmap_mean
 
@@ -727,7 +738,7 @@ class GliderDashboard(param.Parameterized):
         dtns = dt / np.timedelta64(1, "ns")
         plt_props = {}
 
-        if self.pick_toggle == 'SAMBA obs.':
+        if self.pick_toggle == "SAMBA obs.":
             # first case, , user selected an aggregation, e.g. 'Bornholm Basin'
             meta = metadata[metadata["basin"] == self.pick_basin]
             meta = utils.drop_overlaps_fast(meta)
@@ -763,7 +774,7 @@ class GliderDashboard(param.Parameterized):
 
         else:
             # second case, user selected dids
-            #import pdb; pdb.set_trace();
+            # import pdb; pdb.set_trace();
             meta = metadata.loc[self.pick_dsids]
 
         # print(f'len of meta is {len(meta)} in load_viewport_datasets')
@@ -801,7 +812,6 @@ class GliderDashboard(param.Parameterized):
         # dscopy["depth"] = -dscopy["depth"]
         mld = mixed_layer_depth(
             dscopy.to_xarray(), "temperature", thresh=0.3, verbose=False, ref_depth=5
-
         )
         gtime = dscopy.reset_index().groupby(by="profile_num").mean().time
         dfmld = (
@@ -811,7 +821,7 @@ class GliderDashboard(param.Parameterized):
             .sort_values(by="time")
             .dropna()
         )
-        #if len(dfmld) == 0:
+        # if len(dfmld) == 0:
         #    import pdb
         #    pdb.set_trace()
         mldscatter = dfmld.hvplot.line(
@@ -829,31 +839,41 @@ class GliderDashboard(param.Parameterized):
             dscopy = utils.add_dive_column(self.data_in_view).compute()
         except:
             dscopy = utils.add_dive_column(self.data_in_view)
-        #dscopy["depth"] = -dscopy["depth"]
-        #mld = gt.physics.mixed_layer_depth(
+        # dscopy["depth"] = -dscopy["depth"]
+        # mld = gt.physics.mixed_layer_depth(
         #    dscopy.to_xarray(), "temperature", thresh=0.3, verbose=True, ref_depth=5
-        #)
-        if self.pick_aggregation_method == 'mean':
-            groups = dscopy.reset_index()[['time', self.pick_variable, 'profile_num']].groupby(by="profile_num").mean()#.time
-        elif self.pick_aggregation_method == 'max':
-            groups = dscopy.reset_index()[['time', self.pick_variable, 'profile_num']].groupby(by="profile_num").max()#.time
-        elif self.pick_aggregation_method == 'min':
-            groups = dscopy.reset_index()[['time', self.pick_variable, 'profile_num']].groupby(by="profile_num").min()#.time
-        #elif self.pick_aggregation_method == 'std':
+        # )
+        if self.pick_aggregation_method == "mean":
+            groups = (
+                dscopy.reset_index()[["time", self.pick_variable, "profile_num"]]
+                .groupby(by="profile_num")
+                .mean()
+            )  # .time
+        elif self.pick_aggregation_method == "max":
+            groups = (
+                dscopy.reset_index()[["time", self.pick_variable, "profile_num"]]
+                .groupby(by="profile_num")
+                .max()
+            )  # .time
+        elif self.pick_aggregation_method == "min":
+            groups = (
+                dscopy.reset_index()[["time", self.pick_variable, "profile_num"]]
+                .groupby(by="profile_num")
+                .min()
+            )  # .time
+        # elif self.pick_aggregation_method == 'std':
         #    groups = dscopy.reset_index()[['time', self.pick_variable, 'profile_num']].groupby(by="profile_num").std()#.time
 
         gtime = groups.time
         gmean = groups[self.pick_variable]
-        #gtmean = dscopy.reset_index().groupby(by="profile_num")[self.pick_variable].mean()
-#mld=-mld.rolling(10, center=True).mean().values
+        # gtmean = dscopy.reset_index().groupby(by="profile_num")[self.pick_variable].mean()
+        # mld=-mld.rolling(10, center=True).mean().values
         dfmean = (
-            pd.DataFrame.from_dict(
-                dict(time=gtime.values, mean=gmean.values)
-            )
+            pd.DataFrame.from_dict(dict(time=gtime.values, mean=gmean.values))
             .sort_values(by="time")
             .dropna()
-        )#.rolling(window=4).mean()
-        dfmean['mean'] = dfmean['mean'].rolling(4, center=True).mean().values
+        )  # .rolling(window=4).mean()
+        dfmean["mean"] = dfmean["mean"].rolling(4, center=True).mean().values
 
         meanline = dfmean.hvplot.line(
             x="time",
@@ -863,19 +883,11 @@ class GliderDashboard(param.Parameterized):
 
         return meanline
 
-    def get_xsection_raster(self, x_range, y_range):#, contour_variable=None):
+    def get_xsection_raster(self, x_range, y_range):  # , contour_variable=None):
         (x0, x1) = x_range
-        #try:
-        #    self.pick_startX = pd.to_datetime(x0)  # setters
-        #    self.pick_endX = pd.to_datetime(x1)
-        #except:
-        #    import pdb; pdb.set_trace();
-        #t1 = time.perf_counter()
-        #print("start raster")
         self.pick_startX = pd.to_datetime(x0)  # setters
         self.pick_endX = pd.to_datetime(x1)
         meta, plt_props = self.load_viewport_datasets(x_range)
-        plotslist1 = []
 
         if plt_props["zoomed_out"]:
             metakeys = [element.replace("nrt", "delayed") for element in meta.index]
@@ -888,64 +900,40 @@ class GliderDashboard(param.Parameterized):
                 )
                 for element in meta.index
             ]
-        #if contour_variable:
-        #    variables = [contour_variable]
-        #else:
-        #
+
         variables = self.pick_variables
-        #if (self.pick_contours is not None) and (self.pick_contours != "same as above"):
-        #    variables.append(self.pick_contours)
         varlist = []
         for dsid in metakeys:
             ds = dsdict[dsid]
-            # import pdb; pdb.set_trace();
             ds = ds[ds.profile_num % plt_props["subsample_freq"] == 0]
             varlist.append(ds)
-        # import pdb; pdb.set_trace();
-        #if self.pick_mld or self.pick_mean:
-        #    'VOTO CONCATTT'
-        varlist = utils.voto_concat_datasets(varlist)
-        if varlist:
-            # concat and drop_duplicates could potentially be done by pandarallel
-            if self.pick_TS or self.pick_profiles:
-                nanosecond_iterator = 1
-                for ndataset in varlist:
-                    ndataset.index = ndataset.index + np.timedelta64(
-                        nanosecond_iterator, "ns"
-                    )
-                    nanosecond_iterator += 1
-            try:
-                dsconc = dd.concat(varlist).persist()
-            except:
-                dsconc = dd.concat(varlist)
-            dsconc = dsconc.loc[x_range[0] : x_range[1]]
-            # could be parallelized
-            if self.pick_TS or self.pick_profiles:
-                try:
-                    dsconc = dsconc.drop_duplicates(
-                        subset=["temperature", "salinity"]
-                    ).compute()
-                except:
-                    dsconc = dsconc.drop_duplicates(subset=["temperature", "salinity"])
-            self.data_in_view = dsconc
-            self.update_markdown(x_range, y_range)
 
-            if (self.pick_contours is not None) and (self.pick_contours != "same as above"):
-                mplt = create_single_ds_plot_raster(data=dsconc, variables=[*variables, self.pick_contours])
-            else:
-                mplt = create_single_ds_plot_raster(data=dsconc, variables=variables)
-            #t2 = time.perf_counter()
-            #print(t2 - t1)
-            return mplt
+        varlist = utils.voto_concat_datasets(varlist)
+
+        if (len(varlist) == 0) or (len(self.pick_variables) == 0):
+            return None
+        # concat and drop_duplicates could potentially be done by pandarallel
+        if self.pick_TS or self.pick_profiles:
+            nanosecond_iterator = 1
+            for ndataset in varlist:
+                ndataset.index = ndataset.index + np.timedelta64(
+                    nanosecond_iterator, "ns"
+                )
+                nanosecond_iterator += 1
+
+        dsconc = pd.concat(varlist)
+        if self.pick_TS or self.pick_profiles:
+            dsconc = dsconc.drop_duplicates(subset=["temperature", "salinity"])
+        self.data_in_view = dsconc
+        self.update_markdown(x_range, y_range)
+
+        if (self.pick_contours is not None) and (self.pick_contours != "same as above"):
+            mplt = create_single_ds_plot_raster(
+                data=dsconc, variables=[*variables, self.pick_contours]
+            )
         else:
-            #data = {"time":[], "depth":[], variable:[]}  # Declaration line
-            #data = pd.DataFrame.from_dict(data)
-            #raster = data.hvplot.points(
-            #    x="time",
-            #    y="depth",
-            #    c=variable,
-            #)
-            return self.create_None_element("Overlay")
+            mplt = create_single_ds_plot_raster(data=dsconc, variables=variables)
+        return mplt
 
     def get_xsection_TS(self, x_range, y_range):
         dsconc = self.data_in_view
@@ -1031,14 +1019,13 @@ class GliderDashboard(param.Parameterized):
         # also, maybe the contour color should be something more discrete
         return dcont
 
-
     def create_None_element(self, type):
         # This is just a hack because I can't return None to dynamic maps
         if type == "Overlay":
             element = hv.Overlay(
                 hv.HLine(0).opts(color="black", alpha=0.1)
                 * hv.HLine(0).opts(color="black", alpha=0.1)
-                #* hv.Text(
+                # * hv.Text(
                 #    x=self.startX,
                 #    y=-20,
                 #    text="There is no data here!",
@@ -1047,7 +1034,6 @@ class GliderDashboard(param.Parameterized):
         elif type == "Spikes":
             element = hv.Spikes().opts(color="black", alpha=0.1)
         return element
-
 
     def get_xsection(self, x_range, y_range):
         (x0, x1) = x_range
@@ -1058,14 +1044,16 @@ class GliderDashboard(param.Parameterized):
         meta_end_in_view = meta[(meta["time_coverage_end (UTC)"] < x1)]
 
         startvlines = (
-            hv.VLines(meta_start_in_view["time_coverage_start (UTC)"])
-            .opts(color="grey", line_width=1)#, spike_length=20)
-            #.opts(position=-10)
+            hv.VLines(meta_start_in_view["time_coverage_start (UTC)"]).opts(
+                color="grey", line_width=1
+            )  # , spike_length=20)
+            # .opts(position=-10)
         )
         endvlines = (
-            hv.VLines(meta_end_in_view["time_coverage_end (UTC)"])
-            .opts(color="grey", line_width=1)#, spike_length=20)
-            #.opts(position=-10)
+            hv.VLines(meta_end_in_view["time_coverage_end (UTC)"]).opts(
+                color="grey", line_width=1
+            )  # , spike_length=20)
+            # .opts(position=-10)
         )
         """
         startvlines = (
@@ -1088,7 +1076,8 @@ class GliderDashboard(param.Parameterized):
             )
         )
         ds_labels = hv.Labels(data).opts(
-            fontsize=12, text_align="left"  # plt_props['dynfontsize'],
+            fontsize=12,
+            text_align="left",  # plt_props['dynfontsize'],
         )
         plotslist = []
         if len(meta_start_in_view) > 0:
@@ -1103,7 +1092,6 @@ class GliderDashboard(param.Parameterized):
 
 
 class MetaDashboard(param.Parameterized):
-
     options = [
         "glider_serial",
         "optics_serial",
@@ -1124,9 +1112,7 @@ class MetaDashboard(param.Parameterized):
         "pick_serial"
     )  # outcommenting this means just depend on all, redraw always
     def create_timeline(self):
-        dfm = all_metadata.sort_values(
-            "basin"
-        )
+        dfm = all_metadata.sort_values("basin")
         dims = self.pick_serial
         fig = px.timeline(
             dfm,
@@ -1165,32 +1151,35 @@ def create_app_instance():
     meta_dashboard = MetaDashboard()
 
     # Data options
-    ctrl_data = pn.Column( # top stack, dataset and basin options
-        'Choose input data either based on basin location or ID',
+    ctrl_data = pn.Column(  # top stack, dataset and basin options
+        "Choose input data either based on basin location or ID",
         pn.Param(
             glider_dashboard,
             parameters=["pick_toggle"],
-            widgets={'pick_toggle':pn.widgets.RadioButtonGroup, 'button_type': 'success'},
-            #css_classes=["widget-button"],
-            #default_layout=pn.Column,
+            widgets={
+                "pick_toggle": pn.widgets.RadioButtonGroup,
+                "button_type": "success",
+            },
+            # css_classes=["widget-button"],
+            # default_layout=pn.Column,
             show_name=False,
-            #width=100,
+            # width=100,
         ),
         pn.Param(
             glider_dashboard,
             parameters=["pick_basin"],
-            #widgets={'pick_basin':pn.widgets.MultiChoice(max_items=1)}
+            # widgets={'pick_basin':pn.widgets.MultiChoice(max_items=1)}
             default_layout=pn.Column,
-            #max_items=1,
+            # max_items=1,
             show_name=False,
         ),
         pn.Param(
             glider_dashboard,
             parameters=["pick_dsids"],
-            widgets={'pick_dsids':pn.widgets.MultiChoice},
+            widgets={"pick_dsids": pn.widgets.MultiChoice},
             show_name=False,
         ),
-        #styles={"background": "#C0C0C0"},
+        # styles={"background": "#C0C0C0"},
     )
 
     # contour plot options
@@ -1198,20 +1187,20 @@ def create_app_instance():
         pn.Param(
             glider_dashboard,
             parameters=["pick_variables"],
-            widgets={'pick_variables': pn.widgets.CheckBoxGroup},
+            widgets={"pick_variables": pn.widgets.CheckBoxGroup},
             default_layout=pn.Column,
             show_name=False,
         ),
         pn.Param(
             glider_dashboard,
             parameters=["pick_cnorm"],
-            widgets={'pick_cnorm': pn.widgets.RadioButtonGroup},
+            widgets={"pick_cnorm": pn.widgets.RadioButtonGroup},
             show_name=False,
         ),
         pn.Param(
             glider_dashboard,
             parameters=["pick_aggregation"],
-            widgets={'pick_aggregation': pn.widgets.RadioButtonGroup},
+            widgets={"pick_aggregation": pn.widgets.RadioButtonGroup},
             show_name=False,
             show_labels=True,
         ),
@@ -1220,7 +1209,7 @@ def create_app_instance():
             parameters=["pick_contours"],
             show_name=False,
         ),
-        #styles={"background": "#f0f0f0"},
+        # styles={"background": "#f0f0f0"},
     )
 
     # scatter options
@@ -1245,7 +1234,6 @@ def create_app_instance():
         #    parameters=['pick_display_threshold'],
         #    show_name=False,
         #    display_threshold=10,),
-
     )
 
     ctrl_more = pn.Column(
@@ -1273,19 +1261,19 @@ def create_app_instance():
             show_name=False,
             # display_threshold=0.5,
         ),
-        #pn.Param(
+        # pn.Param(
         #    glider_dashboard,
         #    parameters=["pick_mean"],
         #    show_name=False,
         #    # display_threshold=0.5,
-        #),
-        #pn.Param(
+        # ),
+        # pn.Param(
         #    glider_dashboard,
         #    parameters=["button_inflow"],
         #    show_name=False,
         #    # display_threshold=10,
-        #),
-        #button_cols,
+        # ),
+        # button_cols,
         pn.Param(
             glider_dashboard,
             parameters=["endX"],
@@ -1307,11 +1295,12 @@ def create_app_instance():
     )
 
     pick_aggregation_method = pn.Param(
-            glider_dashboard,
-            parameters=["pick_aggregation_method"],
-            widgets={'pick_aggregation_method': pn.widgets.RadioButtonGroup},
-            show_name=False,
-            show_labels=True,)
+        glider_dashboard,
+        parameters=["pick_aggregation_method"],
+        widgets={"pick_aggregation_method": pn.widgets.RadioButtonGroup},
+        show_name=False,
+        show_labels=True,
+    )
 
     def create_column(hex_id=None):
         """
@@ -1321,11 +1310,11 @@ def create_app_instance():
         # column = pn.widgets.TextInput(name="Enter a number", value=str(value))
         global meancolumn
         meancolumn = pn.Column(
-                        glider_dashboard.create_mean(),
-                        height=500,
-                        )
+            glider_dashboard.create_mean(),
+            height=500,
+        )
         contentcolumn.append(meancolumn)
-        contentcolumn.height=1050
+        contentcolumn.height = 1050
 
     def remove_column(hex_id=None):
         """
@@ -1334,12 +1323,12 @@ def create_app_instance():
         # value = random.randint(0, 100)
         # column = pn.widgets.TextInput(name="Enter a number", value=str(value))
         contentcolumn.remove(meancolumn)
-        contentcolumn.height=500
+        contentcolumn.height = 500
 
     add_row = pn.widgets.Button(name="Add aggregation row")
     clear_rows = pn.widgets.Button(name="Clear additional rows")
 
-    #main = pn.Column("# Dynamically add new rows", button_cols, layout)
+    # main = pn.Column("# Dynamically add new rows", button_cols, layout)
 
     # Add interactivity
     clear_rows.on_click(lambda _: remove_column())
@@ -1359,7 +1348,7 @@ def create_app_instance():
                 "pick_aggregation": "pick_aggregation",
                 "pick_aggregation_method": "pick_aggregation_method",
                 "pick_mld": "pick_mld",
-                #"pick_mean": "pick_mean",
+                # "pick_mean": "pick_mean",
                 "pick_cnorm": "pick_cnorm",
                 "pick_TS": "pick_TS",
                 "pick_profiles": "pick_profiles",
@@ -1377,39 +1366,42 @@ def create_app_instance():
         )
 
     contentcolumn = pn.Column(
-        #pn.Row(
+        # pn.Row(
         glider_dashboard.create_dynmap,
-            #glider_dashboard.create_mean,
-            pn.Param(
+        # glider_dashboard.create_mean,
+        pn.Param(
             glider_dashboard,
             parameters=["pick_show_ctrls"],
-            show_name=False,),
-            #height=glider_dashboard.pick_contour_heigth,
-            #),
-        #pn.Row("# Add data aggregations (mean, max, std...)", button_cols),
+            show_name=False,
+        ),
+        # height=glider_dashboard.pick_contour_heigth,
+        # ),
+        # pn.Row("# Add data aggregations (mean, max, std...)", button_cols),
     )
 
     layout = pn.Column(
-        pn.Row( # row with controls, trajectory plot and TS plot
+        pn.Row(  # row with controls, trajectory plot and TS plot
             pn.Accordion(
                 toggle=True,
-                objects=[('Choose dataset(s)', ctrl_data),
-                ('Contour plot options', ctrl_contour),
-                ('Linked (scatter-)plots', ctrl_scatter),
-                #('Aggregations (WIP)', pn.Column(
-                #    pick_aggregation_method,
-                #    add_row,
-                #    clear_rows,
-                #    )),
-                ('more', ctrl_more),
-                #('WIP',add_row),
-                ],),
+                objects=[
+                    ("Choose dataset(s)", ctrl_data),
+                    ("Contour plot options", ctrl_contour),
+                    ("Linked (scatter-)plots", ctrl_scatter),
+                    # ('Aggregations (WIP)', pn.Column(
+                    #    pick_aggregation_method,
+                    #    add_row,
+                    #    clear_rows,
+                    #    )),
+                    ("more", ctrl_more),
+                    # ('WIP',add_row),
+                ],
+            ),
             contentcolumn,
-            #, pn.Row(button_cols)])],
+            # , pn.Row(button_cols)])],
             visible=True,
             height=800,
         ),
-        pn.Row(pn.Column(),glider_dashboard.markdown),
+        pn.Row(pn.Column(), glider_dashboard.markdown),
         pn.Row(
             pn.Column(
                 meta_dashboard.param,
@@ -1422,7 +1414,7 @@ def create_app_instance():
             height=500,
             scroll=True,
         ),
-        #pn.Row("# Dynamically add new rows", button_cols)
+        # pn.Row("# Dynamically add new rows", button_cols)
         # visible=False, # works, but hides everything!
     )
 
