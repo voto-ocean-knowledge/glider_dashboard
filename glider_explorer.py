@@ -606,7 +606,7 @@ class GliderDashboard(param.Parameterized):
                 dmap_raster,
                 aggregator=means,
                 # x_sampling=8.64e13/48,
-                y_sampling=0.3,
+                y_sampling=0.2,
                 pixel_ratio=pixel_ratio,
             ).opts(
                 # invert_yaxis=True, # Would like to activate this, but breaks the hover tool
@@ -619,7 +619,7 @@ class GliderDashboard(param.Parameterized):
                 # responsive=True, # this currently breaks when activated with MLD
                 # width=800,
                 height=int(
-                    (400 + 100 * len(self.pick_variables)) / len(self.pick_variables)
+                    (500 + 150 * len(self.pick_variables)) / len(self.pick_variables)
                 ),  # int(500/(len(self.pick_variables))),#250+int(250*2/len(self.pick_variables)), #500, 250,
                 cnorm=self.pick_cnorm,
                 active_tools=["xpan", "xwheel_zoom"],
@@ -782,12 +782,12 @@ class GliderDashboard(param.Parameterized):
             # activate sparse data mode to speed up reactivity
             plt_props["zoomed_out"] = False
             plt_props["dynfontsize"] = 4
-            plt_props["subsample_freq"] = 25
+            plt_props["subsample_freq"] = 20
         elif (x1 - x0) > np.timedelta64(360, "D"):
             # activate sparse data mode to speed up reactivity
             plt_props["zoomed_out"] = False
             plt_props["dynfontsize"] = 4
-            plt_props["subsample_freq"] = 10
+            plt_props["subsample_freq"] = 8
         elif (x1 - x0) > np.timedelta64(180, "D"):
             # activate sparse data mode to speed up reactivity
             plt_props["zoomed_out"] = False
@@ -1396,16 +1396,17 @@ def create_app_instance():
                     # ('WIP',add_row),
                 ],
             ),
+            pn.Spacer(width=50),
             contentcolumn,
             # , pn.Row(button_cols)])],
             visible=True,
-            height=800,
+            # height=800,
         ),
         pn.Row(pn.Column(), glider_dashboard.markdown),
         pn.Row(
             pn.Column(
                 meta_dashboard.param,
-                height=500,
+                # height=500,
             ),
             pn.Column(
                 meta_dashboard.create_timeline,
