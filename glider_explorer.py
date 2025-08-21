@@ -621,7 +621,7 @@ class GliderDashboard(param.Parameterized):
                 # responsive=True, # this currently breaks when activated with MLD
                 # width=800,
                 height=int(
-                    (500 + 150 * len(self.pick_variables)) / len(self.pick_variables)
+                    (400 + 150 * len(self.pick_variables)) / len(self.pick_variables)
                 ),  # int(500/(len(self.pick_variables))),#250+int(250*2/len(self.pick_variables)), #500, 250,
                 cnorm=self.pick_cnorm,
                 active_tools=["xpan", "xwheel_zoom"],
