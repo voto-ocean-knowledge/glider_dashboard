@@ -782,17 +782,17 @@ class GliderDashboard(param.Parameterized):
             # activate sparse data mode to speed up reactivity
             plt_props["zoomed_out"] = False
             plt_props["dynfontsize"] = 4
-            plt_props["subsample_freq"] = 20
+            plt_props["subsample_freq"] = 25
         elif (x1 - x0) > np.timedelta64(360, "D"):
             # activate sparse data mode to speed up reactivity
             plt_props["zoomed_out"] = False
             plt_props["dynfontsize"] = 4
-            plt_props["subsample_freq"] = 8
+            plt_props["subsample_freq"] = 10
         elif (x1 - x0) > np.timedelta64(180, "D"):
             # activate sparse data mode to speed up reactivity
             plt_props["zoomed_out"] = False
             plt_props["dynfontsize"] = 4
-            plt_props["subsample_freq"] = 4
+            plt_props["subsample_freq"] = 6
         elif (x1 - x0) > np.timedelta64(90, "D"):
             # activate sparse data mode to speed up reactivity
             plt_props["zoomed_out"] = False
