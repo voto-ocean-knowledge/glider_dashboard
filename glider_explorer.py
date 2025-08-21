@@ -616,7 +616,7 @@ class GliderDashboard(param.Parameterized):
                 dmap_raster,
                 aggregator=means,
                 # x_sampling=8.64e13/48,
-                y_sampling=0.2,
+                # y_sampling=0.2,
                 pixel_ratio=pixel_ratio,
             ).opts(
                 # invert_yaxis=True, # Would like to activate this, but breaks the hover tool
