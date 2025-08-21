@@ -10,6 +10,14 @@ import param
 import plotly.express as px
 from holoviews.operation.datashader import rasterize
 from holoviews.selection import link_selections
+from holoviews.operation import decimate
+from holoviews.operation.datashader import (
+    datashade,
+    dynspread,
+    rasterize,
+    shade,
+    spread,
+)
 
 # from bokeh.models import DatetimeTickFormatter, HoverTool
 from holoviews.streams import RangeXY
@@ -631,7 +639,7 @@ class GliderDashboard(param.Parameterized):
             )
 
         for variable in self.pick_variables:
-            plots_dict["dmap_rasterized"][variable] = rasters(variable)
+            plots_dict["dmap_rasterized"][variable] = spread(rasters(variable), px=1, how="source")
         if (self.pick_contours is not None) and (self.pick_contours != "same as above"):
             plots_dict["dmap_rasterized_contour"] = rasters(self.pick_contours)
 
