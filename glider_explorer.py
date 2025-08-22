@@ -39,6 +39,7 @@ metadata, all_datasets = utils.filter_metadata()
 metadata = metadata.drop(
     ["nrt_SEA067_M15", "nrt_SEA079_M14", "nrt_SEA061_M63"], errors="ignore"
 )  # temporary data inconsistency
+import pdb; pdb.set_trace();
 metadata["time_coverage_start (UTC)"] = metadata[
     "time_coverage_start (UTC)"
 ].dt.tz_convert(None)
@@ -192,6 +193,7 @@ class GliderDashboard(param.Parameterized):
             "chlorophyll",
             "oxygen_concentration",
             "cdom",
+            "fdom",
             "backscatter_scaled",
             "phycocyanin",
             "phycocyanin_tridente",
@@ -1392,7 +1394,7 @@ def create_app_instance():
     layout = pn.Column(
         pn.Row(  # row with controls, trajectory plot and TS plot
             pn.Accordion(
-                toggle=True,
+                # toggle=True, # allows only one card to be opened at a time
                 objects=[
                     ("Choose dataset(s)", ctrl_data),
                     ("Contour plot options", ctrl_contour),
