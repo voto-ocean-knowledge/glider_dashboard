@@ -1,11 +1,11 @@
-from erddapy import ERDDAP
 import pprint
 from ast import literal_eval
-import pandas as pd
-import numpy as np
 
-project = 'SAMBA'
-basin = 'Bornholm Basin'
+import pandas as pd
+from erddapy import ERDDAP
+
+project = "SAMBA"
+basin = "Bornholm Basin"
 year = 2024
 month = 4
 
@@ -18,16 +18,10 @@ def load_metadata():
         response="csv",
     )
     e.dataset_id = "meta_metadata_table"
-    metadata = e.to_pandas(
-        index_col="datasetID",
-        date_format="%f"
-    )
+    metadata = e.to_pandas(index_col="datasetID", date_format="%f")
 
     e.dataset_id = "allDatasets"
-    all_datasets = e.to_pandas(
-        index_col="datasetID",
-        date_format="%f"
-    )
+    all_datasets = e.to_pandas(index_col="datasetID", date_format="%f")
 
     def obj_to_string(x):
         return pprint.pformat(x)
@@ -36,28 +30,39 @@ def load_metadata():
         return variable in x
 
     def basin_simplify(basin):
-        if basin.split(',')[0]=='Bornholm Basin':
-            return 'Bornholm Basin'
-        elif basin.split(',')[0]=='Eastern Gotland Basin':
-            return 'Eastern Gotland'
-        elif basin in ['Northern Baltic Proper, Eastern Gotland Basin', 'Northern Baltic Proper']:
-            return 'Eastern Gotland'
-        elif basin.split(',')[0] in ['Skagerrak', 'Kattegat']:
-            return 'Skagerrak, Kattegat'
-        elif basin.split(',')[0] == 'Western Gotland Basin':
-            return 'Western Gotland'
-        elif basin.split(',')[0] in ['Åland Sea', '\\u00c5land Sea', '\\u00c3\\u0085land Sea']:
-            return 'Åland Sea'
+        if basin.split(",")[0] == "Bornholm Basin":
+            return "Bornholm Basin"
+        elif basin.split(",")[0] == "Eastern Gotland Basin":
+            return "Eastern Gotland"
+        elif basin in [
+            "Northern Baltic Proper, Eastern Gotland Basin",
+            "Northern Baltic Proper",
+        ]:
+            return "Eastern Gotland"
+        elif basin.split(",")[0] in ["Skagerrak", "Kattegat"]:
+            return "Skagerrak, Kattegat"
+        elif basin.split(",")[0] == "Western Gotland Basin":
+            return "Western Gotland"
+        elif basin.split(",")[0] in [
+            "Åland Sea",
+            "\\u00c5land Sea",
+            "\\u00c3\\u0085land Sea",
+        ]:
+            return "Åland Sea"
         else:
             return basin
 
-    metadata['optics_serial'] = metadata.optics_serial.apply(obj_to_string)
-    metadata['irradiance_serial'] = metadata.irradiance_serial.apply(obj_to_string)
-    metadata['altimeter_serial'] = metadata.altimeter_serial.apply(obj_to_string)
-    metadata['glider_serial'] = metadata.glider_serial.apply(obj_to_string)
-    metadata['basin'] = metadata.basin.apply(basin_simplify)
-    metadata['time_coverage_end (UTC)'] = pd.to_datetime(metadata['time_coverage_end (UTC)'])
-    metadata['time_coverage_start (UTC)'] = pd.to_datetime(metadata['time_coverage_start (UTC)'])
+    metadata["optics_serial"] = metadata.optics_serial.apply(obj_to_string)
+    metadata["irradiance_serial"] = metadata.irradiance_serial.apply(obj_to_string)
+    metadata["altimeter_serial"] = metadata.altimeter_serial.apply(obj_to_string)
+    metadata["glider_serial"] = metadata.glider_serial.apply(obj_to_string)
+    metadata["basin"] = metadata.basin.apply(basin_simplify)
+    metadata["time_coverage_end (UTC)"] = pd.to_datetime(
+        metadata["time_coverage_end (UTC)"]
+    )
+    metadata["time_coverage_start (UTC)"] = pd.to_datetime(
+        metadata["time_coverage_start (UTC)"]
+    )
     return metadata, all_datasets
 
 
@@ -72,21 +77,25 @@ def create_available_variables_columns(metadata):
     menuentries = []
     menuentries_variables = []
     newmetadatacolumns = {}
-    for index in range(0,len(metadata.index)):
+    for index in range(0, len(metadata.index)):
         all_variables_set.update(literal_eval(metadata.iloc[index].variables))
     all_variables_set
 
     for variable in list(all_variables_set):
-        newmetadatacolumns[variable+'_available'] = metadata.variables.apply(variable_exists, args=(variable,))
-        menuentries.append({'label':variable+'_available', 'value':variable+'_available'})
-        #menuentries_variables.append({'label':variable,variable+'_available' 'value':variable})
+        newmetadatacolumns[variable + "_available"] = metadata.variables.apply(
+            variable_exists, args=(variable,)
+        )
+        menuentries.append(
+            {"label": variable + "_available", "value": variable + "_available"}
+        )
+        # menuentries_variables.append({'label':variable,variable+'_available' 'value':variable})
     metadata = metadata.join(pd.DataFrame.from_dict(newmetadatacolumns))
     return metadata
 
 
 def filter_metadata():
     # Better to return filtered DataFrame instead of IDs?
-    mode = 'all' # 'nrt', 'delayed'
+    mode = "all"  # 'nrt', 'delayed'
     metadata, all_datasets = load_metadata()
     """
     metadata = metadata[
@@ -104,33 +113,46 @@ def filter_metadata():
     #metadata = drop_overlaps(metadata)
     return metadata, all_datasets
 
+
 def add_delayed_dataset_ids(metadata, all_datasets):
     nrt_dataset_ids = list(metadata.index)
     delayed_dataset_ids = [
-        datasetid.replace('nrt', 'delayed') if datasetid.replace('nrt', 'delayed') in all_datasets.index else datasetid
-        for datasetid in metadata.index]
+        datasetid.replace("nrt", "delayed")
+        if datasetid.replace("nrt", "delayed") in all_datasets.index
+        else datasetid
+        for datasetid in metadata.index
+    ]
 
-    all_dataset_ids = nrt_dataset_ids+delayed_dataset_ids
-    return all_dataset_ids#metadata.loc[all_dataset_ids]
+    all_dataset_ids = nrt_dataset_ids + delayed_dataset_ids
+    return all_dataset_ids  # metadata.loc[all_dataset_ids]
 
 
 def drop_overlaps(metadata):
-    drop_overlap=True
+    drop_overlap = True
     dropped_datasets = []
-    for basin in ['Bornholm Basin', 'Skagerrak, Kattegat',
-        'Western Gotland', 'Eastern Gotland', 'Åland Sea']:
-        meta = metadata[metadata['basin']==basin]
+    for basin in [
+        "Bornholm Basin",
+        "Skagerrak, Kattegat",
+        "Western Gotland",
+        "Eastern Gotland",
+        "Åland Sea",
+    ]:
+        meta = metadata[metadata["basin"] == basin]
         for index in range(0, len(meta)):
             glidercounter = 1
             maskedregions = []
-            color = 'k'
+            color = "k"
             for index2 in range(0, index):
-                r1 = dict(start=meta.iloc[index]['time_coverage_start (UTC)'],
-                        end=meta.iloc[index]['time_coverage_end (UTC)'])
-                r2 = dict(start=meta.iloc[index2]['time_coverage_start (UTC)'],
-                        end=meta.iloc[index2]['time_coverage_end (UTC)'])
-                latest_start = max(r1['start'], r2['start'])
-                earliest_end = min(r1['end'], r2['end'])
+                r1 = dict(
+                    start=meta.iloc[index]["time_coverage_start (UTC)"],
+                    end=meta.iloc[index]["time_coverage_end (UTC)"],
+                )
+                r2 = dict(
+                    start=meta.iloc[index2]["time_coverage_start (UTC)"],
+                    end=meta.iloc[index2]["time_coverage_end (UTC)"],
+                )
+                latest_start = max(r1["start"], r2["start"])
+                earliest_end = min(r1["end"], r2["end"])
                 delta = (earliest_end - latest_start).days + 1
                 overlap = max(0, delta)
                 if overlap > 1:
@@ -140,18 +162,26 @@ def drop_overlaps(metadata):
                     if drop_overlap:
                         # ...and optionally dropped
                         dropped_datasets.append(meta.index[index])
-                        color = 'red'
+                        color = "red"
 
-    #print('dropping datasets {}'.format(dropped_datasets))
+    # print('dropping datasets {}'.format(dropped_datasets))
     metadata = metadata.drop(dropped_datasets)
     return metadata
 
 
 def drop_overlaps_fast(metadata):
-    with pd.option_context('mode.chained_assignment', None):
-        metadata['duration'] = metadata['time_coverage_end (UTC)'] - metadata['time_coverage_start (UTC)']
-        metadata['startdate'] = metadata['time_coverage_start (UTC)'].dt.date
-    remaining = metadata.sort_values(['startdate', 'duration'], ascending=[True, False])[['startdate']].drop_duplicates().index
+    with pd.option_context("mode.chained_assignment", None):
+        metadata["duration"] = (
+            metadata["time_coverage_end (UTC)"] - metadata["time_coverage_start (UTC)"]
+        )
+        metadata["startdate"] = metadata["time_coverage_start (UTC)"].dt.date
+    remaining = (
+        metadata.sort_values(["startdate", "duration"], ascending=[True, False])[
+            ["startdate"]
+        ]
+        .drop_duplicates()
+        .index
+    )
     # import pdb; pdb.set_trace();
     return metadata.loc[remaining]
 
@@ -193,9 +223,9 @@ def voto_concat_datasets(datasets):
     """
     # in case the datasets have a different set of variables, emtpy variables are created
     # to allow for concatenation (concat with different set of variables leads to error)
-    #mlist = [set(dataset.variables.keys()) for dataset in datasets]
-    #allvariables = set.union(*mlist)
-    #for dataset in datasets:
+    # mlist = [set(dataset.variables.keys()) for dataset in datasets]
+    # allvariables = set.union(*mlist)
+    # for dataset in datasets:
     #    missing_vars = allvariables - set(dataset.variables.keys())
     #    for missing_var in missing_vars:
     #        dataset[missing_var] = np.nan
@@ -209,8 +239,8 @@ def voto_concat_datasets(datasets):
 
 
 def voto_concat_datasets2(datasets):
-    import dask
     import dask.dataframe as dd
+
     """
     Concatenates multiple datasets along the time dimensions, profile_num
     and dives variable(s) are adapted so that they start counting from one
@@ -229,23 +259,26 @@ def voto_concat_datasets2(datasets):
     # to allow for concatenation (concat with different set of variables leads to error)
     mlist = [set(dataset.variables.keys()) for dataset in datasets]
     allvariables = set.union(*mlist)
-    #for dataset in datasets:
+    # for dataset in datasets:
     #    missing_vars = allvariables - set(dataset.variables.keys())
     #    for missing_var in missing_vars:
     #        dataset[missing_var] = np.nan
 
     # renumber profiles, so that profile_num still is unique in concat-dataset
-    #for index in range(1, len(datasets)):
+    # for index in range(1, len(datasets)):
     #    datasets[index]["profile_num"] += (
     #        datasets[index - 1].copy()["profile_num"].max()
     #    )
-    ds = dd.concat(datasets, dim="time", variables=["temperature", "salinity"])#xr.concat(datasets, dim="time")
-    #ds = add_dive_column(ds)
+    ds = dd.concat(
+        datasets, dim="time", variables=["temperature", "salinity"]
+    )  # xr.concat(datasets, dim="time")
+    # ds = add_dive_column(ds)
 
     return ds
 
 
-#def dask_add_dives(profile_nu):
+# def dask_add_dives(profile_nu):
+
 
 def add_dive_column(ds):
     """add dive column to dataset
@@ -259,6 +292,6 @@ def add_dive_column(ds):
     xarray.Dataset
         Dataset containing a dives column
     """
-    #ds["dives"] = np.where(ds.profile_direction == 1, ds.profile_num, ds.profile_num + 0.5)
-    ds["dives"] = ds.profile_num.where(ds.profile_direction==1, ds.profile_num+0.5)
+    # ds["dives"] = np.where(ds.profile_direction == 1, ds.profile_num, ds.profile_num + 0.5)
+    ds["dives"] = ds.profile_num.where(ds.profile_direction == 1, ds.profile_num + 0.5)
     return ds

@@ -39,7 +39,6 @@ metadata, all_datasets = utils.filter_metadata()
 metadata = metadata.drop(
     ["nrt_SEA067_M15", "nrt_SEA079_M14", "nrt_SEA061_M63"], errors="ignore"
 )  # temporary data inconsistency
-import pdb; pdb.set_trace();
 metadata["time_coverage_start (UTC)"] = metadata[
     "time_coverage_start (UTC)"
 ].dt.tz_convert(None)
@@ -466,7 +465,9 @@ class GliderDashboard(param.Parameterized):
             # first case, , user selected an aggregation, e.g. 'Bornholm Basin'
             meta = metadata[metadata["basin"] == self.pick_basin]
             meta = metadata[metadata["project"] == "SAMBA"]
-            meta = metadata[metadata["time_coverage_start (UTC)"] > np.datetime64("2021-01-01")]
+            meta = metadata[
+                metadata["time_coverage_start (UTC)"] > np.datetime64("2021-01-01")
+            ]
             meta = utils.drop_overlaps_fast(meta)
         else:
             # second case, user selected dids
@@ -641,7 +642,9 @@ class GliderDashboard(param.Parameterized):
             )
 
         for variable in self.pick_variables:
-            plots_dict["dmap_rasterized"][variable] = spread(rasters(variable), px=1, how="source")
+            plots_dict["dmap_rasterized"][variable] = spread(
+                rasters(variable), px=1, how="source"
+            )
         if (self.pick_contours is not None) and (self.pick_contours != "same as above"):
             plots_dict["dmap_rasterized_contour"] = rasters(self.pick_contours)
 
