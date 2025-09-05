@@ -8,16 +8,11 @@ import pandas as pd
 import panel as pn
 import param
 import plotly.express as px
-from holoviews.operation.datashader import rasterize
-from holoviews.selection import link_selections
-from holoviews.operation import decimate
 from holoviews.operation.datashader import (
-    datashade,
-    dynspread,
     rasterize,
-    shade,
     spread,
 )
+from holoviews.selection import link_selections
 
 # from bokeh.models import DatetimeTickFormatter, HoverTool
 from holoviews.streams import RangeXY
@@ -30,6 +25,23 @@ pn.extension(
     "plotly", "mathjax"
 )  # mathjax is currently not used, but could be cool to render latex in markdown
 # cudf support works, but is currently not faster
+#
+variables_selectable = [
+    "temperature",
+    "salinity",
+    "potential_density",
+    "chlorophyll",
+    "oxygen_concentration",
+    "cdom",
+    "fdom",
+    "backscatter_scaled",
+    "phycocyanin",
+    "phycocyanin_tridente",
+    "turbidity",
+    # "methane_concentration",
+    "longitude",
+    "latitude",
+]
 
 # all_metadata is loaded for the metadata visualisation
 all_metadata, _ = utils.load_metadata()
@@ -172,6 +184,8 @@ def create_single_ds_plot_raster(data, variables):
     variables = set(variables)
     variables.add("temperature")  # inplace operations
     variables.add("salinity")
+    data[list(set(variables_selectable).difference(set(data.columns)))] = np.nan
+    #variables.union(set(variables_selectable))
     raster = hv.Points(
         data=data,
         kdims=["time", "depth"],
@@ -185,22 +199,7 @@ class GliderDashboard(param.Parameterized):
     pick_variables = param.ListSelector(
         default=["temperature"],
         allow_None=False,
-        objects=[
-            "temperature",
-            "salinity",
-            "potential_density",
-            "chlorophyll",
-            "oxygen_concentration",
-            "cdom",
-            "fdom",
-            "backscatter_scaled",
-            "phycocyanin",
-            "phycocyanin_tridente",
-            "turbidity",
-            # "methane_concentration",
-            "longitude",
-            "latitude",
-        ],
+        objects=variables_selectable,
         label="variable",
         doc="Variable used to create colormesh",
         precedence=1,
@@ -925,8 +924,8 @@ class GliderDashboard(param.Parameterized):
 
         varlist = utils.voto_concat_datasets(varlist)
 
-        if (len(varlist) == 0) or (len(self.pick_variables) == 0):
-            return None
+        # if (len(varlist) == 0) or (len(self.pick_variables) == 0):
+        #    return None
         # concat and drop_duplicates could potentially be done by pandarallel
         if self.pick_TS or self.pick_profiles:
             nanosecond_iterator = 1
@@ -1103,7 +1102,7 @@ class GliderDashboard(param.Parameterized):
         if plotslist:
             return hv.Overlay(plotslist)  # reduce(lambda x, y: x*y, plotslist)
         else:
-            return self.create_None_element("Overlay")
+            return hv.Overlay()  # return self.create_None_element("Overlay")
 
 
 class MetaDashboard(param.Parameterized):
