@@ -30,6 +30,8 @@ def load_metadata():
         return variable in x
 
     def basin_simplify(basin):
+        if type(basin) == float:
+            return "undefined"  # Could happen that basin is empty, resulting in basin == np.nan here
         if basin.split(",")[0] == "Bornholm Basin":
             return "Bornholm Basin"
         elif basin.split(",")[0] == "Eastern Gotland Basin":
@@ -109,8 +111,8 @@ def filter_metadata():
         #(metadata['time_coverage_start (UTC)'].dt.day<15)
         ]
     """
-    #for basins
-    #metadata = drop_overlaps(metadata)
+    # for basins
+    # metadata = drop_overlaps(metadata)
     return metadata, all_datasets
 
 
