@@ -185,7 +185,7 @@ def create_single_ds_plot_raster(data, variables):
     variables.add("temperature")  # inplace operations
     variables.add("salinity")
     data[list(set(variables_selectable).difference(set(data.columns)))] = np.nan
-    #variables.union(set(variables_selectable))
+    # variables.union(set(variables_selectable))
     raster = hv.Points(
         data=data,
         kdims=["time", "depth"],
@@ -606,6 +606,7 @@ class GliderDashboard(param.Parameterized):
 
         # cntr_plts = []
         plots_dict = dict(dmap_rasterized=dict(), dmap_rasterized_contour=dict())
+        cheight = 400 + 150 * len(self.pick_variables)
 
         # variables = self.pick_variables
         def rasters(variable):
@@ -626,15 +627,27 @@ class GliderDashboard(param.Parameterized):
                 clim_percentile=True,
                 cmap=dictionaries.cmap_dict[variable],
                 toolbar="above",
-                tools=["xwheel_zoom", "reset", "xpan", "ywheel_zoom", "ypan", "hover"],
+                tools=[
+                    "xpan",  # move along
+                    "xwheel_pan",  # move along x with wheel
+                    "xwheel_zoom",  # zoom on x with wheel
+                    "xzoom_in",  # zoom in on x
+                    "xzoom_out",  # zoom out on x
+                    "crosshair",  # show where the mouse is on axis
+                    "xbox_zoom",  # zoom on selection along x
+                    "undo",  # undo action
+                    "hover",
+                    "tap",
+                    # "redo",
+                ],
+                height=int(cheight / len(self.pick_variables)),
                 default_tools=[],
+                active_tools=["xpan", "xwheel_zoom"],
+                # default_tools=[],
                 # responsive=True, # this currently breaks when activated with MLD
                 # width=800,
-                height=int(
-                    (400 + 150 * len(self.pick_variables)) / len(self.pick_variables)
-                ),  # int(500/(len(self.pick_variables))),#250+int(250*2/len(self.pick_variables)), #500, 250,
+                # int(500/(len(self.pick_variables))),#250+int(250*2/len(self.pick_variables)), #500, 250,
                 cnorm=self.pick_cnorm,
-                active_tools=["xpan", "xwheel_zoom"],
                 bgcolor="dimgrey",
                 clabel=f"{variable}  [{dictionaries.units_dict[variable]}]",  # self.pick_variable,
                 responsive=True,
@@ -644,6 +657,10 @@ class GliderDashboard(param.Parameterized):
             plots_dict["dmap_rasterized"][variable] = spread(
                 rasters(variable), px=1, how="source"
             )
+            if self.pick_show_decoration:
+                plots_dict["dmap_rasterized"][variable] = plots_dict["dmap_rasterized"][
+                    variable
+                ].opts(ylim=(None, 15))
         if (self.pick_contours is not None) and (self.pick_contours != "same as above"):
             plots_dict["dmap_rasterized_contour"] = rasters(self.pick_contours)
 
@@ -694,18 +711,28 @@ class GliderDashboard(param.Parameterized):
         contourplots = (
             (
                 (contourplots)
-                + dmapTSr.opts(padding=(0.05, 0.05), height=500, responsive=True)
+                + dmapTSr.opts(
+                    padding=(0.05, 0.05),
+                    # height=500,
+                    responsive=True,
+                )
             )
             if self.pick_TS
             else contourplots
         )
         contourplots = (
-            ((contourplots) + dmap_profilesr.opts(height=500, responsive=True))
+            (
+                (contourplots)
+                + dmap_profilesr.opts(
+                    # height=500,
+                    responsive=True
+                )
+            )
             if self.pick_profiles
             else contourplots
         )
         # ncols = 2 if (self.pick_TS or self.pick_profiles) else 1
-        return contourplots.cols(ncols)
+        return pn.Column(contourplots.cols(ncols))
 
     def create_mean(self):
         self.startX = self.pick_startX
