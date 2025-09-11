@@ -775,6 +775,7 @@ class GliderDashboard(param.Parameterized):
         if self.pick_toggle == "SAMBA obs.":
             # first case, , user selected an aggregation, e.g. 'Bornholm Basin'
             meta = metadata[metadata["basin"] == self.pick_basin]
+            meta = metadata[metadata["project"] == "SAMBA"]
             meta = utils.drop_overlaps_fast(meta)
 
             meta = meta[
