@@ -22,7 +22,9 @@ import initialize
 import utils
 
 pn.extension(
-    "plotly", "mathjax"
+    "plotly",
+    "mathjax",
+    "tabulator",
 )  # mathjax is currently not used, but could be cool to render latex in markdown
 # cudf support works, but is currently not faster
 #
@@ -354,34 +356,24 @@ class GliderDashboard(param.Parameterized):
     annotations = []
 
     def update_markdown(self, x_range, y_range):
-        p1 = f"""\
-            # About
-            Ocean {self.pick_variables[0]} in [{dictionaries.units_dict[self.pick_variables[0]]}] for """
+        p1 = """\
+             # About
+             Ocean """
+        for variable in self.pick_variables:
+            description = f"{variable} in {dictionaries.units_dict[variable]}, "
+            p1 += description
         if self.pick_toggle == "DatasetID":
             p2 = f""" the datasets {self.pick_dsids} """
         else:  # self.pick_toggle == "SAMBA obs.":
-            p2 = f""" the region {self.pick_basin} """
+            p2 = f"""for the region {self.pick_basin} """
         p3 = f"""from {np.datetime_as_string(self.startX, unit="s")} to {np.datetime_as_string(self.endX, unit="s")}. """
-        # import pdb; pdb.set_trace();
-        try:
-            # p4 = f""" Number of Profiles: {
-            #    self.data_in_view.profile_num.max().compute()-self.data_in_view.profile_num.min().compute()}"""
-            p4 = f"""Number of profiles {
-                self.data_in_view.profile_num.compute().iloc[-1]
-                - self.data_in_view.profile_num.compute().iloc[0]
-            }"""
-        except:
-            # import pdb; pdb.set_trace();
-            # p4 = f""" Number of Profiles: {
-            #    self.data_in_view.profile_num.max()-self.data_in_view.profile_num.min()}"""
-            p4 = f"""Number of profiles {
-                self.data_in_view.profile_num.iloc[-1]
-                - self.data_in_view.profile_num.iloc[0]
-            } """
+
+        p4 = f"""Number of profiles {
+            self.data_in_view.profile_num.iloc[-1]
+            - self.data_in_view.profile_num.iloc[0]
+        } """
 
         self.markdown.object = p1 + p2 + p3 + p4  # +r"$$\frac{1}{n}$$"
-
-        # import pdb; pdb.set_trace();
         return p1 + p2 + p3 + p4
 
     # empty initialization for use later
@@ -415,7 +407,8 @@ class GliderDashboard(param.Parameterized):
     def update_display_threshold(self):
         try:
             # first run, when layout does not exist, this fails deliberately.
-            layout[0][0].visible = self.pick_show_ctrls
+            mylayout[0][0][0].visible = self.pick_show_ctrls
+            # print(mylayout)
         except:
             pass
 
@@ -660,7 +653,7 @@ class GliderDashboard(param.Parameterized):
             if self.pick_show_decoration:
                 plots_dict["dmap_rasterized"][variable] = plots_dict["dmap_rasterized"][
                     variable
-                ].opts(ylim=(None, 15))
+                ].opts(ylim=(None, 12))
         if (self.pick_contours is not None) and (self.pick_contours != "same as above"):
             plots_dict["dmap_rasterized_contour"] = rasters(self.pick_contours)
 
@@ -1185,12 +1178,70 @@ class MetaDashboard(param.Parameterized):
         return fig
 
 
-def create_app_instance():
-    glider_dashboard = GliderDashboard()
-    # glider_explorer2=GliderExplorer()
-
+def create_meta_instance(self):
     meta_dashboard = MetaDashboard()
+    myrow = pn.Row(
+        pn.Column(
+            meta_dashboard.param,
+            height=500,
+        ),
+        pn.Column(
+            meta_dashboard.create_timeline,
+            height=500,
+        ),
+        height=500,
+        scroll=True,
+    )
 
+    mylayout.clear()  # =
+    mylayout.append(myrow)
+    # import pdb
+    #
+    # pdb.set_trace()
+    mylayout.append(
+        pn.widgets.Tabulator(
+            all_metadata[
+                [
+                    # "datasetID",
+                    "basin",
+                    "time_coverage_start (UTC)",
+                    "time_coverage_end (UTC)",
+                    "project",
+                    "glider_model",
+                    "glider_serial",
+                    "variables",
+                    # "glider_name",
+                    "ctd_model",
+                    "ctd_long_name",
+                    "ctd_serial",
+                    "oxygen_model",
+                    "oxygen_serial",
+                    "oxygen_long_name",
+                    "oxygen_calibration_date (UTC)",
+                    "altimeter_model",
+                    "altimeter_serial",
+                    "optics_make_model",
+                    "optics_serial",
+                    "optics_long_name",
+                    "irradiance_model",
+                    "irradiance_serial",
+                    "turbulence_long_name",
+                    "metadata_link",
+                    "summary",
+                    "comment",
+                ]
+            ],
+            header_filters=True,
+            widths=120,
+        )
+    )
+    mylayout.append(pn.Column(button_dash, button_meta))
+    return mylayout
+
+
+@param.depends("pick_show_ctrls", watch=True)
+def create_app_instance(self):
+    glider_dashboard = GliderDashboard()
     # Data options
     ctrl_data = pn.Column(  # top stack, dataset and basin options
         "Choose input data either based on basin location or ID",
@@ -1439,40 +1490,40 @@ def create_app_instance():
             ),
             pn.Spacer(width=50),
             contentcolumn,
-            # , pn.Row(button_cols)])],
-            visible=True,
             # height=800,
         ),
         pn.Row(pn.Column(), glider_dashboard.markdown),
-        pn.Row(
-            pn.Column(
-                meta_dashboard.param,
-                # height=500,
-            ),
-            pn.Column(
-                meta_dashboard.create_timeline,
-                height=500,
-            ),
-            height=500,
-            scroll=True,
-        ),
-        # pn.Row("# Dynamically add new rows", button_cols)
-        # visible=False, # works, but hides everything!
     )
 
     # it is necessary to hide the controls as a very last option, because hidden controls cannot be accessed as variables
     # in the control flow above. So hiding the controls earlier "defaults" all url and manual settings.
     if glider_dashboard.pick_show_ctrls == False:
         layout[0][0].visible = glider_dashboard.pick_show_ctrls
-    return layout
+    mylayout.clear()
+    mylayout.append(layout)
+    mylayout.append(pn.Column(button_dash, button_meta))
+    return mylayout
 
+
+button_dash = pn.widgets.Button(name="activate Glider Datasets Dashboard")
+button_dash.on_click(create_app_instance)
+
+button_meta = pn.widgets.Button(
+    name="activate schematic Mission Overview and Metadata Table "
+)
+button_meta.on_click(create_meta_instance)
 
 # usefull to create secondary plot, but not fully indepentently working yet:
 # glider_explorer2=GliderExplorer()
-layout = create_app_instance()
+mylayout = pn.Column(button_dash, button_meta)
+button_dash.clicks += (
+    1  # to activate the Glider Data dashboard from the start as default
+)
+# mylayout.append(create_app_instance("placeholder"))
+mylayout.servable()
 # app = layout # create_app_instance()
 # app2 = create_app_instance()
-layout.servable()
+# layout.servable()
 # app2.servable()
 #    port=12345,
 #    websocket_origin='*',
