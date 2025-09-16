@@ -239,6 +239,15 @@ class GliderDashboard(param.Parameterized):
         label="Colourbar Scale",
         precedence=1,
     )
+
+    # pick_clim_start = param.Range(1,2)
+    pick_cbar_range = param.Range(
+        default=(1,20),
+        step=0.1,
+        doc="Set colorbar limits",
+        precedence=1,
+    )
+
     # This could be extended with vertical gradient/diff possibly?
     pick_aggregation = param.Selector(
         default="mean",
@@ -1302,6 +1311,14 @@ def create_app_instance(self):
             parameters=["pick_contours"],
             show_name=False,
         ),
+        pn.Param(
+            glider_dashboard,
+            parameters=["pick_cbar_range"],
+            widgets={"pick_cbar_range": pn.widgets.RangeSlider(
+                 value=(1.0, 1.5), start=0.0, end=2.0, step=0.25,
+            )},
+            # show_name=False,
+            )
         # styles={"background": "#f0f0f0"},
     )
 
