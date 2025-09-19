@@ -242,8 +242,8 @@ class GliderDashboard(param.Parameterized):
 
     # pick_clim_start = param.Range(1,2)
     pick_cbar_range = param.Range(
-        default=(1,20),
-        step=0.1,
+        default=(-2, 30),
+        step=0.5,
         doc="Set colorbar limits",
         precedence=1,
     )
@@ -510,6 +510,7 @@ class GliderDashboard(param.Parameterized):
         "pick_profiles",
         "pick_display_threshold",
         "pick_show_decoration",  #'pick_startX', 'pick_endX',
+        "pick_cbar_range",
         # watch=True,
     )  # outcommenting this means just depend on all, redraw always
     def create_dynmap(self):
@@ -616,6 +617,9 @@ class GliderDashboard(param.Parameterized):
                 means = dsh.mean(variable)
             if self.pick_aggregation == "std":
                 means = dsh.std(variable)
+            self.pick_autorange = True
+            clim_percentile = True if self.pick_autorange else False
+            clim = (None, None) if self.pick_autorange else self.pick_cbar_range
 
             return rasterize(
                 dmap_raster,
@@ -626,7 +630,8 @@ class GliderDashboard(param.Parameterized):
             ).opts(
                 # invert_yaxis=True, # Would like to activate this, but breaks the hover tool
                 colorbar=True,
-                clim_percentile=True,
+                clim_percentile=clim_percentile,
+                clim=clim,
                 cmap=dictionaries.cmap_dict[variable],
                 toolbar="above",
                 tools=[
@@ -1314,11 +1319,16 @@ def create_app_instance(self):
         pn.Param(
             glider_dashboard,
             parameters=["pick_cbar_range"],
-            widgets={"pick_cbar_range": pn.widgets.RangeSlider(
-                 value=(1.0, 1.5), start=0.0, end=2.0, step=0.25,
-            )},
+            widgets={
+                "pick_cbar_range": pn.widgets.RangeSlider(
+                    value=(-2, 30),
+                    start=-2,
+                    end=30,
+                    step=0.5,
+                )
+            },
             # show_name=False,
-            )
+        ),
         # styles={"background": "#f0f0f0"},
     )
 
