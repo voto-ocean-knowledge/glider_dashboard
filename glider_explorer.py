@@ -599,7 +599,11 @@ class GliderDashboard(param.Parameterized):
 
         # cntr_plts = []
         plots_dict = dict(dmap_rasterized=dict(), dmap_rasterized_contour=dict())
-        cheight = 400 + 150 * len(self.pick_variables)
+        cheight = (
+            (400 + 150 * len(self.pick_variables))
+            if not self.pick_contour_heigth
+            else self.pick_contour_heigth
+        )
 
         # variables = self.pick_variables
         def rasters(variable):
