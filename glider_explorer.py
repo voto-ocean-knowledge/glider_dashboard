@@ -9,6 +9,7 @@ import panel as pn
 import param
 import plotly.express as px
 from holoviews.operation.datashader import (
+    aggregate,
     rasterize,
     spread,
 )
@@ -654,6 +655,33 @@ class GliderDashboard(param.Parameterized):
             plots_dict["dmap_rasterized"][variable] = spread(
                 rasters(variable), px=1, how="source"
             ).opts(ylim=(self.startY, self.endY))
+
+            means = dsh.mean(variable)
+            agg = aggregate(
+                dmap_raster,
+                aggregator=means,
+                link_inputs=True,
+                x_sampling=1,
+                y_sampling=1,
+            )
+
+            # I think the y argument in PointerY might be the start value (?)
+            pointery = hv.streams.PointerY(y=np.nanmean((-20, -10)), source=dmap_raster)
+            pointerx = hv.streams.PointerX(x=self.startX, source=dmap_raster)
+
+            sampled1 = hv.util.Dynamic(
+                agg,
+                operation=lambda obj, x: obj.sample(time=x),
+                streams=[pointerx],
+                link_inputs=False,
+            )
+
+            sampled2 = hv.util.Dynamic(
+                agg,
+                operation=lambda obj, y: obj.sample(depth=y),
+                streams=[pointery],
+                link_inputs=False,
+            )
             if self.pick_show_decoration:
                 plots_dict["dmap_rasterized"][variable] = plots_dict["dmap_rasterized"][
                     variable
@@ -719,14 +747,18 @@ class GliderDashboard(param.Parameterized):
         )
         contourplots = (
             (
-                (contourplots)
-                + dmap_profilesr.opts(
-                    # height=500,
-                    responsive=True
+                (
+                    (contourplots)
+                    + dmap_profilesr.opts(
+                        # height=500,
+                        responsive=True
+                    )
                 )
+                if self.pick_profiles
+                else contourplots
             )
-            if self.pick_profiles
-            else contourplots
+            + sampled1
+            + sampled2
         )
         # ncols = 2 if (self.pick_TS or self.pick_profiles) else 1
         return pn.Column(contourplots.cols(ncols))
