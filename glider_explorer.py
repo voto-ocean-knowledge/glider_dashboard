@@ -455,7 +455,7 @@ class GliderDashboard(param.Parameterized):
         # setting watch=False fixes initialization but does not keep y-coordinate.
         if self.pick_toggle == "SAMBA obs.":
             # first case, , user selected an aggregation, e.g. 'Bornholm Basin'
-            meta = meta[meta["basin"] == self.pick_basin]
+            meta = metadata[metadata["basin"] == self.pick_basin]
             meta = meta[meta["project"] == "SAMBA"]
             meta = meta[
                 meta["time_coverage_start (UTC)"] > np.datetime64("2021-01-01")
@@ -779,7 +779,7 @@ class GliderDashboard(param.Parameterized):
         if self.pick_toggle == "SAMBA obs.":
             # first case, , user selected an aggregation, e.g. 'Bornholm Basin'
             meta = metadata[metadata["basin"] == self.pick_basin]
-            meta = metadata[metadata["project"] == "SAMBA"]
+            meta = meta[meta["project"] == "SAMBA"]
             meta = utils.drop_overlaps_fast(meta)
 
             meta = meta[
@@ -788,26 +788,26 @@ class GliderDashboard(param.Parameterized):
                 # perfomance, datasets are loaded only if visible, so if
                 # 1. it starts within our view...
                 (
-                    (metadata["time_coverage_start (UTC)"] >= x0)
-                    & (metadata["time_coverage_start (UTC)"] <= x1)
+                    (meta["time_coverage_start (UTC)"] >= x0)
+                    & (meta["time_coverage_start (UTC)"] <= x1)
                 )
                 |
                 # 2. it ends within our view...
                 (
-                    (metadata["time_coverage_end (UTC)"] >= x0)
-                    & (metadata["time_coverage_end (UTC)"] <= x1)
+                    (meta["time_coverage_end (UTC)"] >= x0)
+                    & (meta["time_coverage_end (UTC)"] <= x1)
                 )
                 |
                 # 3. it starts before and ends after our view (zoomed in)...
                 (
-                    (metadata["time_coverage_start (UTC)"] <= x0)
-                    & (metadata["time_coverage_end (UTC)"] >= x1)
+                    (meta["time_coverage_start (UTC)"] <= x0)
+                    & (meta["time_coverage_end (UTC)"] >= x1)
                 )
                 |
                 # 4. or it both, starts and ends within our view (zoomed out)...
                 (
-                    (metadata["time_coverage_start (UTC)"] >= x0)
-                    & (metadata["time_coverage_end (UTC)"] <= x1)
+                    (meta["time_coverage_start (UTC)"] >= x0)
+                    & (meta["time_coverage_end (UTC)"] <= x1)
                 )
             ]
 
