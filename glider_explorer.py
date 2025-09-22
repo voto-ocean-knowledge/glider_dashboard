@@ -455,10 +455,10 @@ class GliderDashboard(param.Parameterized):
         # setting watch=False fixes initialization but does not keep y-coordinate.
         if self.pick_toggle == "SAMBA obs.":
             # first case, , user selected an aggregation, e.g. 'Bornholm Basin'
-            meta = metadata[metadata["basin"] == self.pick_basin]
-            meta = metadata[metadata["project"] == "SAMBA"]
-            meta = metadata[
-                metadata["time_coverage_start (UTC)"] > np.datetime64("2021-01-01")
+            meta = meta[meta["basin"] == self.pick_basin]
+            meta = meta[meta["project"] == "SAMBA"]
+            meta = meta[
+                meta["time_coverage_start (UTC)"] > np.datetime64("2021-01-01")
             ]
             meta = utils.drop_overlaps_fast(meta)
         else:
