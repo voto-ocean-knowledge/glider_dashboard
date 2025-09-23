@@ -277,7 +277,7 @@ class GliderDashboard(param.Parameterized):
     pick_startY = param.Number(default=None, label="startY", doc="startY", precedence=1)
     pick_endY = param.Number(default=8, label="endY", doc="endY", precedence=1)
     pick_contour_heigth = param.Number(
-        default=550, label="contour_heigth", precedence=1
+        default=None, label="contour_heigth", precedence=1
     )
     pick_display_threshold = param.Number(
         default=1, step=1, bounds=(-10, 10), label="display_treshold"
@@ -599,11 +599,10 @@ class GliderDashboard(param.Parameterized):
 
         # cntr_plts = []
         plots_dict = dict(dmap_rasterized=dict(), dmap_rasterized_contour=dict())
-        cheight = (
-            (400 + 150 * len(self.pick_variables))
-            if not self.pick_contour_heigth
-            else self.pick_contour_heigth
-        )
+        if self.pick_contour_heigth:
+            cheight=int(self.pick_contour_heigth/len(self.pick_variables))
+        else:
+            cheight=int((400 + 150 * len(self.pick_variables))/len(self.pick_variables))
 
         # variables = self.pick_variables
         def rasters(variable):
@@ -637,7 +636,7 @@ class GliderDashboard(param.Parameterized):
                     "tap",
                     # "redo",
                 ],
-                height=int(cheight / len(self.pick_variables)),
+                height=cheight,
                 default_tools=[],
                 active_tools=["xpan", "xwheel_zoom"],
                 # default_tools=[],
