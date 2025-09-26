@@ -457,9 +457,7 @@ class GliderDashboard(param.Parameterized):
             # first case, , user selected an aggregation, e.g. 'Bornholm Basin'
             meta = metadata[metadata["basin"] == self.pick_basin]
             meta = meta[meta["project"] == "SAMBA"]
-            meta = meta[
-                meta["time_coverage_start (UTC)"] > np.datetime64("2021-01-01")
-            ]
+            meta = meta[meta["time_coverage_start (UTC)"] > np.datetime64("2021-01-01")]
             meta = utils.drop_overlaps_fast(meta)
         else:
             # second case, user selected dids
@@ -600,9 +598,11 @@ class GliderDashboard(param.Parameterized):
         # cntr_plts = []
         plots_dict = dict(dmap_rasterized=dict(), dmap_rasterized_contour=dict())
         if self.pick_contour_heigth:
-            cheight=int(self.pick_contour_heigth/len(self.pick_variables))
+            cheight = int(self.pick_contour_heigth / len(self.pick_variables))
         else:
-            cheight=int((400 + 150 * len(self.pick_variables))/len(self.pick_variables))
+            cheight = int(
+                (400 + 150 * len(self.pick_variables)) / len(self.pick_variables)
+            )
 
         # variables = self.pick_variables
         def rasters(variable):
@@ -1210,6 +1210,7 @@ def create_meta_instance(self):
                     "basin",
                     "time_coverage_start (UTC)",
                     "time_coverage_end (UTC)",
+                    "time (Date Created, UTC)",
                     "project",
                     "glider_model",
                     "glider_serial",
@@ -1236,7 +1237,8 @@ def create_meta_instance(self):
                 ]
             ],
             header_filters=True,
-            widths=120,
+            layout="fit_data_table",
+            # widths=120,
         )
     )
     mylayout.append(pn.Column(button_dash, button_meta))
