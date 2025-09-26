@@ -197,6 +197,25 @@ def create_single_ds_plot_raster(data, variables):
     return raster
 
 
+def create_cbar_range(variable):
+    return param.Range(
+        default=(
+            dictionaries.ranges_dict[variable][0],
+            dictionaries.ranges_dict[variable][1],
+        ),
+        # default=(-2, 30), # this is not respected anyway, but below in redefinition
+        # step=0.5,
+        doc=f"Cbar limits for {variable}",
+        precedence=-10,
+    )
+
+
+cbar_range_sliders = {
+    f"pick_cbar_range_{variable}": create_cbar_range(variable)
+    for variable in variables_selectable
+}
+
+
 class GliderDashboard(param.Parameterized):
     pick_variables = param.ListSelector(
         default=["temperature"],
@@ -219,7 +238,7 @@ class GliderDashboard(param.Parameterized):
     alldslist = list(filter(lambda k: "nrt" in k, dsdict.keys()))
     alldslabels = [element[4:] for element in alldslist]
     objectsdict = dict(zip(alldslabels, alldslist))
-    # import pdb; pdb.set_trace();
+
     pick_dsids = param.ListSelector(
         default=[],  # [alldslist[0]],#dslist[0]],
         objects=objectsdict,  # alldslist,
@@ -239,6 +258,16 @@ class GliderDashboard(param.Parameterized):
         label="Colourbar Scale",
         precedence=1,
     )
+
+    (locals().update(cbar_range_sliders),)  # noqa
+
+    pick_autorange = param.Boolean(
+        default=True,
+        label="autorange colorbars",
+        doc="activate manual cbar range controls",
+        precedence=1,
+    )
+
     # This could be extended with vertical gradient/diff possibly?
     pick_aggregation = param.Selector(
         default="mean",
@@ -484,6 +513,23 @@ class GliderDashboard(param.Parameterized):
         self.endY = 12
 
     @param.depends(
+        "pick_autorange",
+        watch=True,
+    )
+    def preset_clim_slider(self):
+        for variable in self.pick_variables:
+            if self.data_in_view is not None:
+                stats = self.data_in_view.sample(10000).describe((0.01, 0.99))
+                setattr(
+                    self,
+                    f"pick_cbar_range_{variable}",
+                    (
+                        stats.loc["1%"][variable],
+                        stats.loc["99%"][variable],
+                    ),
+                )
+
+    @param.depends(
         "pick_cnorm",
         "pick_variables",
         "pick_aggregation",
@@ -499,6 +545,8 @@ class GliderDashboard(param.Parameterized):
         "pick_profiles",
         "pick_display_threshold",
         "pick_show_decoration",  #'pick_startX', 'pick_endX',
+        *list(cbar_range_sliders.keys()),  # noqa
+        "pick_autorange",
         # watch=True,
     )  # outcommenting this means just depend on all, redraw always
     def create_dynmap(self):
@@ -604,6 +652,11 @@ class GliderDashboard(param.Parameterized):
                 (400 + 150 * len(self.pick_variables)) / len(self.pick_variables)
             )
 
+        # make sure all range sliders for non-activated variables are hidden:
+        for variable in list(set(variables_selectable).difference(self.pick_variables)):
+            self.param[f"pick_cbar_range_{variable}"].precedence = -10
+            # self.param[f"pick_autorange_{variable}"].precedence = -10
+
         # variables = self.pick_variables
         def rasters(variable):
             if self.pick_aggregation == "mean":
@@ -611,7 +664,18 @@ class GliderDashboard(param.Parameterized):
             if self.pick_aggregation == "std":
                 means = dsh.std(variable)
 
-            return rasterize(
+            if eval("self.pick_autorange"):
+                self.param[f"pick_cbar_range_{variable}"].precedence = -10
+                if self.data_in_view is not None:
+                    stats = self.data_in_view.sample(10000).describe((0.005, 0.995))
+                    clim = (stats.loc["0.5%"][variable], stats.loc["99.5%"][variable])
+                else:
+                    clim = (None, None)
+            else:
+                self.param[f"pick_cbar_range_{variable}"].precedence = 1
+                clim = eval(f"self.pick_cbar_range_{variable}")
+
+            mraster = rasterize(
                 dmap_raster,
                 aggregator=means,
                 # x_sampling=8.64e13/48,
@@ -620,7 +684,8 @@ class GliderDashboard(param.Parameterized):
             ).opts(
                 # invert_yaxis=True, # Would like to activate this, but breaks the hover tool
                 colorbar=True,
-                clim_percentile=True,
+                # clim_percentile=clim_percentile,
+                clim=clim,
                 cmap=dictionaries.cmap_dict[variable],
                 toolbar="above",
                 tools=[
@@ -648,6 +713,8 @@ class GliderDashboard(param.Parameterized):
                 clabel=f"{variable}  [{dictionaries.units_dict[variable]}]",  # self.pick_variable,
                 responsive=True,
             )
+
+            return mraster
 
         for variable in self.pick_variables:
             plots_dict["dmap_rasterized"][variable] = spread(
@@ -812,7 +879,6 @@ class GliderDashboard(param.Parameterized):
 
         else:
             # second case, user selected dids
-            # import pdb; pdb.set_trace();
             meta = metadata.loc[self.pick_dsids]
 
         # print(f'len of meta is {len(meta)} in load_viewport_datasets')
@@ -859,9 +925,7 @@ class GliderDashboard(param.Parameterized):
             .sort_values(by="time")
             .dropna()
         )
-        # if len(dfmld) == 0:
-        #    import pdb
-        #    pdb.set_trace()
+
         mldscatter = dfmld.hvplot.line(
             x="time",
             y="mld",
@@ -1199,9 +1263,6 @@ def create_meta_instance(self):
 
     mylayout.clear()  # =
     mylayout.append(myrow)
-    # import pdb
-    #
-    # pdb.set_trace()
     mylayout.append(
         pn.widgets.Tabulator(
             all_metadata[
@@ -1245,9 +1306,33 @@ def create_meta_instance(self):
     return mylayout
 
 
-@param.depends("pick_show_ctrls", watch=True)
+@param.depends(
+    "pick_show_ctrls",
+    watch=True,
+)
 def create_app_instance(self):
     glider_dashboard = GliderDashboard()
+
+    def create_cbar_cntrl(variable):
+        return pn.Param(
+            glider_dashboard,
+            parameters=[f"pick_cbar_range_{variable}"],
+            show_name=False,
+            widgets={
+                f"pick_cbar_range_{variable}": pn.widgets.EditableRangeSlider(
+                    value=(
+                        dictionaries.ranges_dict[variable][0],
+                        dictionaries.ranges_dict[variable][1],
+                    ),
+                    start=dictionaries.ranges_dict[variable][0],
+                    end=dictionaries.ranges_dict[variable][1],
+                    step=0.1,
+                )
+            },
+        )
+
+    cbar_cntrls = [create_cbar_cntrl(variable) for variable in variables_selectable]
+
     # Data options
     ctrl_data = pn.Column(  # top stack, dataset and basin options
         "Choose input data either based on basin location or ID",
@@ -1307,7 +1392,12 @@ def create_app_instance(self):
             parameters=["pick_contours"],
             show_name=False,
         ),
-        # styles={"background": "#f0f0f0"},
+        pn.Param(
+            glider_dashboard,
+            parameters=["pick_autorange"],
+            show_name=False,
+        ),
+        *cbar_cntrls,
     )
 
     # scatter options
