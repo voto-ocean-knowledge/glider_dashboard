@@ -1210,7 +1210,7 @@ def create_meta_instance(self):
                     "basin",
                     "time_coverage_start (UTC)",
                     "time_coverage_end (UTC)",
-                    "time (Date Created, UTC)",
+                    "date_issued (UTC)",
                     "project",
                     "glider_model",
                     "glider_serial",
