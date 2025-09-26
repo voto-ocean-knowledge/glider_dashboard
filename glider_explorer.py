@@ -711,10 +711,6 @@ class GliderDashboard(param.Parameterized):
                 responsive=True,
             )
 
-            # import pdb  #
-            #
-            # pdb.set_trace()
-
             return mraster
 
         for variable in self.pick_variables:
@@ -880,7 +876,6 @@ class GliderDashboard(param.Parameterized):
 
         else:
             # second case, user selected dids
-            # import pdb; pdb.set_trace();
             meta = metadata.loc[self.pick_dsids]
 
         # print(f'len of meta is {len(meta)} in load_viewport_datasets')
@@ -927,9 +922,7 @@ class GliderDashboard(param.Parameterized):
             .sort_values(by="time")
             .dropna()
         )
-        # if len(dfmld) == 0:
-        #    import pdb
-        #    pdb.set_trace()
+
         mldscatter = dfmld.hvplot.line(
             x="time",
             y="mld",
@@ -1267,9 +1260,6 @@ def create_meta_instance(self):
 
     mylayout.clear()  # =
     mylayout.append(myrow)
-    # import pdb
-    #
-    # pdb.set_trace()
     mylayout.append(
         pn.widgets.Tabulator(
             all_metadata[
