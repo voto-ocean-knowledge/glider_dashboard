@@ -1313,19 +1313,12 @@ def create_meta_instance(self):
 
 @param.depends(
     "pick_show_ctrls",
-    # "pick_autorange_temperature",
-    # "pick_"
-    # *[f"pick_autorange_{variable}" for variable in variables_selectable],
-    # "pick_autorange_temperature", funktioniert nicht
     watch=True,
 )
 def create_app_instance(self):
     glider_dashboard = GliderDashboard()
-    # print("HEEEEEEEELLLLLLLLOOOOOOOOO")
 
     def create_cbar_cntrl(variable):
-        # if glider_dashboard.pick_autorange_temperature == True:
-        #    slider_disable = True
         return pn.Param(
             glider_dashboard,
             parameters=[f"pick_cbar_range_{variable}"],
