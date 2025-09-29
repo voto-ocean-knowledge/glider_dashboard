@@ -535,10 +535,15 @@ class GliderDashboard(param.Parameterized):
     def location(self, x, y):
         print(f"Click at {x}, {y}")
         if self.data_in_view is not None:
-            iloc_idx = self.data_in_view.index.get_indexer([x], method="nearest")
+            iloc_idx = (
+                self.data_in_view.index.drop_duplicates()
+                .sort_values()
+                .get_indexer([x], method="nearest")
+            )
             drow = self.data_in_view.iloc[
                 iloc_idx
             ]  # could be used for hover or markdown of data under cursor
+
             profile_num = float(drow.iloc[0]["profile_num"])
             profile = self.data_in_view[self.data_in_view.profile_num == profile_num]
             profile_plots = []
