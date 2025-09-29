@@ -725,7 +725,7 @@ class GliderDashboard(param.Parameterized):
                     "xzoom_in",  # zoom in on x
                     "xzoom_out",  # zoom out on x
                     "crosshair",  # show where the mouse is on axis
-                    "xbox_zoom",  # zoom on selection along x
+                    "box_zoom",  # zoom on selection along x
                     "undo",  # undo action
                     "hover",
                     "tap",
