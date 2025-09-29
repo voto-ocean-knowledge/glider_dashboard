@@ -15,7 +15,10 @@ from holoviews.operation.datashader import (
 from holoviews.selection import link_selections
 
 # from bokeh.models import DatetimeTickFormatter, HoverTool
-from holoviews.streams import RangeXY
+from holoviews.streams import (
+    RangeXY,
+    Tap,
+)
 
 import dictionaries
 import initialize
@@ -529,6 +532,24 @@ class GliderDashboard(param.Parameterized):
                     ),
                 )
 
+    def location(self, x, y):
+        print(f"Click at {x}, {y}")
+        if self.data_in_view is not None:
+            iloc_idx = self.data_in_view.index.get_indexer([x], method="nearest")
+            drow = self.data_in_view.iloc[
+                iloc_idx
+            ]  # could be used for hover or markdown of data under cursor
+            profile_num = float(drow.iloc[0]["profile_num"])
+            profile = self.data_in_view[self.data_in_view.profile_num == profile_num]
+            profile_plots = []
+            for variable in self.pick_variables:
+                profile_plots.append(
+                    hv.Curve(profile, variable, "depth").opts(padding=0.1)
+                )
+            mylayout[0][2] = pn.Row(hv.Layout(profile_plots))
+        else:
+            return None
+
     @param.depends(
         "pick_cnorm",
         "pick_variables",
@@ -572,12 +593,16 @@ class GliderDashboard(param.Parameterized):
         range_stream.add_subscriber(self.keep_zoom)
         # range_stream.add_subscriber(self.update_markdown) # Is always one step after, thus deactivated here
 
+        # Create a callback for a dynamic map
+        tap_stream = Tap(x=np.nan, y=np.nan)
+        tap_stream.add_subscriber(self.location)
+
         t1 = time.perf_counter()
         pick_cnorm = "linear"
 
         dmap_raster = hv.DynamicMap(
             self.get_xsection_raster,
-            streams=[range_stream],
+            streams=[range_stream, tap_stream],
         )
 
         if self.pick_high_resolution:
@@ -985,7 +1010,7 @@ class GliderDashboard(param.Parameterized):
 
         return meanline
 
-    def get_xsection_raster(self, x_range, y_range):  # , contour_variable=None):
+    def get_xsection_raster(self, x_range, y_range, x, y):  # , contour_variable=None):
         (x0, x1) = x_range
         self.pick_startX = pd.to_datetime(x0)  # setters
         self.pick_endX = pd.to_datetime(x1)
@@ -1589,6 +1614,7 @@ def create_app_instance(self):
             # height=800,
         ),
         pn.Row(pn.Column(), glider_dashboard.markdown),
+        pn.Row(),  # Important placeholder for dynamic profile plots, created in glider_dashboard.location
     )
 
     # it is necessary to hide the controls as a very last option, because hidden controls cannot be accessed as variables
