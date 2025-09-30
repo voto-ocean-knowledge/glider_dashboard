@@ -549,7 +549,12 @@ class GliderDashboard(param.Parameterized):
             profile_plots = []
             for variable in self.pick_variables:
                 profile_plots.append(
-                    hv.Curve(profile, variable, "depth").opts(padding=0.1)
+                    hv.Curve(profile, variable, "depth").opts(
+                        padding=0.1,
+                        fontscale=2,
+                        width=400,
+                        height=600,
+                    )
                 )
             mylayout[0][2] = pn.Row(hv.Layout(profile_plots))
         else:
@@ -742,6 +747,7 @@ class GliderDashboard(param.Parameterized):
                 bgcolor="dimgrey",
                 clabel=f"{variable}  [{dictionaries.units_dict[variable]}]",  # self.pick_variable,
                 responsive=True,
+                fontscale=2,
             )
 
             return mraster
@@ -806,8 +812,9 @@ class GliderDashboard(param.Parameterized):
                 (contourplots)
                 + dmapTSr.opts(
                     padding=(0.05, 0.05),
-                    # height=500,
+                    height=cheight,
                     responsive=True,
+                    fontscale=2,
                 )
             )
             if self.pick_TS
@@ -817,13 +824,15 @@ class GliderDashboard(param.Parameterized):
             (
                 (contourplots)
                 + dmap_profilesr.opts(
-                    # height=500,
-                    responsive=True
+                    height=cheight,
+                    responsive=True,
+                    fontscale=2,
                 )
             )
             if self.pick_profiles
             else contourplots
         )
+        # contourplots = contourplots
         # ncols = 2 if (self.pick_TS or self.pick_profiles) else 1
         return pn.Column(contourplots.cols(ncols))
 
