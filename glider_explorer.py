@@ -1563,33 +1563,40 @@ def create_app_instance(self):
 
     # this keeps the url in sync with the parameter choices and vice versa
     if pn.state.location:
+        cbar_dict = {
+            f"pick_cbar_range_{variable}": f"pick_cbar_range_{variable}"
+            for variable in variables_selectable
+        }
+        other_cntrls = {
+            "pick_basin": "pick_basin",
+            "pick_dsids": "pick_dsids",
+            "pick_toggle": "pick_toggle",
+            "pick_show_ctrls": "pick_show_ctrls",
+            # "pick_variable": "pick_variable", # replaced by pick_variables
+            "pick_variables": "pick_variables",
+            "pick_aggregation": "pick_aggregation",
+            "pick_aggregation_method": "pick_aggregation_method",
+            "pick_mld": "pick_mld",
+            # "pick_mean": "pick_mean",
+            "pick_cnorm": "pick_cnorm",
+            "pick_TS": "pick_TS",
+            "pick_profiles": "pick_profiles",
+            "pick_TS_colored_by_variable": "pick_TS_colored_by_variable",
+            "pick_contours": "pick_contours",
+            "pick_high_resolution": "pick_high_resolution",
+            "pick_startX": "pick_startX",
+            "pick_endX": "pick_endX",
+            "pick_startY": "pick_startY",
+            "pick_endY": "pick_endY",
+            "pick_display_threshold": "pick_display_threshold",
+            "pick_contour_heigth": "pick_contour_heigth",
+            "pick_show_decoration": "pick_show_decoration",
+            "pick_autorange": "pick_autorange",
+        }
+        other_cntrls.update(cbar_dict)
         pn.state.location.sync(
             glider_dashboard,
-            {
-                "pick_basin": "pick_basin",
-                "pick_dsids": "pick_dsids",
-                "pick_toggle": "pick_toggle",
-                "pick_show_ctrls": "pick_show_ctrls",
-                # "pick_variable": "pick_variable", # replaced by pick_variables
-                "pick_variables": "pick_variables",
-                "pick_aggregation": "pick_aggregation",
-                "pick_aggregation_method": "pick_aggregation_method",
-                "pick_mld": "pick_mld",
-                # "pick_mean": "pick_mean",
-                "pick_cnorm": "pick_cnorm",
-                "pick_TS": "pick_TS",
-                "pick_profiles": "pick_profiles",
-                "pick_TS_colored_by_variable": "pick_TS_colored_by_variable",
-                "pick_contours": "pick_contours",
-                "pick_high_resolution": "pick_high_resolution",
-                "pick_startX": "pick_startX",
-                "pick_endX": "pick_endX",
-                "pick_startY": "pick_startY",
-                "pick_endY": "pick_endY",
-                "pick_display_threshold": "pick_display_threshold",
-                "pick_contour_heigth": "pick_contour_heigth",
-                "pick_show_decoration": "pick_show_decoration",
-            },
+            other_cntrls,
         )
 
     contentcolumn = pn.Column(
