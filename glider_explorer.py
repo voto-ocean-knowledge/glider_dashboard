@@ -753,10 +753,19 @@ class GliderDashboard(param.Parameterized):
 
             return mraster
 
-        for variable in self.pick_variables:
-            plots_dict["dmap_rasterized"][variable] = spread(
-                rasters(variable), px=1, how="source"
-            ).opts(ylim=(self.startY, self.endY))
+        for index, variable in enumerate(self.pick_variables):
+            if (
+                (index < len(self.pick_variables) - 1)
+                and not self.pick_TS
+                and not self.pick_profiles
+            ):
+                plots_dict["dmap_rasterized"][variable] = spread(
+                    rasters(variable), px=1, how="source"
+                ).opts(ylim=(self.startY, self.endY), xaxis=None)
+            else:
+                plots_dict["dmap_rasterized"][variable] = spread(
+                    rasters(variable), px=1, how="source"
+                ).opts(ylim=(self.startY, self.endY))
             if self.pick_show_decoration:
                 plots_dict["dmap_rasterized"][variable] = plots_dict["dmap_rasterized"][
                     variable
