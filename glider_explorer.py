@@ -550,6 +550,7 @@ class GliderDashboard(param.Parameterized):
             for variable in self.pick_variables:
                 profile_plots.append(
                     hv.Curve(profile, variable, "depth").opts(
+                        xlabel=f"{variable} [{dictionaries.units_dict[variable]}]",
                         padding=0.1,
                         fontscale=2,
                         width=400,
