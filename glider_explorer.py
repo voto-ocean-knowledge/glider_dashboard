@@ -702,8 +702,8 @@ class GliderDashboard(param.Parameterized):
             if eval("self.pick_autorange"):
                 self.param[f"pick_cbar_range_{variable}"].precedence = -10
                 if self.data_in_view is not None:
-                    stats = self.data_in_view.sample(10000).describe((0.005, 0.995))
-                    clim = (stats.loc["0.5%"][variable], stats.loc["99.5%"][variable])
+                    stats = self.data_in_view.sample(10000).describe((0.01, 0.99))
+                    clim = (stats.loc["1%"][variable], stats.loc["99%"][variable])
                 else:
                     clim = (None, None)
             else:
