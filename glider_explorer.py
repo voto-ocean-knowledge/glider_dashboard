@@ -761,11 +761,15 @@ class GliderDashboard(param.Parameterized):
             ):
                 plots_dict["dmap_rasterized"][variable] = spread(
                     rasters(variable), px=1, how="source"
-                ).opts(ylim=(self.startY, self.endY), xaxis=None)
+                ).opts(
+                    ylim=(self.startY, self.endY),
+                    xlim=(self.startX, self.endX),
+                    xaxis=None,
+                )
             else:
                 plots_dict["dmap_rasterized"][variable] = spread(
                     rasters(variable), px=1, how="source"
-                ).opts(ylim=(self.startY, self.endY))
+                ).opts(ylim=(self.startY, self.endY), xlim=(self.startX, self.endX))
             if self.pick_show_decoration:
                 plots_dict["dmap_rasterized"][variable] = plots_dict["dmap_rasterized"][
                     variable
