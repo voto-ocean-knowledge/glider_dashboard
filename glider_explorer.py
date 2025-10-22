@@ -46,6 +46,7 @@ variables_selectable = [
     # "methane_concentration",
     "longitude",
     "latitude",
+    "profile_num",
 ]
 
 # all_metadata is loaded for the metadata visualisation
@@ -350,6 +351,7 @@ class GliderDashboard(param.Parameterized):
             # "methane_concentration",
             "longitude",
             "latitude",
+            "profile_num",
         ],
         label="contour variable",
         doc="Variable presented as contour",
