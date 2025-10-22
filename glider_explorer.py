@@ -737,6 +737,7 @@ class GliderDashboard(param.Parameterized):
                     "undo",  # undo action
                     "hover",
                     "tap",
+                    "save",
                     # "redo",
                 ],
                 height=cheight,
