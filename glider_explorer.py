@@ -547,17 +547,53 @@ class GliderDashboard(param.Parameterized):
             ]  # could be used for hover or markdown of data under cursor
 
             profile_num = float(drow.iloc[0]["profile_num"])
-            profile = self.data_in_view[self.data_in_view.profile_num == profile_num]
+            profile = self.data_in_view[
+                (self.data_in_view.profile_num == profile_num)
+                # or (self.data_in_view.profile_num == profile_num + 1)
+            ]
+            nextprofile = self.data_in_view[
+                self.data_in_view.profile_num == profile_num + 1
+            ]
+            # print(self.data_in_view.profile_direction)
             profile_plots = []
             for variable in self.pick_variables:
+                profilelabel = (
+                    "descending"
+                    if np.mean(profile.profile_direction > 0)
+                    else "ascending"
+                )
+                nextprofilelabel = (
+                    "descending"
+                    if np.mean(nextprofile.profile_direction > 0)
+                    else "ascending"
+                )
                 profile_plots.append(
-                    hv.Curve(profile, variable, "depth").opts(
-                        xlabel=f"{variable} [{dictionaries.units_dict[variable]}]",
-                        padding=0.1,
-                        fontscale=2,
-                        width=400,
-                        height=600,
-                    )
+                    (
+                        hv.Curve(
+                            data=profile,
+                            kdims=variable,
+                            vdims="depth",
+                            label=profilelabel,
+                        ).opts(
+                            xlabel=f"{variable} [{dictionaries.units_dict[variable]}]",
+                            padding=0.1,
+                            fontscale=2,
+                            width=400,
+                            height=600,
+                        )
+                        * hv.Curve(
+                            data=nextprofile,
+                            kdims=variable,
+                            vdims="depth",
+                            label=nextprofilelabel,
+                        ).opts(
+                            xlabel=f"{variable} [{dictionaries.units_dict[variable]}]",
+                            padding=0.1,
+                            fontscale=2,
+                            width=400,
+                            height=600,
+                        )
+                    ).opts(legend_position="bottom_right")
                 )
             mylayout[0][2] = pn.Row(hv.Layout(profile_plots))
         else:

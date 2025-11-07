@@ -1,4 +1,5 @@
 import cmocean.cm
+import numpy as np
 
 cmap_dict = dict(
     conservative_temperature=cmocean.cm.thermal,
@@ -17,11 +18,12 @@ cmap_dict = dict(
     spice=cmocean.cm.matter,
     temperature_oxygen=cmocean.cm.thermal,
     turbidity=cmocean.cm.turbid,
-    profile_num=cmocean.cm.haline,
+    profile_num="hsv",
     methane_concentration=cmocean.cm.thermal,
     methane_raw_concentration=cmocean.cm.thermal,
     longitude="hsv",
     latitude="hsv",
+    # time="hsv",
 )
 
 ranges_dict = dict(
@@ -46,6 +48,7 @@ ranges_dict = dict(
     methane_raw_concentration=(0, 10),
     longitude=(0, 360),
     latitude=(-180, 180),
+    time=(np.datetime64("2020-01-01"), np.datetime64("2026-01-01")),
 )
 
 
@@ -71,6 +74,7 @@ units_dict = dict(
     methane_raw_concentration="",
     longitude="°E",
     latitude="°N",
+    time="[time]",
 )
 
 
