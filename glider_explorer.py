@@ -1,6 +1,7 @@
 import time
 
 import datashader as dsh
+import duckdb
 import holoviews as hv
 import hvplot.pandas  # noqa
 import numpy as np
@@ -190,10 +191,10 @@ def create_single_ds_plot_raster(data, variables):
     variables = set(variables)
     variables.add("temperature")  # inplace operations
     variables.add("salinity")
-    data[list(set(variables_selectable).difference(set(data.columns)))] = np.nan
+    # data[list(set(variables_selectable).difference(set(data.columns)))] = np.nan
     # variables.union(set(variables_selectable))
     raster = hv.Points(
-        data=data,
+        data=duckdb.sql("SELECT * FROM my_table"),
         kdims=["time", "depth"],
         vdims=list(variables),
         # temp and salinity need to always be present for TS lasso to work, set for unique elements
@@ -402,13 +403,13 @@ class GliderDashboard(param.Parameterized):
             p2 = f"""for the region {self.pick_basin} """
         p3 = f"""from {np.datetime_as_string(self.startX, unit="s")} to {np.datetime_as_string(self.endX, unit="s")}. """
 
-        p4 = f"""Number of profiles {
-            self.data_in_view.profile_num.iloc[-1]
-            - self.data_in_view.profile_num.iloc[0]
-        } """
+        # p4 = f"""Number of profiles {
+        #    self.data_in_view.profile_num.iloc[-1]
+        #    - self.data_in_view.profile_num.iloc[0]
+        # } """
 
-        self.markdown.object = p1 + p2 + p3 + p4  # +r"$$\frac{1}{n}$$"
-        return p1 + p2 + p3 + p4
+        self.markdown.object = p1 + p2 + p3  # + p4  # +r"$$\frac{1}{n}$$"
+        return p1 + p2 + p3  # + p4
 
     # empty initialization for use later
     markdown = pn.pane.Markdown("")
@@ -1122,7 +1123,13 @@ class GliderDashboard(param.Parameterized):
 
         dsconc = pd.concat(varlist)
         if self.pick_TS or self.pick_profiles:
-            dsconc = dsconc.drop_duplicates(subset=["temperature", "salinity"])
+            dsconc = dsconc.drop_duplicates(
+                subset=["temperature", "salinity"]
+            ).reset_index()
+        con = duckdb.connect("dsconc")
+        # dsconc = con  # .from_df(dsconc.reset_index())
+        duckdb.sql("CREATE TABLE my_table AS SELECT * FROM dsconc")
+
         self.data_in_view = dsconc
         self.update_markdown(x_range, y_range)
 
