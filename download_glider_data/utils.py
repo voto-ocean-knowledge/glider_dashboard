@@ -1,9 +1,9 @@
 import ast
 import pathlib
 
-import dask
 import numpy as np
 import pandas as pd
+import polars as pl
 import xarray as xr
 from erddapy import ERDDAP
 
@@ -340,13 +340,16 @@ def download_glider_dataset(
                 print(ex)
                 continue
             ds = _clean_dims(ds)
+            # ds["depth"] = -ds["depth"]
             if adcp:
                 ds = add_adcp_data(ds)
             glider_datasets[ds_name] = (
                 ds  # dask.dataframe.from_pandas(ds.to_pandas().resample('5s').mean(), npartitions=16).compute()
             )
-        glider_datasets[ds_name] = glider_datasets[ds_name].to_pandas().resample("5s").mean()
-        glider_datasets[ds_name]["depth"] = -glider_datasets[ds_name]["depth"]
+        glider_datasets[ds_name] = pl.from_dataframe(
+            glider_datasets[ds_name].to_pandas().astype(np.float32)
+        )
+
     return glider_datasets
 
 

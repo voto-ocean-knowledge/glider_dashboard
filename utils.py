@@ -241,7 +241,7 @@ def voto_concat_datasets(datasets):
 
 
 def voto_concat_datasets2(datasets):
-    import dask.dataframe as dd
+    import polars as pl
 
     """
     Concatenates multiple datasets along the time dimensions, profile_num
@@ -259,8 +259,19 @@ def voto_concat_datasets2(datasets):
     """
     # in case the datasets have a different set of variables, emtpy variables are created
     # to allow for concatenation (concat with different set of variables leads to error)
-    mlist = [set(dataset.variables.keys()) for dataset in datasets]
-    allvariables = set.union(*mlist)
+    for index in range(1, len(datasets)):
+        # import pdb
+
+        # pdb.set_trace()
+        # dsconc.with_columns(pl.col("depth").neg())
+        datasets[index] = datasets[index].with_columns(
+            pl.col("profile_num") + datasets[index - 1]["profile_num"].max()
+        )
+        # datasets[index]["profile_num"] += (
+        #    datasets[index - 1].copy()["profile_num"].max()
+        # )
+    # mlist = [set(dataset.columns) for dataset in datasets]
+    # allvariables = set.union(*mlist)
     # for dataset in datasets:
     #    missing_vars = allvariables - set(dataset.variables.keys())
     #    for missing_var in missing_vars:
@@ -271,9 +282,10 @@ def voto_concat_datasets2(datasets):
     #    datasets[index]["profile_num"] += (
     #        datasets[index - 1].copy()["profile_num"].max()
     #    )
-    ds = dd.concat(
-        datasets, dim="time", variables=["temperature", "salinity"]
-    )  # xr.concat(datasets, dim="time")
+    # ds = dd.concat(
+    #    datasets, dim="time", variables=["temperature", "salinity"]
+    # )  # xr.concat(datasets, dim="time")
+    ds = pl.concat([pl.from_dataframe(data) for data in datasets], how="diagonal")
     # ds = add_dive_column(ds)
 
     return ds
