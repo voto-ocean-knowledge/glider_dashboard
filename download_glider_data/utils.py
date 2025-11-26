@@ -1,4 +1,3 @@
-import ast
 import pathlib
 
 import numpy as np
@@ -156,7 +155,7 @@ def _update_stats(ds_id, request):
     Update the stats for a specified dataset
     """
     dataset_nc = cache_dir / f"{ds_id}.nc"
-    ds = xr.open_dataset(dataset_nc)
+    ds = xr.open_dataset(dataset_nc, decode_times=False)
     try:
         df = pd.read_csv(cache_dir / "cache_info.csv", index_col=0)
     except:
@@ -232,7 +231,6 @@ def _preprocess(ds):
 
 def download_glider_dataset(
     dataset_ids,
-    metadata,
     variables=(),
     constraints={},
     nrt_only=False,
@@ -274,7 +272,6 @@ def download_glider_dataset(
 
     # Download each dataset as xarray
     glider_datasets = {}
-    nanosecond_iterator = 1
     for ds_name in ids_to_download:
         if variables:
             # e.variables = variables
@@ -352,7 +349,7 @@ def download_glider_dataset(
         #    glider_datasets[ds_name].to_pandas().astype(np.float32)
         # )
 
-    return glider_datasets
+    # return glider_datasets
 
 
 def format_difference(deg_e, deg_n, ns_ahead):

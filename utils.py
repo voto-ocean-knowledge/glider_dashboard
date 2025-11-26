@@ -269,13 +269,11 @@ def voto_concat_datasets2(datasets):
         # import pdb
 
         # pdb.set_trace()
-        pass
-        """
+        # pass
+
         datasets[index] = datasets[index].with_columns(
-            pl.col("profile_num")
-            + datasets[index - 1].select(pl.col("profile_num")).max().collect()
-        )
-        """
+            pl.col("profile_num") + (index * 10000)
+        )  # datasets[index - 1].select(pl.col("profile_num")).max()  # .collect())
 
         # datasets[index].select(pl.col("profile_num")).max().collect()
         # datasets[index] = datasets[index].with_columns(

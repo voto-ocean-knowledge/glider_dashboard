@@ -22,7 +22,8 @@ from holoviews.streams import (
 )
 
 import dictionaries
-import initialize
+
+# import initialize
 import utils
 
 pn.extension(
@@ -40,6 +41,7 @@ variables_selectable = [
     "oxygen_concentration",
     "cdom",
     "fdom",
+    "backscatter",
     "backscatter_scaled",
     "phycocyanin",
     "phycocyanin_tridente",
@@ -48,6 +50,7 @@ variables_selectable = [
     "longitude",
     "latitude",
     "profile_num",
+    "downwelling_PAR",
 ]
 
 # all_metadata is loaded for the metadata visualisation
@@ -64,7 +67,17 @@ metadata["time_coverage_start (UTC)"] = metadata[
 metadata["time_coverage_end (UTC)"] = metadata["time_coverage_end (UTC)"].dt.tz_convert(
     None
 )
-dsdict = initialize.dsdict
+dsdict = {}
+for dsid in metadata.index:
+    dsdict[dsid.replace("nrt", "delayed")] = pl.scan_parquet(
+        f"../voto_erddap_data_cache/{dsid.replace('nrt', 'delayed')}.parquet"
+    )
+# import pdb
+
+# pdb.set_trace()
+# print(dsid)
+
+# initialize.dsdict
 
 ####### specify global plot variables ####################
 # df.index = cudf.to_datetime(df.index)
@@ -203,8 +216,10 @@ def create_single_ds_plot_raster(data, variables):
 def create_cbar_range(variable):
     return param.Range(
         default=(
-            dictionaries.ranges_dict[variable][0],
-            dictionaries.ranges_dict[variable][1],
+            0,
+            1,
+            # dictionaries.ranges_dict[variable][0],
+            # dictionaries.ranges_dict[variable][1],
         ),
         # default=(-2, 30), # this is not respected anyway, but below in redefinition
         # step=0.5,
@@ -393,7 +408,9 @@ class GliderDashboard(param.Parameterized):
              # About
              Ocean """
         for variable in self.pick_variables:
-            description = f"{variable} in {dictionaries.units_dict[variable]}, "
+            description = (
+                f"{variable} in [{dictionaries.units_dict.get(variable, '')}], "
+            )
             p1 += description
         if self.pick_toggle == "DatasetID":
             p2 = f""" the datasets {self.pick_dsids} """
@@ -522,7 +539,9 @@ class GliderDashboard(param.Parameterized):
     def preset_clim_slider(self):
         for variable in self.pick_variables:
             if self.data_in_view is not None:
-                stats = self.data_in_view.sample(1000).describe((0.01, 0.99))
+                stats = self.data_in_view.select(pl.col(variable)).describe(
+                    (0.01, 0.99)
+                )
                 setattr(
                     self,
                     f"pick_cbar_range_{variable}",
@@ -537,18 +556,17 @@ class GliderDashboard(param.Parameterized):
     def location(self, x, y):
         # print(f"Click at {x}, {y}")
         if self.data_in_view is not None:
-            iloc_idx = self.data_in_view.select(pl.col("time").search_sorted(x))[0, 0]
-            drow = self.data_in_view[
-                iloc_idx
-            ]  # could be used for hover or markdown of data under cursor
-
+            profile_num = (
+                self.data_in_view.filter(pl.col("time") > x)
+                .first()
+                .select(pl.col("profile_num"))
+            )
             profile = self.data_in_view.filter(
-                pl.col("profile_num") == drow["profile_num"]
-            )
+                pl.col("profile_num") == profile_num.collect()[0, 0]
+            ).collect()
             nextprofile = self.data_in_view.filter(
-                pl.col("profile_num") == (drow["profile_num"] + 1)
-            )
-
+                pl.col("profile_num") == profile_num.collect()[0, 0] + 1
+            ).collect()
             profile_plots = []
             for variable in self.pick_variables:
                 profilelabel = (
@@ -570,7 +588,7 @@ class GliderDashboard(param.Parameterized):
                                 vdims="depth",
                                 label=profilelabel,
                             ).opts(
-                                xlabel=f"{variable} [{dictionaries.units_dict[variable]}]",
+                                xlabel=f"{variable} [{dictionaries.units_dict.get(variable, '')}]",
                                 padding=0.1,
                                 fontscale=2,
                                 width=400,
@@ -583,7 +601,7 @@ class GliderDashboard(param.Parameterized):
                                 vdims="depth",
                                 label=nextprofilelabel,
                             ).opts(
-                                xlabel=f"{variable} [{dictionaries.units_dict[variable]}]",
+                                xlabel=f"{variable} [{dictionaries.units_dict.get(variable, '')}]",
                                 padding=0.1,
                                 fontscale=2,
                                 width=400,
@@ -688,7 +706,7 @@ class GliderDashboard(param.Parameterized):
                     aggregator=dsh.mean(self.pick_variables[0]),
                 ).opts(
                     cnorm="eq_hist",
-                    cmap=dictionaries.cmap_dict[self.pick_variables[0]],
+                    cmap=dictionaries.cmap_dict.get(self.pick_variables[0], "hsv"),
                     # clabel=f"{self.pick_variable}  [{dictionaries.units_dict[self.pick_variable]}]",
                     colorbar=True,
                 )
@@ -739,15 +757,11 @@ class GliderDashboard(param.Parameterized):
             if self.pick_autorange:
                 self.param[f"pick_cbar_range_{variable}"].precedence = -10
                 if self.data_in_view is not None:
-                    print(self.data_in_view.columns)
-                    # stats = (
-                    low = self.data_in_view.quantile(0.01).select(pl.col(variable))[
-                        0, 0
-                    ]
-                    high = self.data_in_view.quantile(0.99).select(pl.col(variable))[
-                        0, 0
-                    ]
-
+                    stats = self.data_in_view.select(pl.col(variable)).describe(
+                        (0.01, 0.99)
+                    )
+                    low = stats.filter(pl.col("statistic") == "1%")[0, 1]
+                    high = stats.filter(pl.col("statistic") == "99%")[0, 1]
                     clim = (
                         low,
                         high,
@@ -769,7 +783,7 @@ class GliderDashboard(param.Parameterized):
                 colorbar=True,
                 # clim_percentile=clim_percentile,
                 clim=clim,
-                cmap=dictionaries.cmap_dict[variable],
+                cmap=dictionaries.cmap_dict.get(variable, "hsv"),
                 toolbar="above",
                 tools=[
                     "xpan",  # move along
@@ -794,7 +808,7 @@ class GliderDashboard(param.Parameterized):
                 # int(500/(len(self.pick_variables))),#250+int(250*2/len(self.pick_variables)), #500, 250,
                 cnorm=self.pick_cnorm,
                 bgcolor="dimgrey",
-                clabel=f"{variable}  [{dictionaries.units_dict[variable]}]",  # self.pick_variable,
+                clabel=f"{variable}  [{dictionaries.units_dict.get(variable, '')}]",  # self.pick_variable,
                 responsive=True,
                 fontscale=2,
             )
@@ -1135,7 +1149,25 @@ class GliderDashboard(param.Parameterized):
         #    dsconc = dsconc.unique(
         #        subset=["temperature", "salinity"]
         #    )  # dsconc.drop_duplicates(subset=["temperature", "salinity"])
-        self.data_in_view = dsconc.collect()
+        # import pdb
+        #
+        # pdb.set_trace()
+        self.data_in_view = dsconc
+        """
+        dsconc.select(
+            set(self.pick_variables).union(
+                set(
+                    [
+                        "temperature",
+                        "salinity",
+                        "depth",
+                        "profile_num",
+                        "profile_direction",
+                        "time",
+                    ]
+                )
+            )
+        ).collect()"""
         # THIS MUST BE REMOVE FOR GREAT PERFORMANCE.
         # REQUIRES REWRITE OF SOME CLIM AND QUANTILE FILTERS I BELIEVE
         # self.update_markdown(x_range, y_range) # THIS SHOULD BE READDED EVENTUALLY
@@ -1151,8 +1183,13 @@ class GliderDashboard(param.Parameterized):
     def get_xsection_TS(self, x_range, y_range):
         dsconc = self.data_in_view.filter(pl.col("salinity") > 1)
         t1 = time.perf_counter()
-        thresh_low = dsconc[["temperature", "salinity"]].quantile(0.05)
-        thresh_high = dsconc[["temperature", "salinity"]].quantile(0.99)
+        stats = dsconc.select(pl.col("temperature", "salinity")).describe((0.01, 0.99))
+
+        low = stats.filter(pl.col("statistic") == "1%")
+        high = stats.filter(pl.col("statistic") == "99%")
+
+        # thresh_low = df.select(pl.col('temperature', 'salinity')).describe((0.01, 0.99))#dsconc[["temperature", "salinity"]].quantile(0.05)
+        # thresh_high = #dsconc[["temperature", "salinity"]].quantile(0.99)
 
         # import §
         # pdb.set_trace()
@@ -1165,10 +1202,13 @@ class GliderDashboard(param.Parameterized):
             # list(variables),
             # temp and salinity need to always be present for TS lasso to work, set for unique elements
         ).opts(
-            xlim=(thresh_low["salinity"][0] - 0.5, thresh_high["salinity"][0] + 0.5),
+            xlim=(
+                low.select(pl.col("salinity"))[0] - 0.5,
+                high.select(pl.col("salinity"))[0] + 0.5,
+            ),
             ylim=(
-                thresh_low["temperature"][0] - 0.5,
-                thresh_high["temperature"][0] + 0.5,
+                low.select(pl.col("temperature"))[0] - 0.5,
+                high.select(pl.col("temperature"))[0] + 0.5,
             ),
         )
 
@@ -1177,10 +1217,19 @@ class GliderDashboard(param.Parameterized):
     def get_xsection_profiles(self, x_range, y_range):
         dsconc = self.data_in_view.filter(pl.col("salinity") > 1)
         t1 = time.perf_counter()
-        thresh_low = dsconc[self.pick_variables[0]].quantile(0.01)
-        thresh_high = dsconc[self.pick_variables[0]].quantile(0.99)
+        dsconc = self.data_in_view.filter(pl.col("salinity") > 1)
+        stats = dsconc.select(pl.col(self.pick_variables[0])).describe((0.01, 0.99))
+
+        low = stats.filter(pl.col("statistic") == "1%").select(
+            pl.col(self.pick_variables[0])
+        )[0]
+        high = stats.filter(pl.col("statistic") == "99%").select(
+            pl.col(self.pick_variables[0])
+        )[0]
+        # thresh_low = dsconc[self.pick_variables[0]].quantile(0.01)
+        # thresh_high = dsconc[self.pick_variables[0]].quantile(0.99)
         mplt = hv.Points(data=dsconc, kdims=[self.pick_variables[0], "depth"]).opts(
-            xlim=(thresh_low * 0.95, thresh_high * 1.05),
+            xlim=(low * 0.95, high * 1.05),
         )
         return mplt
 
@@ -1189,19 +1238,27 @@ class GliderDashboard(param.Parameterized):
         import gsw
 
         dsconc = self.data_in_view.filter(pl.col("salinity") > 1)
+        stats = dsconc.select(pl.col("temperature", "salinity")).describe((0.01, 0.99))
+
+        low = stats.filter(pl.col("statistic") == "1%")
+        high = stats.filter(pl.col("statistic") == "99%")
+
         t1 = time.perf_counter()
-        thresh_low = dsconc[["temperature", "salinity"]].quantile(0.01)
-        thresh_high = dsconc[["temperature", "salinity"]].quantile(0.99)
+        # thresh_low = dsconc[["temperature", "salinity"]].quantile(0.01)
+        # thresh_high = dsconc[["temperature", "salinity"]].quantile(0.99)
 
         # try:
         #    thresh = thresh.compute()  # .iloc[0]
         # except:
         #    thresh = thresh
 
-        smin, smax = (thresh_low["salinity"][0] - 1, thresh_high["salinity"][0] + 1)
+        smin, smax = (
+            low.select(pl.col("salinity"))[0, 0] - 1,
+            high.select(pl.col("salinity"))[0, 0] + 1,
+        )
         tmin, tmax = (
-            thresh_low["temperature"][0] - 1,
-            thresh_high["temperature"][0] + 1,
+            low.select(pl.col("temperature"))[0, 0] - 1,
+            high.select(pl.col("temperature"))[0, 0] + 1,
         )
 
         xdim = round((smax - smin) / 0.1 + 1, 0)
@@ -1228,10 +1285,13 @@ class GliderDashboard(param.Parameterized):
         ).opts(
             show_legend=False,
             cmap="dimgray",
-            xlim=(thresh_low["salinity"][0] - 0.5, thresh_high["salinity"][0] + 0.5),
+            xlim=(
+                low.select(pl.col("salinity"))[0, 0] - 0.5,
+                high.select(pl.col("salinity"))[0, 0] + 0.5,
+            ),
             ylim=(
-                thresh_low["temperature"][0] - 0.5,
-                thresh_high["temperature"][0] + 0.5,
+                low.select(pl.col("temperature"))[0, 0] - 0.5,
+                high.select(pl.col("temperature"))[0, 0] + 0.5,
             ),
         )
         # this is good but the ranges are not yet automatically adjusted.

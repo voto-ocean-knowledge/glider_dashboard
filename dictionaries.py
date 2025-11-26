@@ -49,6 +49,7 @@ ranges_dict = dict(
     longitude=(0, 360),
     latitude=(-180, 180),
     time=(np.datetime64("2020-01-01"), np.datetime64("2026-01-01")),
+    downwelling_PAR=(0, 1),
 )
 
 
