@@ -741,21 +741,16 @@ class GliderDashboard(param.Parameterized):
                 if self.data_in_view is not None:
                     print(self.data_in_view.columns)
                     # stats = (
-                    low = self.data_in_view.quantile(0.01).select(
-                        pl.col(variable)
-                    )  # ,#.collect()
-                    high = self.data_in_view.quantile(0.99).select(
-                        pl.col(variable)
-                    )  # .collect()
-                    # self.data_in_view[variable].sample(1000).describe((0.01, 0.99))
-                    # self.data_in_view
-                    # )
+                    low = self.data_in_view.quantile(0.01).select(pl.col(variable))[
+                        0, 0
+                    ]
+                    high = self.data_in_view.quantile(0.99).select(pl.col(variable))[
+                        0, 0
+                    ]
 
                     clim = (
                         low,
                         high,
-                        # stats.filter(pl.col("statistic") == "1%")["value"][0],
-                        # stats.filter(pl.col("statistic") == "99%")["value"][0],
                     )
                 else:
                     clim = (None, None)
@@ -1118,13 +1113,11 @@ class GliderDashboard(param.Parameterized):
         varlist = []
         for dsid in metakeys:
             ds = dsdict[dsid]
-            # ds = ds[ds.profile_num % plt_props["subsample_freq"] == 0]
+            ds = ds.filter(pl.col("profile_num") % plt_props["subsample_freq"] == 0)
             varlist.append(ds)
 
         dsconc = utils.voto_concat_datasets2(varlist)
-        # dsconc["depth"] = -dsconc["depth"]
         dsconc = dsconc.with_columns(pl.col("depth").neg())
-        # dsconc.select(pl.col("depth").apply(lambda x: -x))
 
         # if (len(varlist) == 0) or (len(self.pick_variables) == 0):
         #    return None
@@ -1135,12 +1128,6 @@ class GliderDashboard(param.Parameterized):
                 ndataset = ndataset.with_columns(
                     pl.col("time") + np.timedelta64(nanosecond_iterator, "ns")
                 )
-                # import pdb
-
-                # pdb.set_trace()
-                # ndataset["time"] = ndataset["time"] + np.timedelta64(
-                #    nanosecond_iterator, "ns"
-                # )
                 nanosecond_iterator += 1
 
         # dsconc = pd.concat(varlist)
@@ -1148,11 +1135,10 @@ class GliderDashboard(param.Parameterized):
         #    dsconc = dsconc.unique(
         #        subset=["temperature", "salinity"]
         #    )  # dsconc.drop_duplicates(subset=["temperature", "salinity"])
-        self.data_in_view = dsconc  # .collect()
-        # import pdb
-        #
-        # pdb.set_trace()
-        # self.update_markdown(x_range, y_range)
+        self.data_in_view = dsconc.collect()
+        # THIS MUST BE REMOVE FOR GREAT PERFORMANCE.
+        # REQUIRES REWRITE OF SOME CLIM AND QUANTILE FILTERS I BELIEVE
+        # self.update_markdown(x_range, y_range) # THIS SHOULD BE READDED EVENTUALLY
 
         if (self.pick_contours is not None) and (self.pick_contours != "same as above"):
             mplt = create_single_ds_plot_raster(

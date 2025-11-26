@@ -107,8 +107,8 @@ def filter_metadata():
         (metadata["basin"] == basin)
         &
         # (metadata['basin']=='Åland Sea') &
-        # (metadata['time_coverage_start (UTC)'].dt.year>2023) &
-        (metadata["time_coverage_start (UTC)"].dt.year == year)
+        (metadata["time_coverage_start (UTC)"].dt.year > 2022)  # &
+        # (metadata["time_coverage_start (UTC)"].dt.year == year)
         # & (metadata["time_coverage_start (UTC)"].dt.month == month)
         # (metadata['time_coverage_start (UTC)'].dt.day<15)
     ]
