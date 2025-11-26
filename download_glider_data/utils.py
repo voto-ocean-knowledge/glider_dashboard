@@ -297,9 +297,11 @@ def download_glider_dataset(
             dataset_nc = cache_dir / f"{ds_name}.nc"
             if cached_dataset:
                 print(f"Found {ds_name} in {cache_dir}. Loading from disk")
-                ds = xr.open_mfdataset(
-                    dataset_nc, preprocess=_preprocess, parallel=True
-                )
+                # print(str(dataset_nc))
+                ds = pl.scan_parquet(str(dataset_nc).replace("nc", "parquet"))
+                # xr.open_mfdataset(
+                # dataset_nc, preprocess=_preprocess, parallel=True
+                # )
                 if adcp:
                     ds = add_adcp_data(ds)
                 # if ds_name[0:3] != 'nrt':
@@ -313,7 +315,7 @@ def download_glider_dataset(
                 #    glider_datasets[ds_name] = ds.to_pandas().resample('10s').mean()
                 # else:
                 #    glider_datasets[ds_name] = ds.to_pandas()
-                ds.close()
+                # ds.close()
             else:
                 print(f"Downloading {ds_name}")
                 try:
@@ -346,9 +348,9 @@ def download_glider_dataset(
             glider_datasets[ds_name] = (
                 ds  # dask.dataframe.from_pandas(ds.to_pandas().resample('5s').mean(), npartitions=16).compute()
             )
-        glider_datasets[ds_name] = pl.from_dataframe(
-            glider_datasets[ds_name].to_pandas().astype(np.float32)
-        )
+        # glider_datasets[ds_name] = pl.from_dataframe(
+        #    glider_datasets[ds_name].to_pandas().astype(np.float32)
+        # )
 
     return glider_datasets
 

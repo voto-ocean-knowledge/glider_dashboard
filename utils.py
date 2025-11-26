@@ -99,18 +99,20 @@ def filter_metadata():
     # Better to return filtered DataFrame instead of IDs?
     mode = "all"  # 'nrt', 'delayed'
     metadata, all_datasets = load_metadata()
-    """
+
     metadata = metadata[
-        metadata['project'].isin(['SAMBA']) &
-        #(metadata['project']==project) #&
-        (metadata['basin']==basin) &
-        #(metadata['basin']=='Åland Sea') &
-        #(metadata['time_coverage_start (UTC)'].dt.year>2023) &
-        (metadata['time_coverage_start (UTC)'].dt.year==year) #&
-        #(metadata['time_coverage_start (UTC)'].dt.month==month)
-        #(metadata['time_coverage_start (UTC)'].dt.day<15)
-        ]
-    """
+        metadata["project"].isin(["SAMBA"])
+        &
+        # (metadata['project']==project) #&
+        (metadata["basin"] == basin)
+        &
+        # (metadata['basin']=='Åland Sea') &
+        # (metadata['time_coverage_start (UTC)'].dt.year>2023) &
+        (metadata["time_coverage_start (UTC)"].dt.year == year)
+        # & (metadata["time_coverage_start (UTC)"].dt.month == month)
+        # (metadata['time_coverage_start (UTC)'].dt.day<15)
+    ]
+
     # for basins
     # metadata = drop_overlaps(metadata)
     return metadata, all_datasets
@@ -264,9 +266,21 @@ def voto_concat_datasets2(datasets):
 
         # pdb.set_trace()
         # dsconc.with_columns(pl.col("depth").neg())
+        # import pdb
+
+        # pdb.set_trace()
+        pass
+        """
         datasets[index] = datasets[index].with_columns(
-            pl.col("profile_num") + datasets[index - 1]["profile_num"].max()
+            pl.col("profile_num")
+            + datasets[index - 1].select(pl.col("profile_num")).max().collect()
         )
+        """
+
+        # datasets[index].select(pl.col("profile_num")).max().collect()
+        # datasets[index] = datasets[index].with_columns(
+        #    pl.col("profile_num") + datasets[index - 1]["profile_num"].max()
+        # )
         # datasets[index]["profile_num"] += (
         #    datasets[index - 1].copy()["profile_num"].max()
         # )
@@ -285,7 +299,7 @@ def voto_concat_datasets2(datasets):
     # ds = dd.concat(
     #    datasets, dim="time", variables=["temperature", "salinity"]
     # )  # xr.concat(datasets, dim="time")
-    ds = pl.concat([pl.from_dataframe(data) for data in datasets], how="diagonal")
+    ds = pl.concat([data for data in datasets], how="diagonal")
     # ds = add_dive_column(ds)
 
     return ds

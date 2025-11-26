@@ -740,13 +740,22 @@ class GliderDashboard(param.Parameterized):
                 self.param[f"pick_cbar_range_{variable}"].precedence = -10
                 if self.data_in_view is not None:
                     print(self.data_in_view.columns)
-                    stats = (
-                        self.data_in_view[variable].sample(1000).describe((0.01, 0.99))
-                    )
+                    # stats = (
+                    low = self.data_in_view.quantile(0.01).select(
+                        pl.col(variable)
+                    )  # ,#.collect()
+                    high = self.data_in_view.quantile(0.99).select(
+                        pl.col(variable)
+                    )  # .collect()
+                    # self.data_in_view[variable].sample(1000).describe((0.01, 0.99))
+                    # self.data_in_view
+                    # )
 
                     clim = (
-                        stats.filter(pl.col("statistic") == "1%")["value"][0],
-                        stats.filter(pl.col("statistic") == "99%")["value"][0],
+                        low,
+                        high,
+                        # stats.filter(pl.col("statistic") == "1%")["value"][0],
+                        # stats.filter(pl.col("statistic") == "99%")["value"][0],
                     )
                 else:
                     clim = (None, None)
@@ -1139,11 +1148,11 @@ class GliderDashboard(param.Parameterized):
         #    dsconc = dsconc.unique(
         #        subset=["temperature", "salinity"]
         #    )  # dsconc.drop_duplicates(subset=["temperature", "salinity"])
-        self.data_in_view = dsconc
+        self.data_in_view = dsconc  # .collect()
         # import pdb
         #
         # pdb.set_trace()
-        self.update_markdown(x_range, y_range)
+        # self.update_markdown(x_range, y_range)
 
         if (self.pick_contours is not None) and (self.pick_contours != "same as above"):
             mplt = create_single_ds_plot_raster(
