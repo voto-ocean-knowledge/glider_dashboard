@@ -755,19 +755,7 @@ class GliderDashboard(param.Parameterized):
                 means = dsh.std(variable)
 
             if self.pick_autorange:
-                self.param[f"pick_cbar_range_{variable}"].precedence = -10
-                if self.data_in_view is not None:
-                    stats = self.data_in_view.select(pl.col(variable)).describe(
-                        (0.01, 0.99)
-                    )
-                    low = stats.filter(pl.col("statistic") == "1%")[0, 1]
-                    high = stats.filter(pl.col("statistic") == "99%")[0, 1]
-                    clim = (
-                        low,
-                        high,
-                    )
-                else:
-                    clim = (None, None)
+                clim = (None, None)
             else:
                 self.param[f"pick_cbar_range_{variable}"].precedence = 1
                 clim = eval(f"self.pick_cbar_range_{variable}")
@@ -1149,25 +1137,8 @@ class GliderDashboard(param.Parameterized):
         #    dsconc = dsconc.unique(
         #        subset=["temperature", "salinity"]
         #    )  # dsconc.drop_duplicates(subset=["temperature", "salinity"])
-        # import pdb
-        #
-        # pdb.set_trace()
+
         self.data_in_view = dsconc
-        """
-        dsconc.select(
-            set(self.pick_variables).union(
-                set(
-                    [
-                        "temperature",
-                        "salinity",
-                        "depth",
-                        "profile_num",
-                        "profile_direction",
-                        "time",
-                    ]
-                )
-            )
-        ).collect()"""
         # THIS MUST BE REMOVE FOR GREAT PERFORMANCE.
         # REQUIRES REWRITE OF SOME CLIM AND QUANTILE FILTERS I BELIEVE
         # self.update_markdown(x_range, y_range) # THIS SHOULD BE READDED EVENTUALLY
@@ -1187,9 +1158,6 @@ class GliderDashboard(param.Parameterized):
 
         low = stats.filter(pl.col("statistic") == "1%")
         high = stats.filter(pl.col("statistic") == "99%")
-
-        # thresh_low = df.select(pl.col('temperature', 'salinity')).describe((0.01, 0.99))#dsconc[["temperature", "salinity"]].quantile(0.05)
-        # thresh_high = #dsconc[["temperature", "salinity"]].quantile(0.99)
 
         # import §
         # pdb.set_trace()
