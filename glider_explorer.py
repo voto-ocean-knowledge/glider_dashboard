@@ -72,6 +72,7 @@ for dsid in metadata.index:
     dsdict[dsid.replace("nrt", "delayed")] = pl.scan_parquet(
         f"../voto_erddap_data_cache/{dsid.replace('nrt', 'delayed')}.parquet"
     )
+    dsdict[dsid] = pl.scan_parquet(f"../voto_erddap_data_cache/{dsid}.parquet")
 # import pdb
 
 # pdb.set_trace()
