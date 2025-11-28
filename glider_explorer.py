@@ -753,7 +753,6 @@ class GliderDashboard(param.Parameterized):
                 means = dsh.mean(variable)
             if self.pick_aggregation == "std":
                 means = dsh.std(variable)
-
             if self.pick_autorange:
                 clim = (None, None)
             else:
@@ -766,6 +765,7 @@ class GliderDashboard(param.Parameterized):
                 # x_sampling=8.64e13/48,
                 # y_sampling=0.2,
                 pixel_ratio=pixel_ratio,
+                robust=True if self.pick_autorange else False,
             ).opts(
                 # invert_yaxis=True, # Would like to activate this, but breaks the hover tool
                 colorbar=True,
