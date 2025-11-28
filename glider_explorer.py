@@ -569,48 +569,36 @@ class GliderDashboard(param.Parameterized):
                 pl.col("profile_num") == profile_num.collect()[0, 0] + 1
             ).collect()
             profile_plots = []
-            for variable in self.pick_variables:
+
+            def create_profile_curve(profile):
                 profilelabel = (
                     "descending"
                     if profile.select(pl.col("profile_direction").mean())[0, 0] > 0
                     else "ascending"
                 )
-                nextprofilelabel = (
-                    "descending"
-                    if nextprofile.select(pl.col("profile_direction").mean())[0, 0] > 0
-                    else "ascending"
+                profilecurve = hv.Curve(
+                    data=profile,
+                    kdims=variable,
+                    vdims="depth",
+                    label=profilelabel,
+                ).opts(
+                    xlabel=f"{variable} [{dictionaries.units_dict.get(variable, '')}]",
+                    padding=0.1,
+                    fontscale=2,
+                    width=400,
+                    height=600,
                 )
+                return profilecurve
+
+            for variable in self.pick_variables:
+                items = [create_profile_curve(profile)]
+                if len(nextprofile) > 0:
+                    items.append(create_profile_curve(nextprofile))
+                print("ITEMS:", items)
                 profile_plots.append(
-                    hv.Overlay(
-                        items=[
-                            hv.Curve(
-                                data=profile,
-                                kdims=variable,
-                                vdims="depth",
-                                label=profilelabel,
-                            ).opts(
-                                xlabel=f"{variable} [{dictionaries.units_dict.get(variable, '')}]",
-                                padding=0.1,
-                                fontscale=2,
-                                width=400,
-                                height=600,
-                                # show_legend=True,
-                            ),
-                            hv.Curve(
-                                data=nextprofile,
-                                kdims=variable,
-                                vdims="depth",
-                                label=nextprofilelabel,
-                            ).opts(
-                                xlabel=f"{variable} [{dictionaries.units_dict.get(variable, '')}]",
-                                padding=0.1,
-                                fontscale=2,
-                                width=400,
-                                height=600,
-                                # show_legend=True,
-                            ),
-                        ]
-                    ).opts(legend_position="bottom_right", show_legend=True)
+                    hv.Overlay(items=items).opts(
+                        legend_position="bottom_right", show_legend=True
+                    )
                 )
             mylayout[0][2] = pn.Row(hv.Layout(profile_plots))
         else:
@@ -670,6 +658,12 @@ class GliderDashboard(param.Parameterized):
             self.get_xsection_raster,
             streams=[range_stream, tap_stream],
         )
+        if self.data_in_view is not None:
+            self.stats = (
+                self.data_in_view.describe((0.01, 0.99))
+                .to_pandas()
+                .set_index("statistic")
+            )
 
         if self.pick_high_resolution:
             pixel_ratio = 1.0
@@ -756,6 +750,8 @@ class GliderDashboard(param.Parameterized):
                 means = dsh.std(variable)
             if self.pick_autorange:
                 clim = (None, None)
+            #    clim = (self.stats[variable].loc["1%"], self.stats[variable].loc["99%"])
+
             else:
                 self.param[f"pick_cbar_range_{variable}"].precedence = 1
                 clim = eval(f"self.pick_cbar_range_{variable}")
@@ -766,7 +762,7 @@ class GliderDashboard(param.Parameterized):
                 # x_sampling=8.64e13/48,
                 # y_sampling=0.2,
                 pixel_ratio=pixel_ratio,
-                robust=True if self.pick_autorange else False,
+                # robust=True if self.pick_autorange else False,
             ).opts(
                 # invert_yaxis=True, # Would like to activate this, but breaks the hover tool
                 colorbar=True,
@@ -792,13 +788,13 @@ class GliderDashboard(param.Parameterized):
                 default_tools=[],
                 active_tools=["xpan", "xwheel_zoom"],
                 # default_tools=[],
-                # responsive=True, # this currently breaks when activated with MLD
+                responsive=True,  # this currently breaks when activated with MLD
                 # width=800,
                 # int(500/(len(self.pick_variables))),#250+int(250*2/len(self.pick_variables)), #500, 250,
                 cnorm=self.pick_cnorm,
                 bgcolor="dimgrey",
                 clabel=f"{variable}  [{dictionaries.units_dict.get(variable, '')}]",  # self.pick_variable,
-                responsive=True,
+                clim_percentile=True if self.pick_autorange else False,
                 fontscale=2,
             )
 

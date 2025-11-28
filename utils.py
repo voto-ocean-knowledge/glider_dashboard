@@ -100,14 +100,13 @@ def filter_metadata():
     mode = "all"  # 'nrt', 'delayed'
     metadata, all_datasets = load_metadata()
 
-    """
     metadata = metadata[
-        (metadata['project']==project) &
-        (metadata["basin"] == basin) &
-        (metadata["time_coverage_start (UTC)"].dt.year == year) &
-        (metadata["time_coverage_start (UTC)"].dt.month == month)
+        (metadata["project"] == project)
+        & (metadata["basin"] == basin)
+        & (metadata["time_coverage_start (UTC)"].dt.year == 2025)
+        & (metadata["time_coverage_start (UTC)"].dt.month > 9)
     ]
-    """
+
     # for basins
     # metadata = drop_overlaps(metadata)
     return metadata, all_datasets
