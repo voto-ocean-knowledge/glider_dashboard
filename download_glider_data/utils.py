@@ -1,9 +1,8 @@
-import ast
 import pathlib
 
-import dask
 import numpy as np
 import pandas as pd
+import polars as pl
 import xarray as xr
 from erddapy import ERDDAP
 
@@ -156,7 +155,7 @@ def _update_stats(ds_id, request):
     Update the stats for a specified dataset
     """
     dataset_nc = cache_dir / f"{ds_id}.nc"
-    ds = xr.open_dataset(dataset_nc)
+    ds = xr.open_dataset(dataset_nc, decode_times=False)
     try:
         df = pd.read_csv(cache_dir / "cache_info.csv", index_col=0)
     except:
@@ -232,7 +231,6 @@ def _preprocess(ds):
 
 def download_glider_dataset(
     dataset_ids,
-    metadata,
     variables=(),
     constraints={},
     nrt_only=False,
@@ -274,7 +272,6 @@ def download_glider_dataset(
 
     # Download each dataset as xarray
     glider_datasets = {}
-    nanosecond_iterator = 1
     for ds_name in ids_to_download:
         if variables:
             # e.variables = variables
@@ -297,9 +294,11 @@ def download_glider_dataset(
             dataset_nc = cache_dir / f"{ds_name}.nc"
             if cached_dataset:
                 print(f"Found {ds_name} in {cache_dir}. Loading from disk")
-                ds = xr.open_mfdataset(
-                    dataset_nc, preprocess=_preprocess, parallel=True
-                )
+                # print(str(dataset_nc))
+                ds = pl.scan_parquet(str(dataset_nc).replace("nc", "parquet"))
+                # xr.open_mfdataset(
+                # dataset_nc, preprocess=_preprocess, parallel=True
+                # )
                 if adcp:
                     ds = add_adcp_data(ds)
                 # if ds_name[0:3] != 'nrt':
@@ -313,7 +312,7 @@ def download_glider_dataset(
                 #    glider_datasets[ds_name] = ds.to_pandas().resample('10s').mean()
                 # else:
                 #    glider_datasets[ds_name] = ds.to_pandas()
-                ds.close()
+                # ds.close()
             else:
                 print(f"Downloading {ds_name}")
                 try:
@@ -340,14 +339,17 @@ def download_glider_dataset(
                 print(ex)
                 continue
             ds = _clean_dims(ds)
+            # ds["depth"] = -ds["depth"]
             if adcp:
                 ds = add_adcp_data(ds)
             glider_datasets[ds_name] = (
                 ds  # dask.dataframe.from_pandas(ds.to_pandas().resample('5s').mean(), npartitions=16).compute()
             )
-        glider_datasets[ds_name] = glider_datasets[ds_name].to_pandas().resample("5s").mean()
-        glider_datasets[ds_name]["depth"] = -glider_datasets[ds_name]["depth"]
-    return glider_datasets
+        # glider_datasets[ds_name] = pl.from_dataframe(
+        #    glider_datasets[ds_name].to_pandas().astype(np.float32)
+        # )
+
+    # return glider_datasets
 
 
 def format_difference(deg_e, deg_n, ns_ahead):
