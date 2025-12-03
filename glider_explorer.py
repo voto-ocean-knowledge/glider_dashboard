@@ -540,15 +540,15 @@ class GliderDashboard(param.Parameterized):
     def preset_clim_slider(self):
         for variable in self.pick_variables:
             if self.data_in_view is not None:
-                stats = self.data_in_view.select(pl.col(variable)).describe(
-                    (0.01, 0.99)
-                )
+                # stats = self.data_in_view.select(pl.col(variable)).describe(
+                #    (0.01, 0.99)
+                # )
                 setattr(
                     self,
                     f"pick_cbar_range_{variable}",
                     (
-                        stats.filter(pl.col("statistic") == "1%")[variable][0],
-                        stats.filter(pl.col("statistic") == "99%")[variable][0],
+                        self.stats.loc["1%"]["variable"],
+                        self.stats.loc["99%"]["variable"],
                         # stats.loc["1%"][variable],
                         # stats.loc["99%"][variable],
                     ),
@@ -556,53 +556,53 @@ class GliderDashboard(param.Parameterized):
 
     def location(self, x, y):
         # print(f"Click at {x}, {y}")
-        if self.data_in_view is not None:
-            profile_num = (
-                self.data_in_view.filter(pl.col("time") > x)
-                .first()
-                .select(pl.col("profile_num"))
-            )
-            profile = self.data_in_view.filter(
-                pl.col("profile_num") == profile_num.collect()[0, 0]
-            ).collect()
-            nextprofile = self.data_in_view.filter(
-                pl.col("profile_num") == profile_num.collect()[0, 0] + 1
-            ).collect()
-            profile_plots = []
-
-            def create_profile_curve(profile):
-                profilelabel = (
-                    "descending"
-                    if profile.select(pl.col("profile_direction").mean())[0, 0] > 0
-                    else "ascending"
-                )
-                profilecurve = hv.Curve(
-                    data=profile,
-                    kdims=variable,
-                    vdims="depth",
-                    label=profilelabel,
-                ).opts(
-                    xlabel=f"{variable} [{dictionaries.units_dict.get(variable, '')}]",
-                    padding=0.1,
-                    fontscale=2,
-                    width=400,
-                    height=600,
-                )
-                return profilecurve
-
-            for variable in self.pick_variables:
-                items = [create_profile_curve(profile)]
-                if len(nextprofile) > 0:
-                    items.append(create_profile_curve(nextprofile))
-                print("ITEMS:", items)
-                profile_plots.append(
-                    hv.Overlay(items=items).opts(
-                        legend_position="bottom_right", show_legend=True
-                    )
-                )
-            mylayout[0][2] = pn.Row(hv.Layout(profile_plots))
-        else:
+        if self.data_in_view is None:
             return None
+
+        profile_num = (
+            self.data_in_view.filter(pl.col("time") > x)
+            .first()
+            .select(pl.col("profile_num"))
+        )
+        profile = self.data_in_view.filter(
+            pl.col("profile_num") == profile_num.collect()[0, 0]
+        ).collect()
+        nextprofile = self.data_in_view.filter(
+            pl.col("profile_num") == profile_num.collect()[0, 0] + 1
+        ).collect()
+        profile_plots = []
+
+        def create_profile_curve(profile):
+            profilelabel = (
+                "descending"
+                if profile.select(pl.col("profile_direction").mean())[0, 0] > 0
+                else "ascending"
+            )
+            profilecurve = hv.Curve(
+                data=profile.to_pandas().dropna(subset=[variable]),
+                kdims=variable,
+                vdims="depth",
+                label=profilelabel,
+            ).opts(
+                xlabel=f"{variable} [{dictionaries.units_dict.get(variable, '')}]",
+                padding=0.1,
+                fontscale=2,
+                width=400,
+                height=600,
+            )
+            return profilecurve
+
+        for variable in self.pick_variables:
+            items = [create_profile_curve(profile)]
+            if len(nextprofile) > 0:
+                items.append(create_profile_curve(nextprofile))
+            print("ITEMS:", items)
+            profile_plots.append(
+                hv.Overlay(items=items).opts(
+                    legend_position="bottom_right", show_legend=True
+                )
+            )
+        mylayout[0][2] = pn.Row(hv.Layout(profile_plots))
 
     @param.depends(
         "pick_cnorm",
@@ -651,19 +651,17 @@ class GliderDashboard(param.Parameterized):
         tap_stream = Tap(x=np.nan, y=np.nan)
         tap_stream.add_subscriber(self.location)
 
-        t1 = time.perf_counter()
         pick_cnorm = "linear"
 
         dmap_raster = hv.DynamicMap(
             self.get_xsection_raster,
             streams=[range_stream, tap_stream],
         )
-        if self.data_in_view is not None:
-            self.stats = (
-                self.data_in_view.describe((0.01, 0.99))
-                .to_pandas()
-                .set_index("statistic")
-            )
+        # t1 = time.perf_counter()
+        # if (self.data_in_view is not None) and
+
+        # t2 = time.perf_counter()
+        # print("statistical operations took:", t2 - t1)
 
         if self.pick_high_resolution:
             pixel_ratio = 1.0
@@ -864,12 +862,11 @@ class GliderDashboard(param.Parameterized):
                 dmap_profilesr = mpg_ls(dmap_profilesr)  # mpg_ls(dmap_profilesr)
 
         # annotations are currently broken, fix here
-        for annotation in self.annotations:
-            print("insert text annotations defined in events")
-            self.dynmap = self.dynmap * annotation
-
-            #    cross_filter_mode="overwrite", # could also be union to enable combined selections. More confusing?
-            return linked_plots
+        # for annotation in self.annotations:
+        #    print("insert text annotations defined in events")
+        #    self.dynmap = self.dynmap * annotation#
+        #
+        #    return linked_plots
         if self.pick_show_decoration:
             contourplots = contourplots * dmap_decorators
         contourplots = contourplots * dmap_mld if self.pick_mld else contourplots
@@ -887,19 +884,18 @@ class GliderDashboard(param.Parameterized):
             else contourplots
         )
         contourplots = (
-            (
-                (contourplots)
-                + dmap_profilesr.opts(
-                    height=cheight,
-                    responsive=True,
-                    fontscale=2,
-                )
+            (contourplots)
+            + dmap_profilesr.opts(
+                height=cheight,
+                responsive=True,
+                fontscale=2,
             )
             if self.pick_profiles
             else contourplots
         )
         # contourplots = contourplots
         # ncols = 2 if (self.pick_TS or self.pick_profiles) else 1
+        # self.contourplots = contourplots  # make this available for other methods
         return pn.Column(contourplots.cols(ncols))
 
     def create_mean(self):
@@ -989,12 +985,12 @@ class GliderDashboard(param.Parameterized):
         # print(f'len of meta is {len(meta)} in load_viewport_datasets')
         if (x1 - x0) > np.timedelta64(720, "D"):
             # activate sparse data mode to speed up reactivity
-            plt_props["zoomed_out"] = False
+            plt_props["zoomed_out"] = True
             plt_props["dynfontsize"] = 4
             plt_props["subsample_freq"] = 25
         elif (x1 - x0) > np.timedelta64(360, "D"):
             # activate sparse data mode to speed up reactivity
-            plt_props["zoomed_out"] = False
+            plt_props["zoomed_out"] = True
             plt_props["dynfontsize"] = 4
             plt_props["subsample_freq"] = 10
         elif (x1 - x0) > np.timedelta64(180, "D"):
@@ -1096,31 +1092,44 @@ class GliderDashboard(param.Parameterized):
         self.pick_endX = pd.to_datetime(x1)
         meta, plt_props = self.load_viewport_datasets(x_range)
 
-        if plt_props["zoomed_out"]:
-            metakeys = [element.replace("nrt", "delayed") for element in meta.index]
-        else:
-            metakeys = [
-                (
-                    element.replace("nrt", "delayed")
-                    if element.replace("nrt", "delayed") in all_datasets.index
-                    else element
-                )
-                for element in meta.index
-            ]
+        # if plt_props["zoomed_out"]:
+        #    metakeys = [element.replace("nrt", "delayed") for element in meta.index]
+        # else:
+        metakeys = [
+            (
+                element.replace("nrt", "delayed")
+                if element.replace("nrt", "delayed") in all_datasets.index
+                else element
+            )
+            for element in meta.index
+        ]
+        # import pdb
+        #
+        # pdb.set_trace()
 
         variables = self.pick_variables
         varlist = []
+        varlist_small = []
+        # if plt_props["zoomed_out"]:
         for dsid in metakeys:
             ds = dsdict[dsid]
             ds = ds.filter(pl.col("profile_num") % plt_props["subsample_freq"] == 0)
             varlist.append(ds)
+        # if plt_props["zoomed_out"]:
+        for dsid in meta.index:
+            ds = dsdict[dsid]
+            varlist_small.append(ds)
 
         dsconc = utils.voto_concat_datasets2(varlist)
         dsconc = dsconc.with_columns(pl.col("depth").neg())
 
+        dsconc_small = utils.voto_concat_datasets2(varlist_small)
+        dsconc_small = dsconc_small.with_columns(pl.col("depth").neg())
+
         # if (len(varlist) == 0) or (len(self.pick_variables) == 0):
         #    return None
         # concat and drop_duplicates could potentially be done by pandarallel
+
         if self.pick_TS or self.pick_profiles:
             nanosecond_iterator = 1
             for ndataset in varlist:
@@ -1128,6 +1137,18 @@ class GliderDashboard(param.Parameterized):
                     pl.col("time") + np.timedelta64(nanosecond_iterator, "ns")
                 )
                 nanosecond_iterator += 1
+            if (self.endX - self.startX) > np.timedelta64(20, "D"):
+                self.stats = (
+                    dsconc_small.describe(  # .select(pl.col(self.pick_variables))
+                        (0.01, 0.05, 0.95, 0.99)
+                    )
+                    .to_pandas()
+                    .set_index("statistic")
+                )
+            else:
+                self.stats = (
+                    dsconc.describe((0.01, 0.99)).to_pandas().set_index("statistic")
+                )
 
         # dsconc = pd.concat(varlist)
         # if self.pick_TS or self.pick_profiles:
@@ -1136,6 +1157,7 @@ class GliderDashboard(param.Parameterized):
         #    )  # dsconc.drop_duplicates(subset=["temperature", "salinity"])
 
         self.data_in_view = dsconc
+        self.data_in_view_small = dsconc_small
         # THIS MUST BE REMOVE FOR GREAT PERFORMANCE.
         # REQUIRES REWRITE OF SOME CLIM AND QUANTILE FILTERS I BELIEVE
         # self.update_markdown(x_range, y_range) # THIS SHOULD BE READDED EVENTUALLY
@@ -1149,81 +1171,58 @@ class GliderDashboard(param.Parameterized):
         return mplt
 
     def get_xsection_TS(self, x_range, y_range):
-        dsconc = self.data_in_view.filter(pl.col("salinity") > 1)
-        t1 = time.perf_counter()
-        stats = dsconc.select(pl.col("temperature", "salinity")).describe((0.01, 0.99))
+        # dsconc = self.data_in_view.filter(pl.col("salinity") > 1)
+        # t1 = time.perf_counter()
+        # stats = dsconc.select(pl.col("temperature", "salinity")).describe((0.01, 0.99))
 
-        low = stats.filter(pl.col("statistic") == "1%")
-        high = stats.filter(pl.col("statistic") == "99%")
+        # low = #stats.filter(pl.col("statistic") == "1%")
+        # high = #stats.filter(pl.col("statistic") == "99%")
 
         # import §
         # pdb.set_trace()
-        t2 = time.perf_counter()
+        # t2 = time.perf_counter()
 
         mplt = hv.Points(
-            data=dsconc,
+            data=self.data_in_view,
             kdims=["salinity", "temperature"],
             vdims=["oxygen_concentration"],  # self.pick_variables[0]],
             # list(variables),
             # temp and salinity need to always be present for TS lasso to work, set for unique elements
         ).opts(
             xlim=(
-                low.select(pl.col("salinity"))[0] - 0.5,
-                high.select(pl.col("salinity"))[0] + 0.5,
+                self.stats.loc["5%"]["salinity"] - 0.5,
+                self.stats.loc["99%"]["salinity"] + 0.5,
             ),
             ylim=(
-                low.select(pl.col("temperature"))[0] - 0.5,
-                high.select(pl.col("temperature"))[0] + 0.5,
+                self.stats.loc["1%"]["temperature"] - 0.5,
+                self.stats.loc["99%"]["temperature"] + 0.5,
             ),
         )
 
         return mplt
 
     def get_xsection_profiles(self, x_range, y_range):
-        dsconc = self.data_in_view.filter(pl.col("salinity") > 1)
-        t1 = time.perf_counter()
-        dsconc = self.data_in_view.filter(pl.col("salinity") > 1)
-        stats = dsconc.select(pl.col(self.pick_variables[0])).describe((0.01, 0.99))
+        low = self.stats.loc["1%"][self.pick_variables[0]]
+        high = self.stats.loc["99%"][self.pick_variables[0]]
 
-        low = stats.filter(pl.col("statistic") == "1%").select(
-            pl.col(self.pick_variables[0])
-        )[0]
-        high = stats.filter(pl.col("statistic") == "99%").select(
-            pl.col(self.pick_variables[0])
-        )[0]
-        # thresh_low = dsconc[self.pick_variables[0]].quantile(0.01)
-        # thresh_high = dsconc[self.pick_variables[0]].quantile(0.99)
-        mplt = hv.Points(data=dsconc, kdims=[self.pick_variables[0], "depth"]).opts(
+        mplt = hv.Points(
+            data=self.data_in_view, kdims=[self.pick_variables[0], "depth"]
+        ).opts(
             xlim=(low * 0.95, high * 1.05),
         )
         return mplt
 
     def get_density_contours(self, x_range, y_range):
-        # for the TS plot
         import gsw
-
-        dsconc = self.data_in_view.filter(pl.col("salinity") > 1)
-        stats = dsconc.select(pl.col("temperature", "salinity")).describe((0.01, 0.99))
-
-        low = stats.filter(pl.col("statistic") == "1%")
-        high = stats.filter(pl.col("statistic") == "99%")
-
-        t1 = time.perf_counter()
-        # thresh_low = dsconc[["temperature", "salinity"]].quantile(0.01)
-        # thresh_high = dsconc[["temperature", "salinity"]].quantile(0.99)
-
-        # try:
-        #    thresh = thresh.compute()  # .iloc[0]
-        # except:
-        #    thresh = thresh
+        # +/- 5 gives plently of space for the density line drawing, if user zoomes out.
 
         smin, smax = (
-            low.select(pl.col("salinity"))[0, 0] - 1,
-            high.select(pl.col("salinity"))[0, 0] + 1,
+            self.stats.loc["5%"]["salinity"] - 5,
+            self.stats.loc["99%"]["salinity"] + 5,
         )
         tmin, tmax = (
-            low.select(pl.col("temperature"))[0, 0] - 1,
-            high.select(pl.col("temperature"))[0, 0] + 1,
+            self.stats.loc["5%"]["temperature"] - 5,
+            self.stats.loc["99%"]["temperature"] + 5,
         )
 
         xdim = round((smax - smin) / 0.1 + 1, 0)
@@ -1251,16 +1250,15 @@ class GliderDashboard(param.Parameterized):
             show_legend=False,
             cmap="dimgray",
             xlim=(
-                low.select(pl.col("salinity"))[0, 0] - 0.5,
-                high.select(pl.col("salinity"))[0, 0] + 0.5,
+                self.stats.loc["5%"]["salinity"]
+                - 1,  # 5% because we get 0PSU readings at surface.
+                self.stats.loc["99%"]["salinity"] + 1,
             ),
             ylim=(
-                low.select(pl.col("temperature"))[0, 0] - 0.5,
-                high.select(pl.col("temperature"))[0, 0] + 0.5,
+                self.stats.loc["1%"]["temperature"] - 1,
+                self.stats.loc["99%"]["temperature"] + 1,
             ),
         )
-        # this is good but the ranges are not yet automatically adjusted.
-        # also, maybe the contour color should be something more discrete
         return dcont
 
     def create_None_element(self, type):
