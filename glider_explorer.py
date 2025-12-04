@@ -1,5 +1,6 @@
 import time
 
+import cmocean
 import datashader as dsh
 import holoviews as hv
 import hvplot.pandas  # noqa
@@ -33,25 +34,7 @@ pn.extension(
 )  # mathjax is currently not used, but could be cool to render latex in markdown
 # cudf support works, but is currently not faster
 #
-variables_selectable = [
-    "temperature",
-    "salinity",
-    "potential_density",
-    "chlorophyll",
-    "oxygen_concentration",
-    "cdom",
-    "fdom",
-    "backscatter",
-    "backscatter_scaled",
-    "phycocyanin",
-    "phycocyanin_tridente",
-    "turbidity",
-    # "methane_concentration",
-    "longitude",
-    "latitude",
-    "profile_num",
-    "downwelling_PAR",
-]
+
 
 # all_metadata is loaded for the metadata visualisation
 all_metadata, _ = utils.load_metadata()
@@ -73,8 +56,11 @@ for dsid in metadata.index:
         f"../voto_erddap_data_cache/{dsid.replace('nrt', 'delayed')}.parquet"
     )
     dsdict[dsid] = pl.scan_parquet(f"../voto_erddap_data_cache/{dsid}.parquet")
-# import pdb
 
+variables_selectable = (
+    pl.concat(dsdict.values(), how="diagonal").collect_schema().names()
+)
+# import pdb
 # pdb.set_trace()
 # print(dsid)
 
@@ -257,6 +243,9 @@ class GliderDashboard(param.Parameterized):
     alldslist = list(filter(lambda k: "nrt" in k, dsdict.keys()))
     alldslabels = [element[4:] for element in alldslist]
     objectsdict = dict(zip(alldslabels, alldslist))
+    # import pdb
+    #
+    # pdb.set_trace()
 
     pick_dsids = param.ListSelector(
         default=[],  # [alldslist[0]],#dslist[0]],
@@ -564,6 +553,11 @@ class GliderDashboard(param.Parameterized):
             .first()
             .select(pl.col("profile_num"))
         )
+        # This way would be more efective than below code
+        # profiles = self.data_in_view.filter(
+        #    (pl.col("profile_num") == profile_num[0, 0])
+        #    | (pl.col("profile_num") == profile_num[0, 0] + 1)
+        # ).collect()
         profile = self.data_in_view.filter(
             pl.col("profile_num") == profile_num.collect()[0, 0]
         ).collect()
@@ -699,7 +693,9 @@ class GliderDashboard(param.Parameterized):
                     aggregator=dsh.mean(self.pick_variables[0]),
                 ).opts(
                     cnorm="eq_hist",
-                    cmap=dictionaries.cmap_dict.get(self.pick_variables[0], "hsv"),
+                    cmap=dictionaries.cmap_dict.get(
+                        self.pick_variables[0], cmocean.cm.solar
+                    ),
                     # clabel=f"{self.pick_variable}  [{dictionaries.units_dict[self.pick_variable]}]",
                     colorbar=True,
                 )
@@ -766,7 +762,7 @@ class GliderDashboard(param.Parameterized):
                 colorbar=True,
                 # clim_percentile=clim_percentile,
                 clim=clim,
-                cmap=dictionaries.cmap_dict.get(variable, "hsv"),
+                cmap=dictionaries.cmap_dict.get(variable, cmocean.cm.solar),
                 toolbar="above",
                 tools=[
                     "xpan",  # move along
@@ -1185,7 +1181,7 @@ class GliderDashboard(param.Parameterized):
         mplt = hv.Points(
             data=self.data_in_view,
             kdims=["salinity", "temperature"],
-            vdims=["oxygen_concentration"],  # self.pick_variables[0]],
+            vdims=[self.pick_variables[0]],
             # list(variables),
             # temp and salinity need to always be present for TS lasso to work, set for unique elements
         ).opts(
@@ -1461,11 +1457,11 @@ def create_app_instance(self):
             widgets={
                 f"pick_cbar_range_{variable}": pn.widgets.EditableRangeSlider(
                     value=(
-                        dictionaries.ranges_dict[variable][0],
-                        dictionaries.ranges_dict[variable][1],
+                        dictionaries.ranges_dict.get(variable, (0, 10))[0],
+                        dictionaries.ranges_dict.get(variable, (0, 10))[1],
                     ),
-                    start=dictionaries.ranges_dict[variable][0],
-                    end=dictionaries.ranges_dict[variable][1],
+                    start=dictionaries.ranges_dict.get(variable, (0, 10))[0],
+                    end=dictionaries.ranges_dict.get(variable, (0, 10))[1],
                     step=0.1,
                 )
             },
@@ -1510,7 +1506,9 @@ def create_app_instance(self):
         pn.Param(
             glider_dashboard,
             parameters=["pick_variables"],
-            widgets={"pick_variables": pn.widgets.CheckBoxGroup},
+            widgets={
+                "pick_variables": pn.widgets.MultiChoice
+            },  # pn.widgets.CheckBoxGroup},
             default_layout=pn.Column,
             show_name=False,
         ),
