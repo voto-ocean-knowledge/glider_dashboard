@@ -325,16 +325,23 @@ class GliderDashboard(param.Parameterized):
         doc="Activate salinity-temperature diagram",
         precedence=1,
     )
+    pick_TS_color_variable = param.Selector(
+        default=None,
+        objects=variables_selectable,
+        label="Colour scatterplot by",
+        doc="blubb",
+        precedence=1,
+    )
     pick_profiles = param.Boolean(
         default=False,
         label="Show profiles",
         doc="Activate profiles diagram",
         precedence=1,
     )
-    pick_TS_colored_by_variable = param.Boolean(
+    pick_activate_scatter_link = param.Boolean(
         default=False,
-        label="Colour TS by variable",
-        doc='Colours the TS diagram by "variable" instead of "count of datapoints"',
+        label="enable linked selections",
+        doc="enables linked brushing with box and lasso select",
         precedence=1,
     )
     pick_contours = param.Selector(
@@ -342,8 +349,8 @@ class GliderDashboard(param.Parameterized):
         objects=[
             None,
             "same as above",
-            "temperature",
-            "salinity",
+            # "temperature",
+            # "salinity",
             "potential_density",
             "chlorophyll",
             "oxygen_concentration",
@@ -435,7 +442,7 @@ class GliderDashboard(param.Parameterized):
             # "pick_mean",
             "pick_TS",
             "pick_profiles",
-            "pick_TS_colored_by_variable",
+            "pick_activate_scatter_link",
             "pick_contours",
             "pick_high_resolution",
             "button_inflow",
@@ -533,8 +540,8 @@ class GliderDashboard(param.Parameterized):
                     self,
                     f"pick_cbar_range_{variable}",
                     (
-                        self.stats.loc["1%"]["variable"],
-                        self.stats.loc["99%"]["variable"],
+                        self.stats.loc["1%"][variable],
+                        self.stats.loc["99%"][variable],
                     ),
                 )
 
@@ -604,13 +611,14 @@ class GliderDashboard(param.Parameterized):
         "pick_toggle",
         "pick_TS",
         "pick_contours",
-        "pick_TS_colored_by_variable",
+        "pick_activate_scatter_link",
         "pick_high_resolution",
         "pick_profiles",
         "pick_display_threshold",
         "pick_show_decoration",  #'pick_startX', 'pick_endX',
         *list(cbar_range_sliders.keys()),  # noqa
         "pick_autorange",
+        "pick_TS_color_variable",
         # watch=True,
     )  # outcommenting this means just depend on all, redraw always
     def create_dynmap(self):
@@ -674,7 +682,7 @@ class GliderDashboard(param.Parameterized):
             ).opts(
                 alpha=0.5,
             )
-            if not self.pick_TS_colored_by_variable:
+            if not self.pick_TS_color_variable:
                 dmapTSr = rasterize(
                     dmap_TS,
                     pixel_ratio=pixel_ratio,
@@ -685,11 +693,11 @@ class GliderDashboard(param.Parameterized):
                 dmapTSr = rasterize(
                     dmap_TS,
                     pixel_ratio=pixel_ratio,
-                    aggregator=dsh.mean(self.pick_variables[0]),
+                    aggregator=dsh.mean(self.pick_TS_color_variable),
                 ).opts(
                     cnorm="eq_hist",
                     cmap=dictionaries.cmap_dict.get(
-                        self.pick_variables[0], cmocean.cm.solar
+                        self.pick_TS_color_variable, cmocean.cm.solar
                     ),
                     # clabel=f"{self.pick_variable}  [{dictionaries.units_dict[self.pick_variable]}]",
                     colorbar=True,
@@ -818,7 +826,6 @@ class GliderDashboard(param.Parameterized):
         if (self.pick_contours is not None) and (self.pick_contours != "same as above"):
             plots_dict["dmap_rasterized_contour"] = rasters(self.pick_contours)
 
-        mpg_ls = link_selections.instance()
         if self.pick_contours:
             if self.pick_contours == "same as above":
                 contourplots = hv.Layout(
@@ -844,13 +851,22 @@ class GliderDashboard(param.Parameterized):
         ncols = 1
         if self.pick_TS or self.pick_profiles:
             # link the contourplots with the scatterplot
-            contourplots = mpg_ls(contourplots)
+            mpg_ls = link_selections.instance()
+            if self.pick_activate_scatter_link:
+                contourplots = mpg_ls(contourplots)
+
             if self.pick_TS:
                 ncols += 1
-                dmapTSr = mpg_ls(dmapTSr) * dcont
+                if self.pick_activate_scatter_link:
+                    dmapTSr = mpg_ls(dmapTSr) * dcont
+                else:
+                    dmapTSr = dmapTSr * dcont
             if self.pick_profiles:
                 ncols += 1
-                dmap_profilesr = mpg_ls(dmap_profilesr)  # mpg_ls(dmap_profilesr)
+                if self.pick_activate_scatter_link:
+                    dmap_profilesr = mpg_ls(dmap_profilesr)  # mpg_ls(dmap_profilesr)
+                else:
+                    dmap_profilesr = dmap_profilesr
 
         # annotations are currently broken, fix here
         # for annotation in self.annotations:
@@ -1182,11 +1198,12 @@ class GliderDashboard(param.Parameterized):
         # import §
         # pdb.set_trace()
         # t2 = time.perf_counter()
-
+        # if self.pick_variables[0]
+        # Needs additional variable.
         mplt = hv.Points(
             data=self.data_in_view,
             kdims=["salinity", "temperature"],
-            vdims=[self.pick_variables[0]],
+            vdims=self.pick_TS_color_variable if self.pick_TS_color_variable else None,
             # list(variables),
             # temp and salinity need to always be present for TS lasso to work, set for unique elements
         ).opts(
@@ -1517,6 +1534,7 @@ def create_app_instance(self):
             default_layout=pn.Column,
             show_name=False,
         ),
+        # pn.widgets.
         pn.Param(
             glider_dashboard,
             parameters=["pick_cnorm"],
@@ -1535,22 +1553,22 @@ def create_app_instance(self):
             parameters=["pick_contours"],
             show_name=False,
         ),
-        pn.Param(
-            glider_dashboard,
-            parameters=["pick_autorange"],
-            show_name=False,
-        ),
-        *cbar_cntrls,
     )
 
     # scatter options
     ctrl_scatter = pn.Column(
         pn.Param(
             glider_dashboard,
-            parameters=["pick_TS", "pick_TS_colored_by_variable"],
+            parameters=["pick_TS", "pick_activate_scatter_link"],
             default_layout=pn.Row,
             show_name=False,
             # display_threshold=10,
+        ),
+        pn.Param(
+            glider_dashboard,
+            parameters=["pick_TS_color_variable"],
+            widgets={"pick_TS_color_variable": pn.widgets.AutocompleteInput},
+            show_name=False,
         ),
         pn.Param(
             glider_dashboard,
@@ -1624,6 +1642,14 @@ def create_app_instance(self):
             # display_threshold=10,
         ),
     )
+    ctrl_colorbars = pn.Column(
+        pn.Param(
+            glider_dashboard,
+            parameters=["pick_autorange"],
+            show_name=False,
+        ),
+        *cbar_cntrls,
+    )
 
     pick_aggregation_method = pn.Param(
         glider_dashboard,
@@ -1685,7 +1711,7 @@ def create_app_instance(self):
             "pick_cnorm": "pick_cnorm",
             "pick_TS": "pick_TS",
             "pick_profiles": "pick_profiles",
-            "pick_TS_colored_by_variable": "pick_TS_colored_by_variable",
+            "pick_activate_scatter_link": "pick_activate_scatter_link",
             "pick_contours": "pick_contours",
             "pick_high_resolution": "pick_high_resolution",
             "pick_startX": "pick_startX",
@@ -1696,6 +1722,7 @@ def create_app_instance(self):
             "pick_contour_heigth": "pick_contour_heigth",
             "pick_show_decoration": "pick_show_decoration",
             "pick_autorange": "pick_autorange",
+            "pick_TS_color_variable": "pick_TS_color_variable",
         }
         other_cntrls.update(cbar_dict)
         pn.state.location.sync(
@@ -1731,6 +1758,7 @@ def create_app_instance(self):
                     #    clear_rows,
                     #    )),
                     ("more", ctrl_more),
+                    ("adjust Colorbars", ctrl_colorbars),
                     # ('WIP',add_row),
                 ],
             ),
