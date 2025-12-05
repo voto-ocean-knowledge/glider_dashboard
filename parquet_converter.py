@@ -12,6 +12,6 @@ for file in nc_datasets:
         print(f"{file.replace('nc', 'parquet')} already exists, skip")
         continue
     else:
-        df = xr.open_dataset(file, drop_variables="ad2cp_time").to_pandas()
+        df = xr.open_dataset(file, drop_variables="ad2cp_time").to_pandas().sort_index()
         df = pl.from_dataframe(df.astype(np.float32))
         df.write_parquet(file.replace("nc", "parquet"))
