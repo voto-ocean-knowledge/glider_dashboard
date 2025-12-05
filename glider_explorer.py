@@ -529,17 +529,12 @@ class GliderDashboard(param.Parameterized):
     def preset_clim_slider(self):
         for variable in self.pick_variables:
             if self.data_in_view is not None:
-                # stats = self.data_in_view.select(pl.col(variable)).describe(
-                #    (0.01, 0.99)
-                # )
                 setattr(
                     self,
                     f"pick_cbar_range_{variable}",
                     (
                         self.stats.loc["1%"]["variable"],
                         self.stats.loc["99%"]["variable"],
-                        # stats.loc["1%"][variable],
-                        # stats.loc["99%"][variable],
                     ),
                 )
 
@@ -988,7 +983,7 @@ class GliderDashboard(param.Parameterized):
             # activate sparse data mode to speed up reactivity
             plt_props["zoomed_out"] = True
             plt_props["dynfontsize"] = 4
-            plt_props["subsample_freq"] = 10
+            plt_props["subsample_freq"] = 10  # 25  # 10
         elif (x1 - x0) > np.timedelta64(180, "D"):
             # activate sparse data mode to speed up reactivity
             plt_props["zoomed_out"] = False
@@ -1116,16 +1111,6 @@ class GliderDashboard(param.Parameterized):
             ds = dsdict[dsid]
             varlist_small.append(ds)
 
-        dsconc = utils.voto_concat_datasets2(varlist)
-        dsconc = dsconc.with_columns(pl.col("depth").neg())
-
-        dsconc_small = utils.voto_concat_datasets2(varlist_small)
-        dsconc_small = dsconc_small.with_columns(pl.col("depth").neg())
-
-        # if (len(varlist) == 0) or (len(self.pick_variables) == 0):
-        #    return None
-        # concat and drop_duplicates could potentially be done by pandarallel
-
         if self.pick_TS or self.pick_profiles:
             nanosecond_iterator = 1
             for ndataset in varlist:
@@ -1133,37 +1118,57 @@ class GliderDashboard(param.Parameterized):
                     pl.col("time") + np.timedelta64(nanosecond_iterator, "ns")
                 )
                 nanosecond_iterator += 1
-            if (self.endX - self.startX) > np.timedelta64(20, "D"):
-                self.stats = (
-                    dsconc_small.describe(  # .select(pl.col(self.pick_variables))
-                        (0.01, 0.05, 0.95, 0.99)
-                    )
-                    .to_pandas()
-                    .set_index("statistic")
+            for ndataset in varlist_small:
+                ndataset = ndataset.with_columns(
+                    pl.col("time") + np.timedelta64(nanosecond_iterator, "ns")
                 )
-            else:
-                self.stats = (
-                    dsconc.describe((0.01, 0.99)).to_pandas().set_index("statistic")
+                nanosecond_iterator += 1
+
+        dsconc = utils.voto_concat_datasets2(varlist)
+        dsconc = dsconc.with_columns(pl.col("depth").neg()).sort("time")
+
+        dsconc_small = utils.voto_concat_datasets2(varlist_small)
+        dsconc_small = dsconc_small.with_columns(pl.col("depth").neg()).sort("time")
+
+        self.data_in_view = (
+            dsconc.filter(
+                (pl.col("time") > self.pick_startX) & (pl.col("time") < self.pick_endX)
+            )
+            # this is a possible route to speed up plotting. Works.
+            # .group_by_dynamic("time", every="5s")
+            # .agg(pl.col(*variables, "depth", "salinity").mean())
+        )
+        self.data_in_view_small = dsconc_small.filter(
+            (pl.col("time") > self.pick_startX) & (pl.col("time") < self.pick_endX)
+        )
+
+        if (self.endX - self.startX) > np.timedelta64(20, "D"):
+            self.stats = (
+                self.data_in_view_small.describe(  # .select(pl.col(self.pick_variables))
+                    (0.01, 0.05, 0.99)
                 )
+                .to_pandas()
+                .set_index("statistic")
+            )
+        else:
+            self.stats = (
+                self.data_in_view.describe((0.01, 0.05, 0.99))
+                .to_pandas()
+                .set_index("statistic")
+            )
 
-        # dsconc = pd.concat(varlist)
-        # if self.pick_TS or self.pick_profiles:
-        #    dsconc = dsconc.unique(
-        #        subset=["temperature", "salinity"]
-        #    )  # dsconc.drop_duplicates(subset=["temperature", "salinity"])
-
-        self.data_in_view = dsconc
-        self.data_in_view_small = dsconc_small
         # THIS MUST BE REMOVE FOR GREAT PERFORMANCE.
         # REQUIRES REWRITE OF SOME CLIM AND QUANTILE FILTERS I BELIEVE
         # self.update_markdown(x_range, y_range) # THIS SHOULD BE READDED EVENTUALLY
 
         if (self.pick_contours is not None) and (self.pick_contours != "same as above"):
             mplt = create_single_ds_plot_raster(
-                data=dsconc, variables=[*variables, self.pick_contours]
+                data=self.data_in_view, variables=[*variables, self.pick_contours]
             )
         else:
-            mplt = create_single_ds_plot_raster(data=dsconc, variables=variables)
+            mplt = create_single_ds_plot_raster(
+                data=self.data_in_view, variables=variables
+            )
         return mplt
 
     def get_xsection_TS(self, x_range, y_range):
