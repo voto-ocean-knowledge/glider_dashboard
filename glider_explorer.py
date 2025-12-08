@@ -50,11 +50,15 @@ metadata["time_coverage_start (UTC)"] = metadata[
 metadata["time_coverage_end (UTC)"] = metadata["time_coverage_end (UTC)"].dt.tz_convert(
     None
 )
+
 dsdict = {}
-for dsid in metadata.index:
-    dsdict[dsid.replace("nrt", "delayed")] = pl.scan_parquet(
-        f"../voto_erddap_data_cache/{dsid.replace('nrt', 'delayed')}.parquet"
-    )
+for dsid in set(all_datasets.index).intersection(
+    [element.replace("nrt", "delayed") for element in metadata.index]
+    + list(metadata.index)
+):
+    # dsdict[dsid.replace("nrt", "delayed")] = pl.scan_parquet(
+    #    f"../voto_erddap_data_cache/{dsid.replace('nrt', 'delayed')}.parquet"
+    # )
     dsdict[dsid] = pl.scan_parquet(f"../voto_erddap_data_cache/{dsid}.parquet")
 
 variables_selectable = (
