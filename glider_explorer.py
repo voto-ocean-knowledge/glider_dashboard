@@ -3,7 +3,7 @@ import time
 import cmocean
 import datashader as dsh
 import holoviews as hv
-import hvplot.pandas  # noqa
+import hvplot.polars  # noqa
 import numpy as np
 import pandas as pd
 import panel as pn
@@ -52,15 +52,20 @@ metadata["time_coverage_end (UTC)"] = metadata["time_coverage_end (UTC)"].dt.tz_
 )
 
 dsdict = {}
-for dsid in set(all_datasets.index).intersection(
+
+all_dataset_names = set(all_datasets.index).intersection(
     [element.replace("nrt", "delayed") for element in metadata.index]
     + list(metadata.index)
-):
+)
+all_dataset_names = list(all_dataset_names) + [
+    dataset_name + "_small" for dataset_name in all_dataset_names
+]
+
+for dsid in all_dataset_names:
     # dsdict[dsid.replace("nrt", "delayed")] = pl.scan_parquet(
     #    f"../voto_erddap_data_cache/{dsid.replace('nrt', 'delayed')}.parquet"
     # )
     dsdict[dsid] = pl.scan_parquet(f"../voto_erddap_data_cache/{dsid}.parquet")
-
 variables_selectable = (
     pl.concat(dsdict.values(), how="diagonal").collect_schema().names()
 )
@@ -731,12 +736,15 @@ class GliderDashboard(param.Parameterized):
 
         # cntr_plts = []
         plots_dict = dict(dmap_rasterized=dict(), dmap_rasterized_contour=dict())
-        if self.pick_contour_heigth:
-            cheight = int(self.pick_contour_heigth / len(self.pick_variables))
+        if len(self.pick_variables):
+            if self.pick_contour_heigth:
+                cheight = int(self.pick_contour_heigth / len(self.pick_variables))
+            else:
+                cheight = int(
+                    (400 + 150 * len(self.pick_variables)) / len(self.pick_variables)
+                )
         else:
-            cheight = int(
-                (400 + 150 * len(self.pick_variables)) / len(self.pick_variables)
-            )
+            cheight = 0
 
         # make sure all range sliders for non-activated variables are hidden:
         for variable in list(set(variables_selectable).difference(self.pick_variables)):
@@ -849,9 +857,13 @@ class GliderDashboard(param.Parameterized):
                     ]
                 )
         else:
-            contourplots = hv.Layout(
-                [element for element in plots_dict["dmap_rasterized"].values()]
-            )
+            # There is nothing to show here, return empty
+            if self.pick_variables:
+                contourplots = hv.Layout(
+                    [element for element in plots_dict["dmap_rasterized"].values()]
+                )
+            else:
+                return pn.Column()
         ncols = 1
         if self.pick_TS or self.pick_profiles:
             # link the contourplots with the scatterplot
@@ -1123,8 +1135,13 @@ class GliderDashboard(param.Parameterized):
         varlist_small = []
         # if plt_props["zoomed_out"]:
         for dsid in metakeys:
-            ds = dsdict[dsid]
-            ds = ds.filter(pl.col("profile_num") % plt_props["subsample_freq"] == 0)
+            if plt_props["zoomed_out"]:
+                ds = dsdict[dsid + "_small"]
+            else:
+                ds = dsdict[dsid]
+            # import pdb
+            # pdb.set_trace()
+            # ds = ds.filter(pl.col("profile_num") % plt_props["subsample_freq"] == 0)
             varlist.append(ds)
         # if plt_props["zoomed_out"]:
         for dsid in meta.index:
