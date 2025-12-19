@@ -322,8 +322,8 @@ class GliderDashboard(param.Parameterized):
     )
     pick_startY = param.Number(default=None, label="startY", doc="startY", precedence=1)
     pick_endY = param.Number(default=8, label="endY", doc="endY", precedence=1)
-    pick_contour_heigth = param.Number(
-        default=None, label="contour_heigth", precedence=1
+    pick_contour_height = param.Number(
+        default=None, label="contour_height", precedence=1
     )
     pick_display_threshold = param.Number(
         default=1, step=1, bounds=(-10, 10), label="display_treshold"
@@ -351,6 +351,13 @@ class GliderDashboard(param.Parameterized):
         default=False,
         label="enable linked selections",
         doc="enables linked brushing with box and lasso select",
+        precedence=1,
+    )
+    button = param.Action(
+        lambda x: x.param.trigger("button"),
+        # default=False,
+        label="Create download link",
+        doc="Create download link",
         precedence=1,
     )
     pick_contours = param.Selector(
@@ -399,6 +406,7 @@ class GliderDashboard(param.Parameterized):
         precedence=1,
     )
     data_in_view = None
+    # file_download = None
     contour_processing = False
     startX, endX = (
         # metadata["time_coverage_start (UTC)"].min().to_datetime64(),
@@ -425,7 +433,8 @@ class GliderDashboard(param.Parameterized):
         p3 = f"""from {np.datetime_as_string(self.startX, unit="s")} to {np.datetime_as_string(self.endX, unit="s")}. """
 
         p4 = f"""Number of profiles {
-            self.data_in_view["profile_num"][-1] - self.data_in_view["profile_num"][0]
+            self.data_in_view.select("profile_num").last().collect()[0, 0]
+            - self.data_in_view.select("profile_num").first().collect()[0, 0]
         } """
 
         self.markdown.object = p1 + p2 + p3 + p4  # +r"$$\frac{1}{n}$$"
@@ -610,6 +619,28 @@ class GliderDashboard(param.Parameterized):
         mylayout[0][2] = pn.Row(hv.Layout(profile_plots))
 
     @param.depends(
+        "button",
+        watch=True,
+    )
+    def create_download(self):
+        print("execute create download")
+        from io import StringIO
+
+        sio = StringIO()
+        self.data_in_view.select(["time", "depth", *self.pick_variables]).sink_parquet(
+            "output.parquet"
+        )
+        # This implementation is not thread save, output is always output.parquet
+        self.file_download = pn.widgets.FileDownload(
+            "output.parquet", embed=False, filename="dataframe.parquet", align="end"
+        )
+        # remove previously generate download links
+        for index, element in enumerate(mylayout):
+            if type(element) == pn.widgets.misc.FileDownload:
+                mylayout.pop(index)
+        mylayout.append(self.file_download)
+
+    @param.depends(
         "pick_cnorm",
         "pick_variables",
         "pick_aggregation",
@@ -737,8 +768,8 @@ class GliderDashboard(param.Parameterized):
         # cntr_plts = []
         plots_dict = dict(dmap_rasterized=dict(), dmap_rasterized_contour=dict())
         if len(self.pick_variables):
-            if self.pick_contour_heigth:
-                cheight = int(self.pick_contour_heigth / len(self.pick_variables))
+            if self.pick_contour_height:
+                cheight = int(self.pick_contour_height / len(self.pick_variables))
             else:
                 cheight = int(
                     (400 + 150 * len(self.pick_variables)) / len(self.pick_variables)
@@ -824,6 +855,7 @@ class GliderDashboard(param.Parameterized):
                     hooks=[lambda p, _: p.state.update(border_fill_alpha=0)],
                 )
             else:
+                cheight += 50
                 plots_dict["dmap_rasterized"][variable] = spread(
                     rasters(variable), px=1, how="source"
                 ).opts(
@@ -916,9 +948,6 @@ class GliderDashboard(param.Parameterized):
             if self.pick_profiles
             else contourplots
         )
-        # contourplots = contourplots
-        # ncols = 2 if (self.pick_TS or self.pick_profiles) else 1
-        # self.contourplots = contourplots  # make this available for other methods
         return pn.Column(contourplots.cols(ncols))
 
     def create_mean(self):
@@ -1126,25 +1155,32 @@ class GliderDashboard(param.Parameterized):
             )
             for element in meta.index
         ]
-        # import pdb
-        #
-        # pdb.set_trace()
+
+        #################################################################
+        # This is currently hard to understand, but:                    #
+        # varlist are the datasets that are visualized, either the      #
+        # original .parquet files or the _small.parquet version if      #
+        # zoomed out                                                    #
+        # varlist_small are the nrt_*.parquet files, that are evaluated #
+        # to create statistics (quantiles for data ranges)              #
+        #################################################################
 
         variables = self.pick_variables
         varlist = []
         varlist_small = []
         # if plt_props["zoomed_out"]:
         for dsid in metakeys:
+            # This is delayed data if available
             if plt_props["zoomed_out"]:
                 ds = dsdict[dsid + "_small"]
             else:
                 ds = dsdict[dsid]
-            # import pdb
-            # pdb.set_trace()
+
             # ds = ds.filter(pl.col("profile_num") % plt_props["subsample_freq"] == 0)
             varlist.append(ds)
-        # if plt_props["zoomed_out"]:
+
         for dsid in meta.index:
+            # This is only the nrt data
             ds = dsdict[dsid]
             varlist_small.append(ds)
 
@@ -1196,7 +1232,7 @@ class GliderDashboard(param.Parameterized):
 
         # THIS MUST BE REMOVE FOR GREAT PERFORMANCE.
         # REQUIRES REWRITE OF SOME CLIM AND QUANTILE FILTERS I BELIEVE
-        # self.update_markdown(x_range, y_range) # THIS SHOULD BE READDED EVENTUALLY
+        self.update_markdown(x_range, y_range)  # THIS SHOULD BE READDED EVENTUALLY
 
         if (self.pick_contours is not None) and (self.pick_contours != "same as above"):
             mplt = create_single_ds_plot_raster(
@@ -1646,6 +1682,13 @@ def create_app_instance(self):
         # button_cols,
         pn.Param(
             glider_dashboard,
+            parameters=["button"],
+            show_name=False,
+            # widgets={"button": pn.widgets.Button},
+            # display_threshold=0.5,
+        ),
+        pn.Param(
+            glider_dashboard,
             parameters=["endX"],
             show_name=False,
             # display_threshold=10,
@@ -1740,7 +1783,7 @@ def create_app_instance(self):
             "pick_startY": "pick_startY",
             "pick_endY": "pick_endY",
             "pick_display_threshold": "pick_display_threshold",
-            "pick_contour_heigth": "pick_contour_heigth",
+            "pick_contour_height": "pick_contour_height",
             "pick_show_decoration": "pick_show_decoration",
             "pick_autorange": "pick_autorange",
             "pick_TS_color_variable": "pick_TS_color_variable",
