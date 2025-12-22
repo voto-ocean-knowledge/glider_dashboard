@@ -11,17 +11,40 @@ month = 4
 
 
 def load_metadata():
-    server = "https://erddap.observations.voiceoftheocean.org/erddap"
-    e = ERDDAP(
-        server=server,
-        protocol="tabledap",
-        response="csv",
-    )
-    e.dataset_id = "meta_metadata_table"
-    metadata = e.to_pandas(index_col="datasetID", date_format="%f")
+    def load_ERDDAP_CSV_Datasets(erddap_url, dataset_id):
+        server = erddap_url
+        e = ERDDAP(
+            server=server,
+            protocol="tabledap",
+            response="csv",
+        )
+        # e.dataset_id = "meta_metadata_table"
+        # metadata = e.to_pandas(index_col="datasetID", date_format="%f")
 
-    e.dataset_id = "allDatasets"
-    all_datasets = e.to_pandas(index_col="datasetID", date_format="%f")
+        e.dataset_id = dataset_id
+        return e.to_pandas(index_col="datasetID", date_format="%f")
+
+    metadata = load_ERDDAP_CSV_Datasets(
+        "https://erddap.observations.voiceoftheocean.org/erddap", "meta_metadata_table"
+    )
+    allDatasetsVOTO = load_ERDDAP_CSV_Datasets(
+        "https://erddap.observations.voiceoftheocean.org/erddap", "allDatasets"
+    )
+    allDatasetsGDAC = load_ERDDAP_CSV_Datasets(
+        "https://gliders.ioos.us/erddap", "allDatasets"
+    )
+    allDatasets = pd.concat([allDatasetsVOTO, allDatasetsGDAC])
+    # server = "https://erddap.observations.voiceoftheocean.org/erddap"
+    # e = ERDDAP(
+    #    server=server,
+    #    protocol="tabledap",
+    #    response="csv",
+    # )
+    # e.dataset_id = "meta_metadata_table"
+    # metadata = e.to_pandas(index_col="datasetID", date_format="%f")
+    #
+    # e.dataset_id = "allDatasets"
+    # all_datasets = e.to_pandas(index_col="datasetID", date_format="%f")
 
     def obj_to_string(x):
         return pprint.pformat(x)
@@ -65,7 +88,14 @@ def load_metadata():
     metadata["time_coverage_start (UTC)"] = pd.to_datetime(
         metadata["time_coverage_start (UTC)"]
     )
-    return metadata, all_datasets
+
+    allDatasets["minTime (UTC)"] = pd.to_datetime(allDatasets["minTime (UTC)"])
+    allDatasets["maxTime (UTC)"] = pd.to_datetime(allDatasets["maxTime (UTC)"])
+
+    # import pdb
+
+    # pdb.set_trace()
+    return metadata, allDatasets
 
 
 def variable_exists(x, variable):
@@ -98,18 +128,18 @@ def create_available_variables_columns(metadata):
 def filter_metadata():
     # Better to return filtered DataFrame instead of IDs?
     mode = "all"  # 'nrt', 'delayed'
-    metadata, all_datasets = load_metadata()
+    metadata, allDatasets = load_metadata()
 
     metadata = metadata[
         (metadata["project"] == project)
         & (metadata["basin"] == basin)
-        & (metadata["time_coverage_start (UTC)"].dt.year == 2025)
-        & (metadata["time_coverage_start (UTC)"].dt.month > 9)
+        & (metadata["time_coverage_start (UTC)"].dt.year == 2023)
+        & (metadata["time_coverage_start (UTC)"].dt.month >= 10)
     ]
 
     # for basins
     # metadata = drop_overlaps(metadata)
-    return metadata, all_datasets
+    return metadata, allDatasets
 
 
 def add_delayed_dataset_ids(metadata, all_datasets):

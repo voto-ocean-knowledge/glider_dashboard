@@ -37,7 +37,7 @@ pn.extension(
 
 
 # all_metadata is loaded for the metadata visualisation
-all_metadata, _ = utils.load_metadata()
+all_metadata, allDatasets = utils.load_metadata()
 
 ###### filter metadata to prepare download ##############
 metadata, all_datasets = utils.filter_metadata()
@@ -61,6 +61,7 @@ all_dataset_names = list(all_dataset_names) + [
     dataset_name + "_small" for dataset_name in all_dataset_names
 ]
 
+
 for dsid in all_dataset_names:
     # dsdict[dsid.replace("nrt", "delayed")] = pl.scan_parquet(
     #    f"../voto_erddap_data_cache/{dsid.replace('nrt', 'delayed')}.parquet"
@@ -69,7 +70,22 @@ for dsid in all_dataset_names:
 variables_selectable = (
     pl.concat(dsdict.values(), how="diagonal").collect_schema().names()
 )
+
+all_dataset_names.append("bass-20231007T0000")
+all_dataset_names.append("bass-20231007T0000_small")
+dsdict["bass-20231007T0000"] = (
+    pl.scan_parquet(f"../voto_erddap_data_cache/{dsid}.parquet")
+    .drop_nulls(subset=["temperature", "salinity", "depth"])
+    .with_columns(pl.col("depth").neg())
+)
+dsdict["bass-20231007T0000_small"] = (
+    pl.scan_parquet(f"../voto_erddap_data_cache/{dsid}_small.parquet")
+    .drop_nulls(subset=["temperature", "salinity", "depth"])
+    .with_columns(pl.col("depth").neg())
+)
+
 # import pdb
+
 # pdb.set_trace()
 # print(dsid)
 
@@ -200,6 +216,7 @@ def create_single_ds_plot_raster(data, variables):
     variables = set(variables)
     variables.add("temperature")  # inplace operations
     variables.add("salinity")
+    print("data", type(data), data)
     raster = hv.Points(
         data=data,
         kdims=["time", "depth"],
@@ -250,6 +267,7 @@ class GliderDashboard(param.Parameterized):
         precedence=1,
     )
     alldslist = list(filter(lambda k: "nrt" in k, dsdict.keys()))
+    alldslist.append("bass-20231007T0000")
     alldslabels = [element[4:] for element in alldslist]
     objectsdict = dict(zip(alldslabels, alldslist))
     # import pdb
@@ -525,7 +543,11 @@ class GliderDashboard(param.Parameterized):
             meta = utils.drop_overlaps_fast(meta)
         else:
             # second case, user selected dids
-            meta = metadata.loc[self.pick_dsids]
+            meta = allDatasets.loc[self.pick_dsids]  # metadata.loc[self.pick_dsids]
+            # import pdb
+
+            # pdb.set_trace()
+            print(meta)
         # hacky way to differentiate if called via synclink or refreshed with UI buttons
         if not len(meta):
             self.startX = np.datetime64("2021-01-01")
@@ -537,9 +559,13 @@ class GliderDashboard(param.Parameterized):
         # print('ISINSTANCE', isinstance(self.pick_startX, pd.Timestamp))
         # print('INCOMING VIA LINK:', incoming_link)
         if not incoming_link:
-            mintime = meta["time_coverage_start (UTC)"].min()
-            maxtime = meta["time_coverage_end (UTC)"].max()
-            self.startX, self.endX = (mintime.to_datetime64(), maxtime.to_datetime64())
+            mintime = np.datetime64(
+                "2023-01-01"
+            )  # meta["time_coverage_start (UTC)"].min()
+            maxtime = np.datetime64(
+                "2026-01-01"
+            )  # meta["time_coverage_end (UTC)"].max()
+            self.startX, self.endX = mintime, maxtime
             self.pick_startX, self.pick_endX = (mintime, maxtime)
         else:
             self.pick_startX, self.pick_endX = (self.pick_startX, self.pick_endX)
@@ -1032,7 +1058,12 @@ class GliderDashboard(param.Parameterized):
 
         else:
             # second case, user selected dids
-            meta = metadata.loc[self.pick_dsids]
+            try:
+                meta = metadata.loc[self.pick_dsids]
+            except:
+                meta = allDatasets.loc[self.pick_dsids]
+                meta["time_coverage_start (UTC)"] = meta["minTime (UTC)"]
+                meta["time_coverage_end (UTC)"] = meta["maxTime (UTC)"]
 
         # print(f'len of meta is {len(meta)} in load_viewport_datasets')
         if (x1 - x0) > np.timedelta64(720, "D"):
@@ -1197,25 +1228,18 @@ class GliderDashboard(param.Parameterized):
                 )
                 nanosecond_iterator += 1
 
+        # This should only be a temporay hack. I don't want all that data to go into my TS plots.
         dsconc = utils.voto_concat_datasets2(varlist)
         dsconc = dsconc.with_columns(pl.col("depth").neg()).sort("time")
 
         dsconc_small = utils.voto_concat_datasets2(varlist_small)
         dsconc_small = dsconc_small.with_columns(pl.col("depth").neg()).sort("time")
 
-        self.data_in_view = (
-            dsconc.filter(
-                (pl.col("time") > self.pick_startX) & (pl.col("time") < self.pick_endX)
-            )
-            # this is a possible route to speed up plotting. Works.
-            # .group_by_dynamic("time", every="5s")
-            # .agg(pl.col(*variables, "depth", "salinity").mean())
-        )
-        self.data_in_view_small = dsconc_small.filter(
-            (pl.col("time") > self.pick_startX) & (pl.col("time") < self.pick_endX)
-        )
+        self.data_in_view = dsconc  # .dropna(subset=['temperature', 'salinity'])
+        self.data_in_view_small = dsconc_small
 
         if (self.endX - self.startX) > np.timedelta64(20, "D"):
+            # THIS IS EXPENSIVE. I SHOULD CREATE STATS ONLY WHERE NEEDED; ESPECIALLY WITH .to_pandas()
             self.stats = (
                 self.data_in_view_small.describe(  # .select(pl.col(self.pick_variables))
                     (0.01, 0.05, 0.99)
@@ -1232,16 +1256,11 @@ class GliderDashboard(param.Parameterized):
 
         # THIS MUST BE REMOVE FOR GREAT PERFORMANCE.
         # REQUIRES REWRITE OF SOME CLIM AND QUANTILE FILTERS I BELIEVE
-        self.update_markdown(x_range, y_range)  # THIS SHOULD BE READDED EVENTUALLY
+        # self.update_markdown(x_range, y_range)  # THIS SHOULD BE READDED EVENTUALLY
+        import pdb
 
-        if (self.pick_contours is not None) and (self.pick_contours != "same as above"):
-            mplt = create_single_ds_plot_raster(
-                data=self.data_in_view, variables=[*variables, self.pick_contours]
-            )
-        else:
-            mplt = create_single_ds_plot_raster(
-                data=self.data_in_view, variables=variables
-            )
+        pdb.set_trace()
+        mplt = create_single_ds_plot_raster(data=self.data_in_view, variables=variables)
         return mplt
 
     def get_xsection_TS(self, x_range, y_range):
