@@ -74,19 +74,29 @@ variables_selectable = (
 all_dataset_names.append("bass-20231007T0000")
 all_dataset_names.append("bass-20231007T0000_small")
 dsdict["bass-20231007T0000"] = (
-    pl.scan_parquet(f"../voto_erddap_data_cache/{dsid}.parquet")
+    pl.scan_parquet("../voto_erddap_data_cache/bass-20231007T0000.parquet")
     .drop_nulls(subset=["temperature", "salinity", "depth"])
-    .with_columns(pl.col("depth").neg())
+    .with_columns(pl.col("depth"))
 )
 dsdict["bass-20231007T0000_small"] = (
-    pl.scan_parquet(f"../voto_erddap_data_cache/{dsid}_small.parquet")
+    pl.scan_parquet("../voto_erddap_data_cache/bass-20231007T0000_small.parquet")
     .drop_nulls(subset=["temperature", "salinity", "depth"])
-    .with_columns(pl.col("depth").neg())
+    .with_columns(pl.col("depth"))
 )
 
-# import pdb
+dsdict["bass-20231007T0000_small"] = dsdict["bass-20231007T0000_small"].with_columns(
+    pl.col("time")
+    .dt.cast_time_unit("ns")
+    .dt.replace_time_zone(None)
+    .cast(pl.Float32, strict=False)
+)
+dsdict["bass-20231007T0000"] = dsdict["bass-20231007T0000"].with_columns(
+    pl.col("time")
+    .dt.cast_time_unit("ns")
+    .dt.replace_time_zone(None)
+    .cast(pl.Float32, strict=False)
+)
 
-# pdb.set_trace()
 # print(dsid)
 
 # initialize.dsdict
@@ -216,7 +226,6 @@ def create_single_ds_plot_raster(data, variables):
     variables = set(variables)
     variables.add("temperature")  # inplace operations
     variables.add("salinity")
-    print("data", type(data), data)
     raster = hv.Points(
         data=data,
         kdims=["time", "depth"],
@@ -270,9 +279,6 @@ class GliderDashboard(param.Parameterized):
     alldslist.append("bass-20231007T0000")
     alldslabels = [element[4:] for element in alldslist]
     objectsdict = dict(zip(alldslabels, alldslist))
-    # import pdb
-    #
-    # pdb.set_trace()
 
     pick_dsids = param.ListSelector(
         default=[],  # [alldslist[0]],#dslist[0]],
@@ -544,10 +550,7 @@ class GliderDashboard(param.Parameterized):
         else:
             # second case, user selected dids
             meta = allDatasets.loc[self.pick_dsids]  # metadata.loc[self.pick_dsids]
-            # import pdb
 
-            # pdb.set_trace()
-            print(meta)
         # hacky way to differentiate if called via synclink or refreshed with UI buttons
         if not len(meta):
             self.startX = np.datetime64("2021-01-01")
@@ -665,6 +668,44 @@ class GliderDashboard(param.Parameterized):
             if type(element) == pn.widgets.misc.FileDownload:
                 mylayout.pop(index)
         mylayout.append(self.file_download)
+
+    @param.depends(
+        "pick_dsids",
+        "pick_toggle",
+        "pick_basin",
+        watch=True,
+    )
+    def update_data(self):
+        x_range = (self.startX, self.endX)
+        meta, plt_props = self.load_viewport_datasets(x_range)
+
+        # if plt_props["zoomed_out"]:
+        #    metakeys = [element.replace("nrt", "delayed") for element in meta.index]
+        # else:
+        metakeys = [
+            (
+                element.replace("nrt", "delayed")
+                if element.replace("nrt", "delayed") in all_datasets.index
+                else element
+            )
+            for element in meta.index
+        ]
+        varlist = []
+        for dsid in metakeys:
+            # This is delayed data if available
+            if plt_props["zoomed_out"]:
+                ds = dsdict[dsid + "_small"]
+            else:
+                ds = dsdict[dsid]
+
+            # ds = ds.filter(pl.col("profile_num") % plt_props["subsample_freq"] == 0)
+            varlist.append(ds)
+
+        # This should only be a temporay hack. I don't want all that data to go into my TS plots.
+        dsconc = utils.voto_concat_datasets2(varlist)
+        dsconc = dsconc.with_columns(pl.col("depth").neg()).sort("time")
+        self.param["pick_variables"].objects = dsconc.collect_schema().names()
+        # self.data_in_view = dsconc
 
     @param.depends(
         "pick_cnorm",
@@ -948,6 +989,7 @@ class GliderDashboard(param.Parameterized):
         #    self.dynmap = self.dynmap * annotation#
         #
         #    return linked_plots
+
         if self.pick_show_decoration:
             contourplots = contourplots * dmap_decorators
         contourplots = contourplots * dmap_mld if self.pick_mld else contourplots
@@ -1257,9 +1299,7 @@ class GliderDashboard(param.Parameterized):
         # THIS MUST BE REMOVE FOR GREAT PERFORMANCE.
         # REQUIRES REWRITE OF SOME CLIM AND QUANTILE FILTERS I BELIEVE
         # self.update_markdown(x_range, y_range)  # THIS SHOULD BE READDED EVENTUALLY
-        import pdb
 
-        pdb.set_trace()
         mplt = create_single_ds_plot_raster(data=self.data_in_view, variables=variables)
         return mplt
 
@@ -1271,8 +1311,6 @@ class GliderDashboard(param.Parameterized):
         # low = #stats.filter(pl.col("statistic") == "1%")
         # high = #stats.filter(pl.col("statistic") == "99%")
 
-        # import §
-        # pdb.set_trace()
         # t2 = time.perf_counter()
         # if self.pick_variables[0]
         # Needs additional variable.
