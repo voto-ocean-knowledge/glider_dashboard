@@ -561,21 +561,17 @@ class GliderDashboard(param.Parameterized):
 
         # hacky way to differentiate if called via synclink or refreshed with UI buttons
         if not len(meta):
-            self.startX = np.datetime64("2021-01-01")
-            self.endX = np.datetime64("2024-01-01")
-            self.pick_startX = np.datetime64("2021-01-01")
-            self.pick_endX = np.datetime64("2024-01-01")
+            self.startX = None
+            self.endX = None
+            self.pick_startX = None
+            self.pick_endX = None
             return
         incoming_link = not (isinstance(self.pick_startX, pd.Timestamp))
         # print('ISINSTANCE', isinstance(self.pick_startX, pd.Timestamp))
         # print('INCOMING VIA LINK:', incoming_link)
         if not incoming_link:
-            mintime = np.datetime64(
-                "2023-01-01"
-            )  # meta["time_coverage_start (UTC)"].min()
-            maxtime = np.datetime64(
-                "2026-01-01"
-            )  # meta["time_coverage_end (UTC)"].max()
+            mintime = meta["minTime (UTC)"].min()
+            maxtime = meta["maxTime (UTC)"].max()
             self.startX, self.endX = mintime, maxtime
             self.pick_startX, self.pick_endX = (mintime, maxtime)
         else:
