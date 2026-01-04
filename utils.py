@@ -321,7 +321,7 @@ def voto_concat_datasets2(datasets):
     # ds = dd.concat(
     #    datasets, dim="time", variables=["temperature", "salinity"]
     # )  # xr.concat(datasets, dim="time")
-    ds = pl.concat([data for data in datasets], how="diagonal")
+    ds = pl.concat([data for data in datasets], how="diagonal_relaxed")
     # ds = add_dive_column(ds)
 
     return ds

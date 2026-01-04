@@ -10,6 +10,7 @@ import panel as pn
 import param
 import plotly.express as px
 import polars as pl
+import polars.selectors as cs
 from holoviews.operation.datashader import (
     rasterize,
     spread,
@@ -71,33 +72,36 @@ variables_selectable = (
     pl.concat(dsdict.values(), how="diagonal").collect_schema().names()
 )
 
-all_dataset_names.append("bass-20231007T0000")
-all_dataset_names.append("bass-20231007T0000_small")
-dsdict["bass-20231007T0000"] = (
-    pl.scan_parquet("../voto_erddap_data_cache/bass-20231007T0000.parquet")
-    .drop_nulls(subset=["temperature", "salinity", "depth"])
-    .with_columns(pl.col("depth"))
-)
-dsdict["bass-20231007T0000_small"] = (
-    pl.scan_parquet("../voto_erddap_data_cache/bass-20231007T0000_small.parquet")
-    .drop_nulls(subset=["temperature", "salinity", "depth"])
-    .with_columns(pl.col("depth"))
-)
+additional_names = [
+    "bass-20231007T0000",
+    "ce_320-20210909T1753-delayed",
+    "gichigami-20130813T1313",
+]
 
-dsdict["bass-20231007T0000_small"] = dsdict["bass-20231007T0000_small"].with_columns(
-    pl.col("time")
-    .dt.cast_time_unit("ns")
-    .dt.replace_time_zone(None)
-    .cast(pl.Float32, strict=False)
-)
-dsdict["bass-20231007T0000"] = dsdict["bass-20231007T0000"].with_columns(
-    pl.col("time")
-    .dt.cast_time_unit("ns")
-    .dt.replace_time_zone(None)
-    .cast(pl.Float32, strict=False)
-)
-
-# print(dsid)
+for dsid in additional_names:
+    all_dataset_names.append(dsid)
+    dsdict[dsid] = pl.scan_parquet(
+        f"../voto_erddap_data_cache/{dsid}.parquet"
+    ).drop_nulls(subset=["temperature", "salinity", "depth"])
+    dsdict[f"{dsid}_small"] = dsdict[dsid]
+    dsdict[dsid] = (
+        dsdict[dsid]
+        .drop(cs.string())
+        .with_columns(
+            pl.col("time").dt.cast_time_unit("ns").dt.replace_time_zone(None)
+            # .cast(pl.Float32, strict=False)
+        )
+        .rename({"profile_id": "profile_num"})
+    )
+    dsdict[f"{dsid}_small"] = (
+        dsdict[f"{dsid}_small"]
+        .drop(cs.string())
+        .with_columns(
+            pl.col("time").dt.cast_time_unit("ns").dt.replace_time_zone(None)
+            # .cast(pl.Float32, strict=False)
+        )
+        .rename({"profile_id": "profile_num"})
+    )
 
 # initialize.dsdict
 
@@ -276,7 +280,11 @@ class GliderDashboard(param.Parameterized):
         precedence=1,
     )
     alldslist = list(filter(lambda k: "nrt" in k, dsdict.keys()))
-    alldslist.append("bass-20231007T0000")
+    for dsid in additional_names:
+        alldslist.append(dsid)
+    # alldslist.append("bass-20231007T0000")
+    # alldslist.append("ce_320-20210909T1753-delayed")
+    # alldslist.append("gichigami-20130813T1313")
     alldslabels = [element[4:] for element in alldslist]
     objectsdict = dict(zip(alldslabels, alldslist))
 
@@ -702,7 +710,8 @@ class GliderDashboard(param.Parameterized):
             varlist.append(ds)
 
         # This should only be a temporay hack. I don't want all that data to go into my TS plots.
-        dsconc = utils.voto_concat_datasets2(varlist)
+        # dsconc = utils.voto_concat_datasets2(varlist)
+        dsconc = pl.concat([data for data in varlist], how="diagonal_relaxed")
         dsconc = dsconc.with_columns(pl.col("depth").neg()).sort("time")
         self.param["pick_variables"].objects = dsconc.collect_schema().names()
         # self.data_in_view = dsconc
