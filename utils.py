@@ -8,43 +8,53 @@ project = "SAMBA"
 basin = "Bornholm Basin"
 year = 2024
 month = 4
+GDAC_data = False
 
 
-def load_metadata():
-    def load_ERDDAP_CSV_Datasets(erddap_url, dataset_id):
-        server = erddap_url
-        e = ERDDAP(
-            server=server,
-            protocol="tabledap",
-            response="csv",
-        )
-        # e.dataset_id = "meta_metadata_table"
-        # metadata = e.to_pandas(index_col="datasetID", date_format="%f")
-
-        e.dataset_id = dataset_id
-        return e.to_pandas(index_col="datasetID", date_format="%f")
-
-    metadata = load_ERDDAP_CSV_Datasets(
-        "https://erddap.observations.voiceoftheocean.org/erddap", "meta_metadata_table"
+def load_ERDDAP_Datasets(erddap_url, dataset_id, format):
+    server = erddap_url
+    e = ERDDAP(
+        server=server,
+        protocol="tabledap",
+        response=format,
     )
-    allDatasetsVOTO = load_ERDDAP_CSV_Datasets(
-        "https://erddap.observations.voiceoftheocean.org/erddap", "allDatasets"
+    e.dataset_id = dataset_id
+    return e.to_pandas(index_col="datasetID", date_format="%f")
+
+def load_allDatasets_VOTO():
+    allDatasetsVOTO = load_ERDDAP_Datasets(
+        "https://erddap.observations.voiceoftheocean.org/erddap", "allDatasets", "csv"
     )
-    allDatasetsGDAC = load_ERDDAP_CSV_Datasets(
-        "https://gliders.ioos.us/erddap", "allDatasets"
+    allDatasetsVOTO["minTime (UTC)"] = pd.to_datetime(allDatasetsVOTO["minTime (UTC)"])
+    allDatasetsVOTO["maxTime (UTC)"] = pd.to_datetime(allDatasetsVOTO["maxTime (UTC)"])
+    #allDatasetsVOTO = allDatasetsVOTO[allDatasetsVOTO["minTime (UTC)"].dt.year == year]
+    #allDatasetsVOTO = allDatasetsVOTO[allDatasetsVOTO["minTime (UTC)"].dt.month < month]
+    return allDatasetsVOTO
+
+def load_allDatasets_GDAC():
+    allDatasetsGDAC = load_ERDDAP_Datasets(
+        "https://gliders.ioos.us/erddap", "allDatasets", "csv"
     )
-    allDatasets = pd.concat([allDatasetsVOTO, allDatasetsGDAC])
-    # server = "https://erddap.observations.voiceoftheocean.org/erddap"
-    # e = ERDDAP(
-    #    server=server,
-    #    protocol="tabledap",
-    #    response="csv",
-    # )
+    allDatasetsGDAC[allDatasetsGDAC["cdm_data_type"] == "TrajectoryProfile"] # filter out allDatasets table and other non-glider datasets
+    # allDatasetsGDAC = allDatasetsGDAC
+    allDatasetsGDAC["minTime (UTC)"] = pd.to_datetime(allDatasetsGDAC["minTime (UTC)"])
+    allDatasetsGDAC["maxTime (UTC)"] = pd.to_datetime(allDatasetsGDAC["maxTime (UTC)"])
+    allDatasetsGDAC = allDatasetsGDAC[allDatasetsGDAC["minTime (UTC)"].dt.year == year]
+    allDatasetsGDAC = allDatasetsGDAC[allDatasetsGDAC["minTime (UTC)"].dt.month < month]
+    allDatasetsGDAC = allDatasetsGDAC.iloc[0:6]
+    allDatasetsGDAC = allDatasetsGDAC[allDatasetsGDAC["institution"] != "C-PROOF"] # THIS is just here because C-PROOF files currently don't download from GDAC
+    #]C-PROOF
+    return allDatasetsGDAC
+
+def load_metadata_VOTO():
     # e.dataset_id = "meta_metadata_table"
     # metadata = e.to_pandas(index_col="datasetID", date_format="%f")
-    #
-    # e.dataset_id = "allDatasets"
-    # all_datasets = e.to_pandas(index_col="datasetID", date_format="%f")
+
+    metadata = load_ERDDAP_Datasets(
+        "https://erddap.observations.voiceoftheocean.org/erddap",
+        "meta_metadata_table",
+        "csv",
+    )
 
     def obj_to_string(x):
         return pprint.pformat(x)
@@ -89,13 +99,13 @@ def load_metadata():
         metadata["time_coverage_start (UTC)"]
     )
 
-    allDatasets["minTime (UTC)"] = pd.to_datetime(allDatasets["minTime (UTC)"])
-    allDatasets["maxTime (UTC)"] = pd.to_datetime(allDatasets["maxTime (UTC)"])
+    #allDatasets["minTime (UTC)"] = pd.to_datetime(allDatasets["minTime (UTC)"])
+    #allDatasets["maxTime (UTC)"] = pd.to_datetime(allDatasets["maxTime (UTC)"])
 
     # import pdb
 
     # pdb.set_trace()
-    return metadata, allDatasets
+    return metadata# , allDatasets
 
 
 def variable_exists(x, variable):
@@ -128,18 +138,26 @@ def create_available_variables_columns(metadata):
 def filter_metadata():
     # Better to return filtered DataFrame instead of IDs?
     mode = "all"  # 'nrt', 'delayed'
-    metadata, allDatasets = load_metadata()
+    metadata = load_metadata_VOTO()
 
     metadata = metadata[
         (metadata["project"] == project)
         & (metadata["basin"] == basin)
-        & (metadata["time_coverage_start (UTC)"].dt.year == 2023)
-        & (metadata["time_coverage_start (UTC)"].dt.month >= 10)
+        & (metadata["time_coverage_start (UTC)"].dt.year == year)
+        & (metadata["time_coverage_start (UTC)"].dt.month < month)
     ]
-
+    # Terrible style here.
+    # all_datasets = allDatasets[allDatasets["minTime (UTC)"].dt.year == year]
+    # all_datasets = all_datasets[
+    #     all_datasets["institution"] != "Voice of the Ocean Foundation"
+    #]
+    #all_datasets =
+    #all_datasets = all_datasets[
+    #    all_datasets["institution"] == "Skidaway Institute of Oceanography"
+    #]C-PROOF
     # for basins
     # metadata = drop_overlaps(metadata)
-    return metadata, allDatasets
+    return metadata # , all_datasets
 
 
 def add_delayed_dataset_ids(metadata, all_datasets):
@@ -286,41 +304,9 @@ def voto_concat_datasets2(datasets):
     # in case the datasets have a different set of variables, emtpy variables are created
     # to allow for concatenation (concat with different set of variables leads to error)
     for index in range(1, len(datasets)):
-        # import pdb
-
-        # pdb.set_trace()
-        # dsconc.with_columns(pl.col("depth").neg())
-        # import pdb
-
-        # pdb.set_trace()
-        # pass
-
         datasets[index] = datasets[index].with_columns(
             pl.col("profile_num") + (index * 10000)
         )  # datasets[index - 1].select(pl.col("profile_num")).max()  # .collect())
-
-        # datasets[index].select(pl.col("profile_num")).max().collect()
-        # datasets[index] = datasets[index].with_columns(
-        #    pl.col("profile_num") + datasets[index - 1]["profile_num"].max()
-        # )
-        # datasets[index]["profile_num"] += (
-        #    datasets[index - 1].copy()["profile_num"].max()
-        # )
-    # mlist = [set(dataset.columns) for dataset in datasets]
-    # allvariables = set.union(*mlist)
-    # for dataset in datasets:
-    #    missing_vars = allvariables - set(dataset.variables.keys())
-    #    for missing_var in missing_vars:
-    #        dataset[missing_var] = np.nan
-
-    # renumber profiles, so that profile_num still is unique in concat-dataset
-    # for index in range(1, len(datasets)):
-    #    datasets[index]["profile_num"] += (
-    #        datasets[index - 1].copy()["profile_num"].max()
-    #    )
-    # ds = dd.concat(
-    #    datasets, dim="time", variables=["temperature", "salinity"]
-    # )  # xr.concat(datasets, dim="time")
     ds = pl.concat([data for data in datasets], how="diagonal_relaxed")
     # ds = add_dive_column(ds)
 

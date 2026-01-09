@@ -38,10 +38,15 @@ pn.extension(
 
 
 # all_metadata is loaded for the metadata visualisation
-all_metadata, allDatasets = utils.load_metadata()
+#all_metadata, allDatasets = utils.load_metadata()
+all_metadata = utils.load_metadata_VOTO()
+
+#allDatasets = pd.concat([allDatasetsVOTO, allDatasetsGDAC])
 
 ###### filter metadata to prepare download ##############
-metadata, all_datasets = utils.filter_metadata()
+# metadata, all_datasets = utils.filter_metadata()
+metadata = utils.filter_metadata()
+
 metadata = metadata.drop(
     ["nrt_SEA067_M15", "nrt_SEA079_M14", "nrt_SEA061_M63"], errors="ignore"
 )  # temporary data inconsistency
@@ -51,59 +56,85 @@ metadata["time_coverage_start (UTC)"] = metadata[
 metadata["time_coverage_end (UTC)"] = metadata["time_coverage_end (UTC)"].dt.tz_convert(
     None
 )
+allDatasetsVOTO = utils.load_allDatasets_VOTO()
+allDatasetsGDAC = utils.load_allDatasets_GDAC()
+allDatasets = pd.concat([allDatasetsVOTO, allDatasetsGDAC])
 
 dsdict = {}
 
-all_dataset_names = set(all_datasets.index).intersection(
-    [element.replace("nrt", "delayed") for element in metadata.index]
-    + list(metadata.index)
-)
+# HERE I MUST DIFFERENTIATE INTO TWO DATASETS: ONE COMPLETE METADATA FOR THE METADASHBOARD,
+# AND ONE/TWO DATASETS THAT ARE FILTERED AND SHWON IN THE DASHBOARD
+# all_dataset_names = list(all_datasets.index) + list(metadata.index)
+# MUST BE REIMPLEMENTED!!!
+#all_dataset_names = set(
+#    list(all_datasets.index)
+#    + [element.replace("nrt", "delayed") for element in metadata.index]
+#    + list(metadata.index)
+#)
+# )
+# CURRENTLY I HAVE AN UNCLEAR DOUBLE FILTER EFFECT HERE :()
+all_dataset_names = set(allDatasetsVOTO.index).intersection(
+    [element.replace("nrt", "delayed") for element in metadata.index])
+all_dataset_names = list(all_dataset_names)
+all_dataset_names += list(metadata.index) # Add nrt data because I currently use it for statistics
+
+all_dataset_names += list(allDatasetsGDAC.index)
+#   + list(metadata.index)
+# )
 all_dataset_names = list(all_dataset_names) + [
     dataset_name + "_small" for dataset_name in all_dataset_names
 ]
 
-
-for dsid in all_dataset_names:
-    # dsdict[dsid.replace("nrt", "delayed")] = pl.scan_parquet(
-    #    f"../voto_erddap_data_cache/{dsid.replace('nrt', 'delayed')}.parquet"
-    # )
+for dsid in list(allDatasetsVOTO.index):
+    if not dsid in all_dataset_names:
+        continue
     dsdict[dsid] = pl.scan_parquet(f"../voto_erddap_data_cache/{dsid}.parquet")
-variables_selectable = (
-    pl.concat(dsdict.values(), how="diagonal").collect_schema().names()
-)
 
-additional_names = [
-    "bass-20231007T0000",
-    "ce_320-20210909T1753-delayed",
-    "gichigami-20130813T1313",
-]
-
-for dsid in additional_names:
-    all_dataset_names.append(dsid)
-    dsdict[dsid] = pl.scan_parquet(
-        f"../voto_erddap_data_cache/{dsid}.parquet"
-    ).drop_nulls(subset=["temperature", "salinity", "depth"])
-    dsdict[f"{dsid}_small"] = dsdict[dsid]
+for dsid in list(allDatasetsGDAC.index):
+    dsdict[dsid] = pl.scan_parquet(f"../voto_erddap_data_cache/{dsid}.parquet")
     dsdict[dsid] = (
         dsdict[dsid]
         .drop(cs.string())
         .with_columns(
-            pl.col("time").dt.cast_time_unit("ns").dt.replace_time_zone(None)
-            # .cast(pl.Float32, strict=False)
-        )
-        .rename({"profile_id": "profile_num"})
-    )
-    dsdict[f"{dsid}_small"] = (
-        dsdict[f"{dsid}_small"]
-        .drop(cs.string())
-        .with_columns(
-            pl.col("time").dt.cast_time_unit("ns").dt.replace_time_zone(None)
-            # .cast(pl.Float32, strict=False)
+            pl.col("time")
+            .dt.cast_time_unit("ns")
+            .dt.replace_time_zone(None)
+            .cast(pl.Float32, strict=False)
         )
         .rename({"profile_id": "profile_num"})
     )
 
-# initialize.dsdict
+#import pdb; pdb.set_trace();
+#for dsid in all_dataset_names:
+# dsdict[dsid.replace("nrt", "delayed")] = pl.scan_parquet(
+#    f"../voto_erddap_data_cache/{dsid.replace('nrt', 'delayed')}.parquet"
+# )
+"""
+print(f"now reading in {dsid}")
+if (dsid in list(metadata.index)) or (
+    dsid in [element.replace("nrt", "delayed") for element in metadata.index]
+):
+    dsdict[dsid] = pl.scan_parquet(f"../voto_erddap_data_cache/{dsid}.parquet")
+else:
+    dsdict[dsid] = pl.scan_parquet(f"../voto_erddap_data_cache/{dsid}.parquet")
+    dsdict[dsid] = (
+        dsdict[dsid]
+        .drop(cs.string())
+        .with_columns(
+            pl.col("time")
+            .dt.cast_time_unit("ns")
+            .dt.replace_time_zone(None)
+            .cast(pl.Float32, strict=False)
+        )
+        #.rename({"profile_id": "profile_num"})
+    )
+    print(dsdict[dsid].collect()['profile_id'])
+"""
+
+
+variables_selectable = (
+    pl.concat(dsdict.values(), how="diagonal_relaxed").collect_schema().names()
+)
 
 ####### specify global plot variables ####################
 # df.index = cudf.to_datetime(df.index)
@@ -282,9 +313,8 @@ class GliderDashboard(param.Parameterized):
     alldslist = list(filter(lambda k: "nrt" in k, dsdict.keys()))
     for dsid in additional_names:
         alldslist.append(dsid)
-    # alldslist.append("bass-20231007T0000")
-    # alldslist.append("ce_320-20210909T1753-delayed")
-    # alldslist.append("gichigami-20130813T1313")
+    alldslist = [x for x in alldslist if "_small" not in x]
+    alldslist += list(allDatasetsGDAC.index)
     alldslabels = [element[4:] for element in alldslist]
     objectsdict = dict(zip(alldslabels, alldslist))
 
@@ -689,7 +719,7 @@ class GliderDashboard(param.Parameterized):
         metakeys = [
             (
                 element.replace("nrt", "delayed")
-                if element.replace("nrt", "delayed") in all_datasets.index
+                if element.replace("nrt", "delayed") in allDatasets.index
                 else element
             )
             for element in meta.index
@@ -1228,7 +1258,7 @@ class GliderDashboard(param.Parameterized):
         metakeys = [
             (
                 element.replace("nrt", "delayed")
-                if element.replace("nrt", "delayed") in all_datasets.index
+                if element.replace("nrt", "delayed") in allDatasetsVOTO.index
                 else element
             )
             for element in meta.index
@@ -1247,6 +1277,7 @@ class GliderDashboard(param.Parameterized):
         varlist = []
         varlist_small = []
         # if plt_props["zoomed_out"]:
+        # import pdb; pdb.set_trace();
         for dsid in metakeys:
             # This is delayed data if available
             if plt_props["zoomed_out"]:
