@@ -38,10 +38,10 @@ pn.extension(
 
 
 # all_metadata is loaded for the metadata visualisation
-#all_metadata, allDatasets = utils.load_metadata()
+# all_metadata, allDatasets = utils.load_metadata()
 all_metadata = utils.load_metadata_VOTO()
 
-#allDatasets = pd.concat([allDatasetsVOTO, allDatasetsGDAC])
+# allDatasets = pd.concat([allDatasetsVOTO, allDatasetsGDAC])
 
 ###### filter metadata to prepare download ##############
 # metadata, all_datasets = utils.filter_metadata()
@@ -66,17 +66,20 @@ dsdict = {}
 # AND ONE/TWO DATASETS THAT ARE FILTERED AND SHWON IN THE DASHBOARD
 # all_dataset_names = list(all_datasets.index) + list(metadata.index)
 # MUST BE REIMPLEMENTED!!!
-#all_dataset_names = set(
+# all_dataset_names = set(
 #    list(all_datasets.index)
 #    + [element.replace("nrt", "delayed") for element in metadata.index]
 #    + list(metadata.index)
-#)
+# )
 # )
 # CURRENTLY I HAVE AN UNCLEAR DOUBLE FILTER EFFECT HERE :()
 all_dataset_names = set(allDatasetsVOTO.index).intersection(
-    [element.replace("nrt", "delayed") for element in metadata.index])
+    [element.replace("nrt", "delayed") for element in metadata.index]
+)
 all_dataset_names = list(all_dataset_names)
-all_dataset_names += list(metadata.index) # Add nrt data because I currently use it for statistics
+all_dataset_names += list(
+    metadata.index
+)  # Add nrt data because I currently use it for statistics
 
 all_dataset_names += list(allDatasetsGDAC.index)
 #   + list(metadata.index)
@@ -86,7 +89,7 @@ all_dataset_names = list(all_dataset_names) + [
 ]
 
 for dsid in list(allDatasetsVOTO.index):
-    if not dsid in all_dataset_names:
+    if dsid not in all_dataset_names:
         continue
     dsdict[dsid] = pl.scan_parquet(f"../voto_erddap_data_cache/{dsid}.parquet")
 
@@ -104,8 +107,8 @@ for dsid in list(allDatasetsGDAC.index):
         .rename({"profile_id": "profile_num"})
     )
 
-#import pdb; pdb.set_trace();
-#for dsid in all_dataset_names:
+# import pdb; pdb.set_trace();
+# for dsid in all_dataset_names:
 # dsdict[dsid.replace("nrt", "delayed")] = pl.scan_parquet(
 #    f"../voto_erddap_data_cache/{dsid.replace('nrt', 'delayed')}.parquet"
 # )
@@ -311,8 +314,6 @@ class GliderDashboard(param.Parameterized):
         precedence=1,
     )
     alldslist = list(filter(lambda k: "nrt" in k, dsdict.keys()))
-    for dsid in additional_names:
-        alldslist.append(dsid)
     alldslist = [x for x in alldslist if "_small" not in x]
     alldslist += list(allDatasetsGDAC.index)
     alldslabels = [element[4:] for element in alldslist]
@@ -949,7 +950,9 @@ class GliderDashboard(param.Parameterized):
                 and not self.pick_profiles
             ):
                 plots_dict["dmap_rasterized"][variable] = spread(
-                    rasters(variable), px=1, how="source"
+                    rasters(variable),
+                    px=1,
+                    how="source",  # , shape="circle"
                 ).opts(
                     ylim=(self.startY, self.endY),
                     xlim=(self.startX, self.endX),
@@ -959,7 +962,9 @@ class GliderDashboard(param.Parameterized):
             else:
                 cheight += 50
                 plots_dict["dmap_rasterized"][variable] = spread(
-                    rasters(variable), px=1, how="source"
+                    rasters(variable),
+                    px=1,
+                    how="source",  # , shape="circle"
                 ).opts(
                     ylim=(self.startY, self.endY),
                     xlim=(self.startX, self.endX),
