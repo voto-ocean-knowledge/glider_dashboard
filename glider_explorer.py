@@ -99,10 +99,8 @@ for dsid in list(allDatasetsGDAC.index):
         dsdict[dsid]
         .drop(cs.string())
         .with_columns(
-            pl.col("time")
-            .dt.cast_time_unit("ns")
-            .dt.replace_time_zone(None)
-            .cast(pl.Float32, strict=False)
+            pl.col("time").dt.cast_time_unit("ns").dt.replace_time_zone(None)
+            # .cast(pl.Float32, strict=False) # if this is activated, time is cast into float32, which leads to bugs in keeping x-range across parameter changes
         )
         .rename({"profile_id": "profile_num"})
     )
@@ -1321,21 +1319,14 @@ class GliderDashboard(param.Parameterized):
         self.data_in_view = dsconc  # .dropna(subset=['temperature', 'salinity'])
         self.data_in_view_small = dsconc_small
 
-        if (self.endX - self.startX) > np.timedelta64(20, "D"):
-            # THIS IS EXPENSIVE. I SHOULD CREATE STATS ONLY WHERE NEEDED; ESPECIALLY WITH .to_pandas()
-            self.stats = (
-                self.data_in_view_small.describe(  # .select(pl.col(self.pick_variables))
-                    (0.01, 0.05, 0.99)
-                )
-                .to_pandas()
-                .set_index("statistic")
+        # THIS IS EXPENSIVE. I SHOULD CREATE STATS ONLY WHERE NEEDED; ESPECIALLY WITH .to_pandas()
+        self.stats = (
+            self.data_in_view_small.describe(  # .select(pl.col(self.pick_variables))
+                (0.01, 0.05, 0.99)
             )
-        else:
-            self.stats = (
-                self.data_in_view.describe((0.01, 0.05, 0.99))
-                .to_pandas()
-                .set_index("statistic")
-            )
+            .to_pandas()
+            .set_index("statistic")
+        )
 
         # THIS MUST BE REMOVE FOR GREAT PERFORMANCE.
         # REQUIRES REWRITE OF SOME CLIM AND QUANTILE FILTERS I BELIEVE
