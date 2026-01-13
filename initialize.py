@@ -49,18 +49,19 @@ dutils.download_glider_dataset(
     # variables=variables,
 )
 
-allDatasetsGDAC = utils.load_allDatasets_GDAC()
-for dsid in allDatasetsGDAC.index:
-    print("now downloading", dsid)
-    e = ERDDAP(
-        server="https://gliders.ioos.us/erddap",
-        protocol="tabledap",
-        response="parquet",
-    )
-    e.dataset_id = dsid
-    url = e.get_download_url()
-    filepath = f"../voto_erddap_data_cache/{dsid}.parquet"
-    if os.path.isfile(filepath):
-        print("file already exists, skip and continue")
-        continue
-    urlretrieve(url, filepath)
+if utils.GDAC_data:
+    allDatasetsGDAC = utils.load_allDatasets_GDAC()
+    for dsid in allDatasetsGDAC.index:
+        print("now downloading", dsid)
+        e = ERDDAP(
+            server="https://gliders.ioos.us/erddap",
+            protocol="tabledap",
+            response="parquet",
+        )
+        e.dataset_id = dsid
+        url = e.get_download_url()
+        filepath = f"../voto_erddap_data_cache/{dsid}.parquet"
+        if os.path.isfile(filepath):
+            print("file already exists, skip and continue")
+            continue
+        urlretrieve(url, filepath)

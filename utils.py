@@ -21,30 +21,37 @@ def load_ERDDAP_Datasets(erddap_url, dataset_id, format):
     e.dataset_id = dataset_id
     return e.to_pandas(index_col="datasetID", date_format="%f")
 
+
 def load_allDatasets_VOTO():
     allDatasetsVOTO = load_ERDDAP_Datasets(
         "https://erddap.observations.voiceoftheocean.org/erddap", "allDatasets", "csv"
     )
     allDatasetsVOTO["minTime (UTC)"] = pd.to_datetime(allDatasetsVOTO["minTime (UTC)"])
     allDatasetsVOTO["maxTime (UTC)"] = pd.to_datetime(allDatasetsVOTO["maxTime (UTC)"])
-    #allDatasetsVOTO = allDatasetsVOTO[allDatasetsVOTO["minTime (UTC)"].dt.year == year]
-    #allDatasetsVOTO = allDatasetsVOTO[allDatasetsVOTO["minTime (UTC)"].dt.month < month]
+    # allDatasetsVOTO = allDatasetsVOTO[allDatasetsVOTO["minTime (UTC)"].dt.year == year]
+    # allDatasetsVOTO = allDatasetsVOTO[allDatasetsVOTO["minTime (UTC)"].dt.month < month]
     return allDatasetsVOTO
+
 
 def load_allDatasets_GDAC():
     allDatasetsGDAC = load_ERDDAP_Datasets(
         "https://gliders.ioos.us/erddap", "allDatasets", "csv"
     )
-    allDatasetsGDAC[allDatasetsGDAC["cdm_data_type"] == "TrajectoryProfile"] # filter out allDatasets table and other non-glider datasets
+    allDatasetsGDAC[
+        allDatasetsGDAC["cdm_data_type"] == "TrajectoryProfile"
+    ]  # filter out allDatasets table and other non-glider datasets
     # allDatasetsGDAC = allDatasetsGDAC
     allDatasetsGDAC["minTime (UTC)"] = pd.to_datetime(allDatasetsGDAC["minTime (UTC)"])
     allDatasetsGDAC["maxTime (UTC)"] = pd.to_datetime(allDatasetsGDAC["maxTime (UTC)"])
     allDatasetsGDAC = allDatasetsGDAC[allDatasetsGDAC["minTime (UTC)"].dt.year == year]
     allDatasetsGDAC = allDatasetsGDAC[allDatasetsGDAC["minTime (UTC)"].dt.month < month]
     allDatasetsGDAC = allDatasetsGDAC.iloc[0:6]
-    allDatasetsGDAC = allDatasetsGDAC[allDatasetsGDAC["institution"] != "C-PROOF"] # THIS is just here because C-PROOF files currently don't download from GDAC
-    #]C-PROOF
+    allDatasetsGDAC = allDatasetsGDAC[
+        allDatasetsGDAC["institution"] != "C-PROOF"
+    ]  # THIS is just here because C-PROOF files currently don't download from GDAC
+    # ]C-PROOF
     return allDatasetsGDAC
+
 
 def load_metadata_VOTO():
     # e.dataset_id = "meta_metadata_table"
@@ -99,13 +106,13 @@ def load_metadata_VOTO():
         metadata["time_coverage_start (UTC)"]
     )
 
-    #allDatasets["minTime (UTC)"] = pd.to_datetime(allDatasets["minTime (UTC)"])
-    #allDatasets["maxTime (UTC)"] = pd.to_datetime(allDatasets["maxTime (UTC)"])
+    # allDatasets["minTime (UTC)"] = pd.to_datetime(allDatasets["minTime (UTC)"])
+    # allDatasets["maxTime (UTC)"] = pd.to_datetime(allDatasets["maxTime (UTC)"])
 
     # import pdb
 
     # pdb.set_trace()
-    return metadata# , allDatasets
+    return metadata  # , allDatasets
 
 
 def variable_exists(x, variable):
@@ -150,14 +157,14 @@ def filter_metadata():
     # all_datasets = allDatasets[allDatasets["minTime (UTC)"].dt.year == year]
     # all_datasets = all_datasets[
     #     all_datasets["institution"] != "Voice of the Ocean Foundation"
-    #]
-    #all_datasets =
-    #all_datasets = all_datasets[
+    # ]
+    # all_datasets =
+    # all_datasets = all_datasets[
     #    all_datasets["institution"] == "Skidaway Institute of Oceanography"
-    #]C-PROOF
+    # ]C-PROOF
     # for basins
     # metadata = drop_overlaps(metadata)
-    return metadata # , all_datasets
+    return metadata  # , all_datasets
 
 
 def add_delayed_dataset_ids(metadata, all_datasets):

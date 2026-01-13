@@ -57,8 +57,11 @@ metadata["time_coverage_end (UTC)"] = metadata["time_coverage_end (UTC)"].dt.tz_
     None
 )
 allDatasetsVOTO = utils.load_allDatasets_VOTO()
-allDatasetsGDAC = utils.load_allDatasets_GDAC()
-allDatasets = pd.concat([allDatasetsVOTO, allDatasetsGDAC])
+if utils.GDAC_data:
+    allDatasetsGDAC = utils.load_allDatasets_GDAC()
+    allDatasets = pd.concat([allDatasetsVOTO, allDatasetsGDAC])
+else:
+    allDatasets = allDatasetsVOTO
 
 dsdict = {}
 
@@ -80,8 +83,8 @@ all_dataset_names = list(all_dataset_names)
 all_dataset_names += list(
     metadata.index
 )  # Add nrt data because I currently use it for statistics
-
-all_dataset_names += list(allDatasetsGDAC.index)
+if utils.GDAC_data:
+    all_dataset_names += list(allDatasetsGDAC.index)
 #   + list(metadata.index)
 # )
 all_dataset_names = list(all_dataset_names) + [
@@ -93,17 +96,18 @@ for dsid in list(allDatasetsVOTO.index):
         continue
     dsdict[dsid] = pl.scan_parquet(f"../voto_erddap_data_cache/{dsid}.parquet")
 
-for dsid in list(allDatasetsGDAC.index):
-    dsdict[dsid] = pl.scan_parquet(f"../voto_erddap_data_cache/{dsid}.parquet")
-    dsdict[dsid] = (
-        dsdict[dsid]
-        .drop(cs.string())
-        .with_columns(
-            pl.col("time").dt.cast_time_unit("ns").dt.replace_time_zone(None)
-            # .cast(pl.Float32, strict=False) # if this is activated, time is cast into float32, which leads to bugs in keeping x-range across parameter changes
+if utils.GDAC_data:
+    for dsid in list(allDatasetsGDAC.index):
+        dsdict[dsid] = pl.scan_parquet(f"../voto_erddap_data_cache/{dsid}.parquet")
+        dsdict[dsid] = (
+            dsdict[dsid]
+            .drop(cs.string())
+            .with_columns(
+                pl.col("time").dt.cast_time_unit("ns").dt.replace_time_zone(None)
+                # .cast(pl.Float32, strict=False) # if this is activated, time is cast into float32, which leads to bugs in keeping x-range across parameter changes
+            )
+            .rename({"profile_id": "profile_num"})
         )
-        .rename({"profile_id": "profile_num"})
-    )
 
 # import pdb; pdb.set_trace();
 # for dsid in all_dataset_names:
@@ -313,7 +317,8 @@ class GliderDashboard(param.Parameterized):
     )
     alldslist = list(filter(lambda k: "nrt" in k, dsdict.keys()))
     alldslist = [x for x in alldslist if "_small" not in x]
-    alldslist += list(allDatasetsGDAC.index)
+    if utils.GDAC_data:
+        alldslist += list(allDatasetsGDAC.index)
     alldslabels = [element[4:] for element in alldslist]
     objectsdict = dict(zip(alldslabels, alldslist))
 
