@@ -25,6 +25,18 @@ for file in nc_datasets:
         if "delayed" in file:
             df = df.filter(pl.col("profile_num") % 10 == 0)
         df.write_parquet(file.replace(".nc", "_small.parquet"))
-        # import pdb
-        #
-        # pdb.set_trace()
+
+parquet_datasets = glob.glob("../voto_erddap_data_cache/*.parquet")
+for file in parquet_datasets:
+    if "small" in file:
+        continue
+    if "SEA" in file:
+        continue
+    if Path(file.replace(".parquet", "_small.parquet")).is_file():
+        print(f"{file} already has a small version, skip")
+        continue
+    else:
+        print(f"creating small version of {file}")
+        df = pl.scan_parquet(file)
+        if "nrt" not in file:
+            df.sink_parquet(file.replace(".parquet", "_small.parquet"))

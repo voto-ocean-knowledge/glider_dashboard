@@ -10,6 +10,7 @@ import panel as pn
 import param
 import plotly.express as px
 import polars as pl
+import polars.selectors as cs
 from holoviews.operation.datashader import (
     rasterize,
     spread,
@@ -37,10 +38,15 @@ pn.extension(
 
 
 # all_metadata is loaded for the metadata visualisation
-all_metadata, _ = utils.load_metadata()
+# all_metadata, allDatasets = utils.load_metadata()
+all_metadata = utils.load_metadata_VOTO()
+
+# allDatasets = pd.concat([allDatasetsVOTO, allDatasetsGDAC])
 
 ###### filter metadata to prepare download ##############
-metadata, all_datasets = utils.filter_metadata()
+# metadata, all_datasets = utils.filter_metadata()
+metadata = utils.filter_metadata()
+
 metadata = metadata.drop(
     ["nrt_SEA067_M15", "nrt_SEA079_M14", "nrt_SEA061_M63"], errors="ignore"
 )  # temporary data inconsistency
@@ -50,30 +56,90 @@ metadata["time_coverage_start (UTC)"] = metadata[
 metadata["time_coverage_end (UTC)"] = metadata["time_coverage_end (UTC)"].dt.tz_convert(
     None
 )
+allDatasetsVOTO = utils.load_allDatasets_VOTO()
+if utils.GDAC_data:
+    allDatasetsGDAC = utils.load_allDatasets_GDAC()
+    allDatasets = pd.concat([allDatasetsVOTO, allDatasetsGDAC])
+else:
+    allDatasets = allDatasetsVOTO
 
 dsdict = {}
 
-all_dataset_names = set(all_datasets.index).intersection(
+# HERE I MUST DIFFERENTIATE INTO TWO DATASETS: ONE COMPLETE METADATA FOR THE METADASHBOARD,
+# AND ONE/TWO DATASETS THAT ARE FILTERED AND SHWON IN THE DASHBOARD
+# all_dataset_names = list(all_datasets.index) + list(metadata.index)
+# MUST BE REIMPLEMENTED!!!
+# all_dataset_names = set(
+#    list(all_datasets.index)
+#    + [element.replace("nrt", "delayed") for element in metadata.index]
+#    + list(metadata.index)
+# )
+# )
+# CURRENTLY I HAVE AN UNCLEAR DOUBLE FILTER EFFECT HERE :()
+all_dataset_names = set(allDatasetsVOTO.index).intersection(
     [element.replace("nrt", "delayed") for element in metadata.index]
-    + list(metadata.index)
 )
+all_dataset_names = list(all_dataset_names)
+all_dataset_names += list(
+    metadata.index
+)  # Add nrt data because I currently use it for statistics
+if utils.GDAC_data:
+    all_dataset_names += list(allDatasetsGDAC.index)
+#   + list(metadata.index)
+# )
 all_dataset_names = list(all_dataset_names) + [
     dataset_name + "_small" for dataset_name in all_dataset_names
 ]
 
-for dsid in all_dataset_names:
-    # dsdict[dsid.replace("nrt", "delayed")] = pl.scan_parquet(
-    #    f"../voto_erddap_data_cache/{dsid.replace('nrt', 'delayed')}.parquet"
-    # )
+for dsid in list(allDatasetsVOTO.index):
+    if dsid not in all_dataset_names:
+        continue
     dsdict[dsid] = pl.scan_parquet(f"../voto_erddap_data_cache/{dsid}.parquet")
-variables_selectable = (
-    pl.concat(dsdict.values(), how="diagonal").collect_schema().names()
-)
-# import pdb
-# pdb.set_trace()
-# print(dsid)
 
-# initialize.dsdict
+if utils.GDAC_data:
+    for dsid in list(allDatasetsGDAC.index):
+        dsdict[dsid] = pl.scan_parquet(f"../voto_erddap_data_cache/{dsid}.parquet")
+        dsdict[dsid] = (
+            dsdict[dsid]
+            .drop(cs.string())
+            .with_columns(
+                pl.col("time").dt.cast_time_unit("ns").dt.replace_time_zone(None)
+                # .cast(pl.Float32, strict=False) # if this is activated, time is cast into float32, which leads to bugs in keeping x-range across parameter changes
+            )
+            .rename({"profile_id": "profile_num"})
+        )
+
+# import pdb; pdb.set_trace();
+# for dsid in all_dataset_names:
+# dsdict[dsid.replace("nrt", "delayed")] = pl.scan_parquet(
+#    f"../voto_erddap_data_cache/{dsid.replace('nrt', 'delayed')}.parquet"
+# )
+"""
+print(f"now reading in {dsid}")
+if (dsid in list(metadata.index)) or (
+    dsid in [element.replace("nrt", "delayed") for element in metadata.index]
+):
+    dsdict[dsid] = pl.scan_parquet(f"../voto_erddap_data_cache/{dsid}.parquet")
+else:
+    dsdict[dsid] = pl.scan_parquet(f"../voto_erddap_data_cache/{dsid}.parquet")
+    dsdict[dsid] = (
+        dsdict[dsid]
+        .drop(cs.string())
+        .with_columns(
+            pl.col("time")
+            .dt.cast_time_unit("ns")
+            .dt.replace_time_zone(None)
+            .cast(pl.Float32, strict=False)
+        )
+        #.rename({"profile_id": "profile_num"})
+    )
+    print(dsdict[dsid].collect()['profile_id'])
+"""
+
+
+variables_selectable = (
+    pl.concat(dsdict.values(), how="diagonal_relaxed").collect_schema().names()
+)
 
 ####### specify global plot variables ####################
 # df.index = cudf.to_datetime(df.index)
@@ -250,11 +316,11 @@ class GliderDashboard(param.Parameterized):
         precedence=1,
     )
     alldslist = list(filter(lambda k: "nrt" in k, dsdict.keys()))
+    alldslist = [x for x in alldslist if "_small" not in x]
+    if utils.GDAC_data:
+        alldslist += list(allDatasetsGDAC.index)
     alldslabels = [element[4:] for element in alldslist]
     objectsdict = dict(zip(alldslabels, alldslist))
-    # import pdb
-    #
-    # pdb.set_trace()
 
     pick_dsids = param.ListSelector(
         default=[],  # [alldslist[0]],#dslist[0]],
@@ -525,21 +591,22 @@ class GliderDashboard(param.Parameterized):
             meta = utils.drop_overlaps_fast(meta)
         else:
             # second case, user selected dids
-            meta = metadata.loc[self.pick_dsids]
+            meta = allDatasets.loc[self.pick_dsids]  # metadata.loc[self.pick_dsids]
+
         # hacky way to differentiate if called via synclink or refreshed with UI buttons
         if not len(meta):
-            self.startX = np.datetime64("2021-01-01")
-            self.endX = np.datetime64("2024-01-01")
-            self.pick_startX = np.datetime64("2021-01-01")
-            self.pick_endX = np.datetime64("2024-01-01")
+            self.startX = None
+            self.endX = None
+            self.pick_startX = None
+            self.pick_endX = None
             return
         incoming_link = not (isinstance(self.pick_startX, pd.Timestamp))
         # print('ISINSTANCE', isinstance(self.pick_startX, pd.Timestamp))
         # print('INCOMING VIA LINK:', incoming_link)
         if not incoming_link:
-            mintime = meta["time_coverage_start (UTC)"].min()
-            maxtime = meta["time_coverage_end (UTC)"].max()
-            self.startX, self.endX = (mintime.to_datetime64(), maxtime.to_datetime64())
+            mintime = meta["minTime (UTC)"].min()
+            maxtime = meta["maxTime (UTC)"].max()
+            self.startX, self.endX = mintime, maxtime
             self.pick_startX, self.pick_endX = (mintime, maxtime)
         else:
             self.pick_startX, self.pick_endX = (self.pick_startX, self.pick_endX)
@@ -639,6 +706,45 @@ class GliderDashboard(param.Parameterized):
             if type(element) == pn.widgets.misc.FileDownload:
                 mylayout.pop(index)
         mylayout.append(self.file_download)
+
+    @param.depends(
+        "pick_dsids",
+        "pick_toggle",
+        "pick_basin",
+        watch=True,
+    )
+    def update_data(self):
+        x_range = (self.startX, self.endX)
+        meta, plt_props = self.load_viewport_datasets(x_range)
+
+        # if plt_props["zoomed_out"]:
+        #    metakeys = [element.replace("nrt", "delayed") for element in meta.index]
+        # else:
+        metakeys = [
+            (
+                element.replace("nrt", "delayed")
+                if element.replace("nrt", "delayed") in allDatasets.index
+                else element
+            )
+            for element in meta.index
+        ]
+        varlist = []
+        for dsid in metakeys:
+            # This is delayed data if available
+            if plt_props["zoomed_out"]:
+                ds = dsdict[dsid + "_small"]
+            else:
+                ds = dsdict[dsid]
+
+            # ds = ds.filter(pl.col("profile_num") % plt_props["subsample_freq"] == 0)
+            varlist.append(ds)
+
+        # This should only be a temporay hack. I don't want all that data to go into my TS plots.
+        # dsconc = utils.voto_concat_datasets2(varlist)
+        dsconc = pl.concat([data for data in varlist], how="diagonal_relaxed")
+        dsconc = dsconc.with_columns(pl.col("depth").neg()).sort("time")
+        self.param["pick_variables"].objects = dsconc.collect_schema().names()
+        # self.data_in_view = dsconc
 
     @param.depends(
         "pick_cnorm",
@@ -847,7 +953,9 @@ class GliderDashboard(param.Parameterized):
                 and not self.pick_profiles
             ):
                 plots_dict["dmap_rasterized"][variable] = spread(
-                    rasters(variable), px=1, how="source"
+                    rasters(variable),
+                    px=1,
+                    how="source",  # , shape="circle"
                 ).opts(
                     ylim=(self.startY, self.endY),
                     xlim=(self.startX, self.endX),
@@ -857,7 +965,9 @@ class GliderDashboard(param.Parameterized):
             else:
                 cheight += 50
                 plots_dict["dmap_rasterized"][variable] = spread(
-                    rasters(variable), px=1, how="source"
+                    rasters(variable),
+                    px=1,
+                    how="source",  # , shape="circle"
                 ).opts(
                     ylim=(self.startY, self.endY),
                     xlim=(self.startX, self.endX),
@@ -922,6 +1032,7 @@ class GliderDashboard(param.Parameterized):
         #    self.dynmap = self.dynmap * annotation#
         #
         #    return linked_plots
+
         if self.pick_show_decoration:
             contourplots = contourplots * dmap_decorators
         contourplots = contourplots * dmap_mld if self.pick_mld else contourplots
@@ -1032,7 +1143,12 @@ class GliderDashboard(param.Parameterized):
 
         else:
             # second case, user selected dids
-            meta = metadata.loc[self.pick_dsids]
+            try:
+                meta = metadata.loc[self.pick_dsids]
+            except:
+                meta = allDatasets.loc[self.pick_dsids]
+                meta["time_coverage_start (UTC)"] = meta["minTime (UTC)"]
+                meta["time_coverage_end (UTC)"] = meta["maxTime (UTC)"]
 
         # print(f'len of meta is {len(meta)} in load_viewport_datasets')
         if (x1 - x0) > np.timedelta64(720, "D"):
@@ -1150,7 +1266,7 @@ class GliderDashboard(param.Parameterized):
         metakeys = [
             (
                 element.replace("nrt", "delayed")
-                if element.replace("nrt", "delayed") in all_datasets.index
+                if element.replace("nrt", "delayed") in allDatasetsVOTO.index
                 else element
             )
             for element in meta.index
@@ -1169,6 +1285,7 @@ class GliderDashboard(param.Parameterized):
         varlist = []
         varlist_small = []
         # if plt_props["zoomed_out"]:
+        # import pdb; pdb.set_trace();
         for dsid in metakeys:
             # This is delayed data if available
             if plt_props["zoomed_out"]:
@@ -1197,51 +1314,30 @@ class GliderDashboard(param.Parameterized):
                 )
                 nanosecond_iterator += 1
 
+        # This should only be a temporay hack. I don't want all that data to go into my TS plots.
         dsconc = utils.voto_concat_datasets2(varlist)
         dsconc = dsconc.with_columns(pl.col("depth").neg()).sort("time")
 
         dsconc_small = utils.voto_concat_datasets2(varlist_small)
         dsconc_small = dsconc_small.with_columns(pl.col("depth").neg()).sort("time")
 
-        self.data_in_view = (
-            dsconc.filter(
-                (pl.col("time") > self.pick_startX) & (pl.col("time") < self.pick_endX)
-            )
-            # this is a possible route to speed up plotting. Works.
-            # .group_by_dynamic("time", every="5s")
-            # .agg(pl.col(*variables, "depth", "salinity").mean())
-        )
-        self.data_in_view_small = dsconc_small.filter(
-            (pl.col("time") > self.pick_startX) & (pl.col("time") < self.pick_endX)
-        )
+        self.data_in_view = dsconc  # .dropna(subset=['temperature', 'salinity'])
+        self.data_in_view_small = dsconc_small
 
-        if (self.endX - self.startX) > np.timedelta64(20, "D"):
-            self.stats = (
-                self.data_in_view_small.describe(  # .select(pl.col(self.pick_variables))
-                    (0.01, 0.05, 0.99)
-                )
-                .to_pandas()
-                .set_index("statistic")
+        # THIS IS EXPENSIVE. I SHOULD CREATE STATS ONLY WHERE NEEDED; ESPECIALLY WITH .to_pandas()
+        self.stats = (
+            self.data_in_view_small.describe(  # .select(pl.col(self.pick_variables))
+                (0.01, 0.05, 0.99)
             )
-        else:
-            self.stats = (
-                self.data_in_view.describe((0.01, 0.05, 0.99))
-                .to_pandas()
-                .set_index("statistic")
-            )
+            .to_pandas()
+            .set_index("statistic")
+        )
 
         # THIS MUST BE REMOVE FOR GREAT PERFORMANCE.
         # REQUIRES REWRITE OF SOME CLIM AND QUANTILE FILTERS I BELIEVE
-        self.update_markdown(x_range, y_range)  # THIS SHOULD BE READDED EVENTUALLY
+        # self.update_markdown(x_range, y_range)  # THIS SHOULD BE READDED EVENTUALLY
 
-        if (self.pick_contours is not None) and (self.pick_contours != "same as above"):
-            mplt = create_single_ds_plot_raster(
-                data=self.data_in_view, variables=[*variables, self.pick_contours]
-            )
-        else:
-            mplt = create_single_ds_plot_raster(
-                data=self.data_in_view, variables=variables
-            )
+        mplt = create_single_ds_plot_raster(data=self.data_in_view, variables=variables)
         return mplt
 
     def get_xsection_TS(self, x_range, y_range):
@@ -1252,8 +1348,6 @@ class GliderDashboard(param.Parameterized):
         # low = #stats.filter(pl.col("statistic") == "1%")
         # high = #stats.filter(pl.col("statistic") == "99%")
 
-        # import §
-        # pdb.set_trace()
         # t2 = time.perf_counter()
         # if self.pick_variables[0]
         # Needs additional variable.
