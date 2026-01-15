@@ -28,6 +28,9 @@ import dictionaries
 # import initialize
 import utils
 
+# IDEA: ON INITIALIZATION, SET OWN minTtime/maxTime (UTC) values based on the
+# lazy parquet statistics included in all the files.,
+
 pn.extension(
     "plotly",
     "mathjax",
@@ -91,13 +94,27 @@ all_dataset_names = list(all_dataset_names) + [
     dataset_name + "_small" for dataset_name in all_dataset_names
 ]
 
-for dsid in list(allDatasetsVOTO.index):
+fDs = allDatasets.loc[[name for name in all_dataset_names if "_small" not in name]]
+fDs["minTime (UTC)"] = fDs["minTime (UTC)"].dt.tz_localize(None)
+fDs["maxTime (UTC)"] = fDs["maxTime (UTC)"].dt.tz_localize(None)
+allDatasets["minTime (UTC)"] = allDatasets["minTime (UTC)"].dt.tz_localize(None)
+allDatasets["maxTime (UTC)"] = allDatasets["maxTime (UTC)"].dt.tz_localize(None)
+
+# import pdb
+
+# pdb.set_trace()
+
+for dsid in list(allDatasetsVOTO.index) + [
+    id + "_small" for id in allDatasetsVOTO.index
+]:
     if dsid not in all_dataset_names:
         continue
     dsdict[dsid] = pl.scan_parquet(f"../voto_erddap_data_cache/{dsid}.parquet")
 
 if utils.GDAC_data:
-    for dsid in list(allDatasetsGDAC.index):
+    for dsid in list(allDatasetsGDAC.index) + [
+        id + "_small" for id in allDatasetsGDAC.index
+    ]:
         dsdict[dsid] = pl.scan_parquet(f"../voto_erddap_data_cache/{dsid}.parquet")
         dsdict[dsid] = (
             dsdict[dsid]
@@ -319,7 +336,9 @@ class GliderDashboard(param.Parameterized):
     alldslist = [x for x in alldslist if "_small" not in x]
     if utils.GDAC_data:
         alldslist += list(allDatasetsGDAC.index)
-    alldslabels = [element[4:] for element in alldslist]
+    alldslabels = [
+        element[4:] if element[0:4] == "nrt_" else element for element in alldslist
+    ]
     objectsdict = dict(zip(alldslabels, alldslist))
 
     pick_dsids = param.ListSelector(
@@ -375,13 +394,13 @@ class GliderDashboard(param.Parameterized):
     #    default=False, label="mean", doc="Show column mean", precedence=1
     # )
     pick_startX = param.Date(
-        default=metadata["time_coverage_start (UTC)"].min(),
+        default=allDatasets["minTime (UTC)"].min(),
         label="startX",
         doc="startX",
         precedence=1,
     )
     pick_endX = param.Date(
-        default=metadata["time_coverage_end (UTC)"].max(),
+        default=allDatasets["maxTime (UTC)"].max(),
         label="endX",
         doc="endX",
         precedence=1,
@@ -476,9 +495,9 @@ class GliderDashboard(param.Parameterized):
     contour_processing = False
     startX, endX = (
         # metadata["time_coverage_start (UTC)"].min().to_datetime64(),
-        metadata["time_coverage_end (UTC)"].max().to_datetime64()
-        - np.timedelta64(6 * 30 * 24, "s"),  # last six months
-        metadata["time_coverage_end (UTC)"].max().to_datetime64(),
+        fDs["minTime (UTC)"].min().to_datetime64(),
+        # - np.timedelta64(6 * 30 * 24, "s"),  # last six months
+        fDs["maxTime (UTC)"].max().to_datetime64(),
     )
 
     annotations = []
@@ -589,6 +608,7 @@ class GliderDashboard(param.Parameterized):
             meta = meta[meta["project"] == "SAMBA"]
             meta = meta[meta["time_coverage_start (UTC)"] > np.datetime64("2021-01-01")]
             meta = utils.drop_overlaps_fast(meta)
+            meta = fDs.loc[meta.index]
         else:
             # second case, user selected dids
             meta = allDatasets.loc[self.pick_dsids]  # metadata.loc[self.pick_dsids]
@@ -603,6 +623,9 @@ class GliderDashboard(param.Parameterized):
         incoming_link = not (isinstance(self.pick_startX, pd.Timestamp))
         # print('ISINSTANCE', isinstance(self.pick_startX, pd.Timestamp))
         # print('INCOMING VIA LINK:', incoming_link)
+        # import pdb
+
+        # pdb.set_trace()
         if not incoming_link:
             mintime = meta["minTime (UTC)"].min()
             maxtime = meta["maxTime (UTC)"].max()
@@ -1101,54 +1124,68 @@ class GliderDashboard(param.Parameterized):
         return dmap_mean
 
     def load_viewport_datasets(self, x_range):
+        """
+        Returns a pandas dataframe containing keys of the datasets that are in the current view.
+        This is currently based on the metadata information "time_coverage_start/end (UTC), but should
+        be generalized to minTime (UTC) to be compatible with the allDatasets table instead of metadata tables.
+        """
         (x0, x1) = x_range
         dt = x1 - x0
         dtns = dt / np.timedelta64(1, "ns")
         plt_props = {}
+        try:
+            # necessary if changing dsids dynamically
+            x0 = x0.to_datetime64()
+            x1 = x1.to_datetime64()
+        except:
+            pass
+        # filtered Datasets
+
+        # pdb.set_trace()
+        # fDs = allDatasets.loc[
+        #    [name for name in all_dataset_names if "_small" not in name]
+        # ]
+        fD_inview = fDs[
+            # x0 and x1 are the time start and end of our view, the other times
+            # are the start and end of the individual datasets. To increase
+            # perfomance, datasets are loaded only if visible, so if
+            # 1. it starts within our view...
+            ((fDs["minTime (UTC)"] >= x0) & (fDs["maxTime (UTC)"] <= x1))
+            |
+            # 2. it ends within our view...
+            ((fDs["minTime (UTC)"] >= x0) & (fDs["maxTime (UTC)"] <= x1))
+            |
+            # 3. it starts before and ends after our view (zoomed in)...
+            ((fDs["minTime (UTC)"] <= x0) & (fDs["maxTime (UTC)"] >= x1))
+            |
+            # 4. or it both, starts and ends within our view (zoomed out)...
+            ((fDs["minTime (UTC)"] >= x0) & (fDs["maxTime (UTC)"] <= x1))
+        ]
+
+        print(fD_inview)
+        # mydslist = [name for name in all_dataset_names if '_small' not in name]
 
         if self.pick_toggle == "SAMBA obs.":
             # first case, , user selected an aggregation, e.g. 'Bornholm Basin'
-            meta = metadata[metadata["basin"] == self.pick_basin]
+            #
+            fD_inview = fD_inview[
+                fD_inview["institution"] == "Voice of the Ocean Foundation"
+            ]
+            meta = metadata.loc[
+                [name for name in fD_inview.index if "delayed" not in name]
+            ]
+            meta = meta[meta["basin"] == self.pick_basin]
             meta = meta[meta["project"] == "SAMBA"]
             meta = utils.drop_overlaps_fast(meta)
 
-            meta = meta[
-                # x0 and x1 are the time start and end of our view, the other times
-                # are the start and end of the individual datasets. To increase
-                # perfomance, datasets are loaded only if visible, so if
-                # 1. it starts within our view...
-                (
-                    (meta["time_coverage_start (UTC)"] >= x0)
-                    & (meta["time_coverage_start (UTC)"] <= x1)
-                )
-                |
-                # 2. it ends within our view...
-                (
-                    (meta["time_coverage_end (UTC)"] >= x0)
-                    & (meta["time_coverage_end (UTC)"] <= x1)
-                )
-                |
-                # 3. it starts before and ends after our view (zoomed in)...
-                (
-                    (meta["time_coverage_start (UTC)"] <= x0)
-                    & (meta["time_coverage_end (UTC)"] >= x1)
-                )
-                |
-                # 4. or it both, starts and ends within our view (zoomed out)...
-                (
-                    (meta["time_coverage_start (UTC)"] >= x0)
-                    & (meta["time_coverage_end (UTC)"] <= x1)
-                )
-            ]
-
         else:
             # second case, user selected dids
-            try:
-                meta = metadata.loc[self.pick_dsids]
-            except:
-                meta = allDatasets.loc[self.pick_dsids]
-                meta["time_coverage_start (UTC)"] = meta["minTime (UTC)"]
-                meta["time_coverage_end (UTC)"] = meta["maxTime (UTC)"]
+            # try:
+            #     meta = metadata.loc[self.pick_dsids]
+            # except:
+            meta = allDatasets.loc[self.pick_dsids]
+            # meta["time_coverage_start (UTC)"] = meta["minTime (UTC)"]
+            # meta["time_coverage_end (UTC)"] = meta["maxTime (UTC)"]
 
         # print(f'len of meta is {len(meta)} in load_viewport_datasets')
         if (x1 - x0) > np.timedelta64(720, "D"):
@@ -1175,7 +1212,7 @@ class GliderDashboard(param.Parameterized):
             plt_props["zoomed_out"] = False
             plt_props["dynfontsize"] = 10
             plt_props["subsample_freq"] = 1
-        return meta, plt_props
+        return allDatasets.loc[meta.index], plt_props
 
     def get_xsection_mld(self, x_range, y_range):
         try:
@@ -1263,6 +1300,9 @@ class GliderDashboard(param.Parameterized):
         # if plt_props["zoomed_out"]:
         #    metakeys = [element.replace("nrt", "delayed") for element in meta.index]
         # else:
+        # import pdb
+
+        # pdb.set_trace()
         metakeys = [
             (
                 element.replace("nrt", "delayed")
@@ -1291,7 +1331,7 @@ class GliderDashboard(param.Parameterized):
             if plt_props["zoomed_out"]:
                 ds = dsdict[dsid + "_small"]
             else:
-                ds = dsdict[dsid]
+                ds = dsdict[dsid]  # + "_small"]
 
             # ds = ds.filter(pl.col("profile_num") % plt_props["subsample_freq"] == 0)
             varlist.append(ds)
@@ -1323,6 +1363,10 @@ class GliderDashboard(param.Parameterized):
 
         self.data_in_view = dsconc  # .dropna(subset=['temperature', 'salinity'])
         self.data_in_view_small = dsconc_small
+
+        print(
+            f"the length of dsconc is now {dsconc.collect().height}\n and the length of dsconc_small is {dsconc_small.collect().height}"
+        )
 
         # THIS IS EXPENSIVE. I SHOULD CREATE STATS ONLY WHERE NEEDED; ESPECIALLY WITH .to_pandas()
         self.stats = (
@@ -1448,20 +1492,26 @@ class GliderDashboard(param.Parameterized):
 
     def get_xsection(self, x_range, y_range):
         (x0, x1) = x_range
+        try:
+            # necessary if changing dsids dynamically
+            x0 = x0.to_datetime64()
+            x1 = x1.to_datetime64()
+        except:
+            pass
         t1 = time.perf_counter()
         meta, plt_props = self.load_viewport_datasets(x_range)
 
-        meta_start_in_view = meta[(meta["time_coverage_start (UTC)"] > x0)]
-        meta_end_in_view = meta[(meta["time_coverage_end (UTC)"] < x1)]
+        meta_start_in_view = meta[(meta["minTime (UTC)"] > x0)]
+        meta_end_in_view = meta[(meta["maxTime (UTC)"] < x1)]
 
         startvlines = (
-            hv.VLines(meta_start_in_view["time_coverage_start (UTC)"]).opts(
+            hv.VLines(meta_start_in_view["minTime (UTC)"]).opts(
                 color="grey", line_width=1
             )  # , spike_length=20)
             # .opts(position=-10)
         )
         endvlines = (
-            hv.VLines(meta_end_in_view["time_coverage_end (UTC)"]).opts(
+            hv.VLines(meta_end_in_view["maxTime (UTC)"]).opts(
                 color="grey", line_width=1
             )  # , spike_length=20)
             # .opts(position=-10)
@@ -1481,7 +1531,7 @@ class GliderDashboard(param.Parameterized):
 
         data = pd.DataFrame.from_dict(
             dict(
-                time=meta_start_in_view["time_coverage_start (UTC)"].values,
+                time=meta_start_in_view["minTime (UTC)"].values,
                 y=5,
                 text=meta_start_in_view.index.str.replace("nrt_", ""),
             )

@@ -11,6 +11,8 @@ for file in nc_datasets:
     if Path(file.replace("nc", "parquet")).is_file():
         print(f"{file.replace('nc', 'parquet')} already exists, skip")
         continue
+    elif ("SEA" not in file) and ("SHW" not in file):
+        continue
     else:
         # Create large (often full resolution) output
         print(f"now creating {file.replace('nc', 'parquet')}")
@@ -26,11 +28,40 @@ for file in nc_datasets:
             df = df.filter(pl.col("profile_num") % 10 == 0)
         df.write_parquet(file.replace(".nc", "_small.parquet"))
 
+
+netcdf_datasets = glob.glob("../voto_erddap_data_cache/*.nc")
+for file in netcdf_datasets:
+    if (
+        Path(file.replace("nc", "parquet")).is_file()
+        and Path(file.replace(".nc", "_small.parquet")).is_file()
+    ):
+        print(f"{file.replace('nc', 'parquet')} already exists, skip")
+        continue
+    # if "small" in file:
+    #    continue
+    if "SEA" in file:
+        continue
+    if "SHW" in file:
+        continue
+    # if Path(file.replace(".parquet", "_small.parquet")).is_file():
+    #    print(f"{file} already has a small version, skip")
+    #    continue
+    else:
+        print(f"creating parquet version of {file}")
+        df = xr.open_dataset(file).to_pandas().sort_index()  # .sc scan_parquet(file)
+        df.to_parquet(file.replace("nc", "parquet"))
+        df.to_parquet(file.replace(".nc", "_small.parquet"))
+        # if "nrt" not in file:
+        #    df.sink_parquet(file.replace(".parquet", "_small.parquet"))
+
+
 parquet_datasets = glob.glob("../voto_erddap_data_cache/*.parquet")
 for file in parquet_datasets:
     if "small" in file:
         continue
     if "SEA" in file:
+        continue
+    if "SHW" in file:
         continue
     if Path(file.replace(".parquet", "_small.parquet")).is_file():
         print(f"{file} already has a small version, skip")

@@ -56,11 +56,11 @@ if utils.GDAC_data:
         e = ERDDAP(
             server="https://gliders.ioos.us/erddap",
             protocol="tabledap",
-            response="parquet",
+            response="nc",
         )
         e.dataset_id = dsid
         url = e.get_download_url()
-        filepath = f"../voto_erddap_data_cache/{dsid}.parquet"
+        filepath = f"../voto_erddap_data_cache/{dsid}.nc"
         if os.path.isfile(filepath):
             print("file already exists, skip and continue")
             continue

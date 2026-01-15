@@ -7,7 +7,7 @@ from erddapy import ERDDAP
 project = "SAMBA"
 basin = "Bornholm Basin"
 year = 2024
-month = 4
+month = 13
 GDAC_data = False
 
 
@@ -34,6 +34,7 @@ def load_allDatasets_VOTO():
 
 
 def load_allDatasets_GDAC():
+    # I believe I want to plot these datasets actually against precise_time and not against time (which really is profile averaged time)
     allDatasetsGDAC = load_ERDDAP_Datasets(
         "https://gliders.ioos.us/erddap", "allDatasets", "csv"
     )
@@ -45,7 +46,7 @@ def load_allDatasets_GDAC():
     allDatasetsGDAC["maxTime (UTC)"] = pd.to_datetime(allDatasetsGDAC["maxTime (UTC)"])
     allDatasetsGDAC = allDatasetsGDAC[allDatasetsGDAC["minTime (UTC)"].dt.year == year]
     allDatasetsGDAC = allDatasetsGDAC[allDatasetsGDAC["minTime (UTC)"].dt.month < month]
-    allDatasetsGDAC = allDatasetsGDAC.iloc[0:6]
+    allDatasetsGDAC = allDatasetsGDAC.iloc[0:90]
     allDatasetsGDAC = allDatasetsGDAC[
         allDatasetsGDAC["institution"] != "C-PROOF"
     ]  # THIS is just here because C-PROOF files currently don't download from GDAC
@@ -147,12 +148,14 @@ def filter_metadata():
     mode = "all"  # 'nrt', 'delayed'
     metadata = load_metadata_VOTO()
 
+    """
     metadata = metadata[
         (metadata["project"] == project)
         & (metadata["basin"] == basin)
         & (metadata["time_coverage_start (UTC)"].dt.year == year)
         & (metadata["time_coverage_start (UTC)"].dt.month < month)
     ]
+    """
     # Terrible style here.
     # all_datasets = allDatasets[allDatasets["minTime (UTC)"].dt.year == year]
     # all_datasets = all_datasets[
