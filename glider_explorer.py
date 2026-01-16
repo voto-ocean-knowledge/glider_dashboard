@@ -1150,10 +1150,10 @@ class GliderDashboard(param.Parameterized):
             # are the start and end of the individual datasets. To increase
             # perfomance, datasets are loaded only if visible, so if
             # 1. it starts within our view...
-            ((fDs["minTime (UTC)"] >= x0) & (fDs["maxTime (UTC)"] <= x1))
+            ((fDs["minTime (UTC)"] >= x0) & (fDs["minTime (UTC)"] <= x1))
             |
             # 2. it ends within our view...
-            ((fDs["minTime (UTC)"] >= x0) & (fDs["maxTime (UTC)"] <= x1))
+            ((fDs["maxTime (UTC)"] >= x0) & (fDs["maxTime (UTC)"] <= x1))
             |
             # 3. it starts before and ends after our view (zoomed in)...
             ((fDs["minTime (UTC)"] <= x0) & (fDs["maxTime (UTC)"] >= x1))
