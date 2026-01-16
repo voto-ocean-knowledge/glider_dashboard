@@ -46,6 +46,7 @@ def load_allDatasets_GDAC():
     allDatasetsGDAC["maxTime (UTC)"] = pd.to_datetime(allDatasetsGDAC["maxTime (UTC)"])
     allDatasetsGDAC = allDatasetsGDAC[allDatasetsGDAC["minTime (UTC)"].dt.year == year]
     allDatasetsGDAC = allDatasetsGDAC[allDatasetsGDAC["minTime (UTC)"].dt.month < month]
+    allDatasetsGDAC.drop("maracoos_05-20240801T1650-delayed")
     allDatasetsGDAC = allDatasetsGDAC.iloc[0:90]
     allDatasetsGDAC = allDatasetsGDAC[
         allDatasetsGDAC["institution"] != "C-PROOF"
