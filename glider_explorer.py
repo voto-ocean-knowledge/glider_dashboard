@@ -447,24 +447,13 @@ class GliderDashboard(param.Parameterized):
     )
     pick_contours = param.Selector(
         default=None,
-        objects=[
-            None,
-            "same as above",
-            # "temperature",
-            # "salinity",
-            "potential_density",
-            "chlorophyll",
-            "oxygen_concentration",
-            "cdom",
-            "backscatter_scaled",
-            "turbidity",
-            # "phycocyanin",
-            # "phycocyanin_tridente",
-            # "methane_concentration",
-            "longitude",
-            "latitude",
-            "profile_num",
-        ],
+        objects=(
+            [
+                None,
+                "same as above",
+            ]
+            + variables_selectable
+        ),
         label="contour variable",
         doc="Variable presented as contour",
         precedence=1,
@@ -1321,7 +1310,10 @@ class GliderDashboard(param.Parameterized):
         # to create statistics (quantiles for data ranges)              #
         #################################################################
 
-        variables = self.pick_variables
+        if (self.pick_contours is not None) and (self.pick_contours != "same as above"):
+            variables = self.pick_variables + [self.pick_contours]
+        else:
+            variables = self.pick_variables
         varlist = []
         varlist_small = []
         # if plt_props["zoomed_out"]:
