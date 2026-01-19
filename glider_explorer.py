@@ -314,6 +314,9 @@ cbar_range_sliders = {
 
 
 class GliderDashboard(param.Parameterized):
+    pick_display_threshold = param.Number(
+        default=1, step=1, bounds=(-10, 10), label="display_treshold"
+    )
     pick_variables = param.ListSelector(
         default=["temperature"],
         allow_None=False,
@@ -426,9 +429,6 @@ class GliderDashboard(param.Parameterized):
     pick_endY = param.Number(default=8, label="endY", doc="endY", precedence=1)
     pick_contour_height = param.Number(
         default=None, label="contour_height", precedence=1
-    )
-    pick_display_threshold = param.Number(
-        default=1, step=1, bounds=(-10, 10), label="display_treshold"
     )
 
     pick_scatter = param.Selector(
@@ -568,6 +568,7 @@ class GliderDashboard(param.Parameterized):
             "pick_cnorm",
             "pick_aggregation",
             "pick_mld",
+            # se
             # "pick_mean",
             # "pick_TS",
             # "pick_profiles",
@@ -998,9 +999,9 @@ class GliderDashboard(param.Parameterized):
             cheight = 0
 
         # make sure all range sliders for non-activated variables are hidden:
-        for variable in list(set(variables_selectable).difference(self.pick_variables)):
-            self.param[f"pick_cbar_range_{variable}"].precedence = -10
-            # self.param[f"pick_autorange_{variable}"].precedence = -10
+        # for variable in list(set(variables_selectable).difference(self.pick_variables)):
+        #    self.param[f"pick_cbar_range_{variable}"].precedence = -10
+        # self.param[f"pick_autorange_{variable}"].precedence = -10
 
         # variables = self.pick_variables
         def rasters(variable):
@@ -1517,10 +1518,13 @@ class GliderDashboard(param.Parameterized):
         # t2 = time.perf_counter()
         # if self.pick_variables[0]
         # Needs additional variable.
+        vdims = ["depth", "time"]
+        if self.pick_TS_color_variable:
+            vdims.append(self.pick_TS_color_variable)
         mplt = hv.Points(
             data=self.data_in_view,
             kdims=[self.pick_scatter_x, self.pick_scatter_y],
-            vdims=self.pick_TS_color_variable if self.pick_TS_color_variable else None,
+            vdims=vdims,  # self.pick_TS_color_variable if self.pick_TS_color_variable else None,
             # list(variables),
             # temp and salinity need to always be present for TS lasso to work, set for unique elements
         )
