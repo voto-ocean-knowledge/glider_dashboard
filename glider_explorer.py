@@ -1146,11 +1146,13 @@ class GliderDashboard(param.Parameterized):
                     self.stats.loc["1%"][self.pick_scatter_y] - 0.1 * diffy,
                     self.stats.loc["99%"][self.pick_scatter_y] + 0.1 * diffy,
                 )
-
-                clim = (
-                    self.stats.loc["5%"][self.pick_TS_color_variable],
-                    self.stats.loc["99%"][self.pick_TS_color_variable],
-                )
+                if self.pick_TS_color_variable:
+                    clim = (
+                        self.stats.loc["5%"][self.pick_TS_color_variable],
+                        self.stats.loc["99%"][self.pick_TS_color_variable],
+                    )
+                else:
+                    clim = (None, None)
                 ncols += 1
                 if self.pick_activate_scatter_link:
                     dmapTSr = mpg_ls(
