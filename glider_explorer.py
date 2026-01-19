@@ -921,7 +921,7 @@ class GliderDashboard(param.Parameterized):
                     pixel_ratio=pixel_ratio,
                     aggregator=dsh.mean(self.pick_TS_color_variable),
                 ).opts(
-                    cnorm="eq_hist",
+                    cnorm="linear",
                     cmap=dictionaries.cmap_dict.get(
                         self.pick_TS_color_variable, cmocean.cm.solar
                     ),
