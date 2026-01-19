@@ -323,6 +323,23 @@ class GliderDashboard(param.Parameterized):
         precedence=1,
     )
 
+    pick_scatter_x = param.Selector(
+        default=None,  # "salinity",
+        allow_None=False,
+        objects=variables_selectable,
+        label="X-axis variable",
+        doc="Variable used to create colormesh",
+        precedence=1,
+    )
+
+    pick_scatter_y = param.Selector(
+        default=None,  # "temperature",
+        allow_None=False,
+        objects=variables_selectable,
+        label="Y-axis variable",
+        doc="Variable used to create colormesh",
+        precedence=1,
+    )
     # show all the basins and all the datasets. I use the nrt data
     # from the metadatatables as keys, so I skip the 'delayed' sets
     # with the lambda function.
@@ -413,12 +430,32 @@ class GliderDashboard(param.Parameterized):
     pick_display_threshold = param.Number(
         default=1, step=1, bounds=(-10, 10), label="display_treshold"
     )
-    pick_TS = param.Boolean(
-        default=False,
-        label="Show TS-diagram",
-        doc="Activate salinity-temperature diagram",
+
+    pick_scatter = param.Selector(
+        default=None,
+        objects=dict(
+            zip(
+                ["Disable", "TS", "profiles", "custom"],
+                [None, "TS", "profiles", "custom"],
+            )
+        ),
+        doc="Type of scatter plot",
+        label="scatterplot type",
         precedence=1,
     )
+
+    # pick_scatter_bool = param.Boolean(
+    #     default=False,
+    #     label="Show scatter diagram",
+    #     doc="Activate scatter diagram",
+    #     precedence=1,
+    # )
+    # pick_TS = param.Boolean(
+    #     default=False,
+    #     label="Show TS-diagram",
+    #     doc="Activate salinity-temperature diagram",
+    #     precedence=1,
+    # )
     pick_TS_color_variable = param.Selector(
         default=None,
         objects=variables_selectable,
@@ -532,8 +569,8 @@ class GliderDashboard(param.Parameterized):
             "pick_aggregation",
             "pick_mld",
             # "pick_mean",
-            "pick_TS",
-            "pick_profiles",
+            # "pick_TS",
+            # "pick_profiles",
             "pick_activate_scatter_link",
             "pick_contours",
             "pick_high_resolution",
@@ -559,6 +596,10 @@ class GliderDashboard(param.Parameterized):
         else:
             self.param.pick_dsids.precedence = -10
             self.param.pick_basin.precedence = 1
+
+    # @param.depends("pick_scatter", watch=True)
+    # def pick_scatter_presets(self):
+    # toggles visibility
 
     @param.depends("button_inflow", watch=True)
     def execute_event(self):
@@ -767,11 +808,15 @@ class GliderDashboard(param.Parameterized):
         "pick_basin",
         "pick_dsids",
         "pick_toggle",
-        "pick_TS",
+        "pick_scatter",
+        # "pick_TS",
+        # "pick_scatter_bool",
+        "pick_scatter_x",
+        "pick_scatter_y",
         "pick_contours",
         "pick_activate_scatter_link",
         "pick_high_resolution",
-        "pick_profiles",
+        # "pick_profiles",
         "pick_display_threshold",
         "pick_show_decoration",  #'pick_startX', 'pick_endX',
         *list(cbar_range_sliders.keys()),  # noqa
@@ -793,6 +838,16 @@ class GliderDashboard(param.Parameterized):
         # in case coming in over json link
         self.startX = np.datetime64(self.startX)
         self.endX = np.datetime64(self.endX)
+
+        if self.pick_scatter == "TS":
+            self.pick_scatter_x = "salinity"
+            self.pick_scatter_y = "temperature"
+        elif self.pick_scatter == "profiles":
+            self.pick_scatter_y = "pressure"
+            self.pick_scatter_x = "temperature"  # self.pick_variables[0]
+        elif self.pick_scatter == "custom":
+            self.pick_scatter_x = self.pick_scatter_x
+            self.pick_scatter_y = self.pick_scatter_y
 
         # commonheights = 1000
         x_range = (self.startX, self.endX)
@@ -828,13 +883,42 @@ class GliderDashboard(param.Parameterized):
         # initialize dictionary for resulting plots:
         # plot_elements_dict = dict()
 
-        if self.pick_TS:
+        if self.pick_scatter:
             dmap_TS = hv.DynamicMap(
                 self.get_xsection_TS,
                 streams=[range_stream],
                 cache_size=1,
             )
 
+            if not self.pick_TS_color_variable:
+                dmapTSr = rasterize(
+                    dmap_TS,
+                    pixel_ratio=pixel_ratio,
+                ).opts(
+                    cnorm="eq_hist",
+                )
+            else:
+                dmapTSr = rasterize(
+                    dmap_TS,
+                    pixel_ratio=pixel_ratio,
+                    aggregator=dsh.mean(self.pick_TS_color_variable),
+                ).opts(
+                    cnorm="eq_hist",
+                    cmap=dictionaries.cmap_dict.get(
+                        self.pick_TS_color_variable, cmocean.cm.solar
+                    ),
+                    # clabel=f"{self.pick_variable}  [{dictionaries.units_dict[self.pick_variable]}]",
+                    colorbar=True,
+                )
+
+            # dmapTSr = rasterize(
+            #    dmap_TS,
+            #    pixel_ratio=pixel_ratio,
+            # ).opts(
+            #    cnorm="eq_hist",
+            # )
+
+        """
             dcont = hv.DynamicMap(
                 self.get_density_contours, streams=[range_stream]
             ).opts(
@@ -873,6 +957,7 @@ class GliderDashboard(param.Parameterized):
             ).opts(
                 cnorm="eq_hist",
             )
+        """
 
         dmap_decorators = hv.DynamicMap(
             self.get_xsection, streams=[range_stream], cache_size=1
@@ -961,7 +1046,7 @@ class GliderDashboard(param.Parameterized):
         for index, variable in enumerate(self.pick_variables):
             if (
                 (index < len(self.pick_variables) - 1)
-                and not self.pick_TS
+                and not self.pick_scatter  # _bool
                 and not self.pick_profiles
             ):
                 plots_dict["dmap_rasterized"][variable] = spread(
@@ -1019,18 +1104,26 @@ class GliderDashboard(param.Parameterized):
             else:
                 return pn.Column()
         ncols = 1
-        if self.pick_TS or self.pick_profiles:
+        if self.pick_scatter or self.pick_profiles:
             # link the contourplots with the scatterplot
             mpg_ls = link_selections.instance()
             if self.pick_activate_scatter_link:
                 contourplots = mpg_ls(contourplots)
 
-            if self.pick_TS:
+            if self.pick_scatter:
+                xlim = (
+                    self.stats.loc["5%"][self.pick_scatter_x] * 0.95,
+                    self.stats.loc["99%"][self.pick_scatter_x] * 1.05,
+                )
+                ylim = (
+                    self.stats.loc["1%"][self.pick_scatter_y] * 0.95,
+                    self.stats.loc["99%"][self.pick_scatter_y] * 1.05,
+                )
                 ncols += 1
                 if self.pick_activate_scatter_link:
-                    dmapTSr = mpg_ls(dmapTSr) * dcont
+                    dmapTSr = mpg_ls(dmapTSr.opts(xlim=xlim, ylim=ylim))  # * dcont
                 else:
-                    dmapTSr = dmapTSr * dcont
+                    dmapTSr = dmapTSr.opts(xlim=xlim, ylim=ylim)  # * dcont
             if self.pick_profiles:
                 ncols += 1
                 if self.pick_activate_scatter_link:
@@ -1058,7 +1151,7 @@ class GliderDashboard(param.Parameterized):
                     fontscale=2,
                 )
             )
-            if self.pick_TS
+            if self.pick_scatter
             else contourplots
         )
         contourplots = (
@@ -1300,7 +1393,7 @@ class GliderDashboard(param.Parameterized):
             )
             for element in meta.index
         ]
-
+        print("PICKSCATTER:", self.pick_scatter)
         #################################################################
         # This is currently hard to understand, but:                    #
         # varlist are the datasets that are visualized, either the      #
@@ -1314,6 +1407,17 @@ class GliderDashboard(param.Parameterized):
             variables = self.pick_variables + [self.pick_contours]
         else:
             variables = self.pick_variables
+        if self.pick_scatter:  # == True:
+            if self.pick_scatter_x:
+                variables = variables + [self.pick_scatter_x]
+            if self.pick_scatter_y:
+                variables = variables + [self.pick_scatter_y]
+            if self.pick_TS_color_variable:
+                variables = variables + [self.pick_TS_color_variable]
+                # self.pick_scatter_y,
+                # self.pick_TS_color_variable,
+            # ]
+        variables = list(set(variables))
         varlist = []
         varlist_small = []
         # if plt_props["zoomed_out"]:
@@ -1333,7 +1437,7 @@ class GliderDashboard(param.Parameterized):
             ds = dsdict[dsid]
             varlist_small.append(ds)
 
-        if self.pick_TS or self.pick_profiles:
+        if self.pick_scatter:  # _bool:  # or self.pick_profiles:
             nanosecond_iterator = 1
             for ndataset in varlist:
                 ndataset = ndataset.with_columns(
@@ -1347,18 +1451,23 @@ class GliderDashboard(param.Parameterized):
                 nanosecond_iterator += 1
 
         # This should only be a temporay hack. I don't want all that data to go into my TS plots.
+        # try:
         dsconc = utils.voto_concat_datasets2(varlist)
         dsconc = dsconc.with_columns(pl.col("depth").neg()).sort("time")
 
         dsconc_small = utils.voto_concat_datasets2(varlist_small)
         dsconc_small = dsconc_small.with_columns(pl.col("depth").neg()).sort("time")
+        # except:
+        # import pdb
+
+        # pdb.set_trace()
 
         self.data_in_view = dsconc  # .dropna(subset=['temperature', 'salinity'])
         self.data_in_view_small = dsconc_small
 
-        print(
-            f"the length of dsconc is now {dsconc.collect().height}\n and the length of dsconc_small is {dsconc_small.collect().height}"
-        )
+        # print(
+        #    f"the length of dsconc is now {dsconc.collect().height}\n and the length of dsconc_small is {dsconc_small.collect().height}"
+        # )
 
         # THIS IS EXPENSIVE. I SHOULD CREATE STATS ONLY WHERE NEEDED; ESPECIALLY WITH .to_pandas()
         self.stats = (
@@ -1387,21 +1496,17 @@ class GliderDashboard(param.Parameterized):
         # t2 = time.perf_counter()
         # if self.pick_variables[0]
         # Needs additional variable.
+        print(self.pick_scatter_x, self.pick_scatter_y, self.pick_TS_color_variable)
+
+        # import pdb
+
+        # pdb.set_trace()
         mplt = hv.Points(
-            data=self.data_in_view,
-            kdims=["salinity", "temperature"],
+            data=self.data_in_view,  # .with_columns(pl.col("depth").alias("depth2")),
+            kdims=[self.pick_scatter_x, self.pick_scatter_y],  # self.pick_scatter_y],
             vdims=self.pick_TS_color_variable if self.pick_TS_color_variable else None,
             # list(variables),
             # temp and salinity need to always be present for TS lasso to work, set for unique elements
-        ).opts(
-            xlim=(
-                self.stats.loc["5%"]["salinity"] - 0.5,
-                self.stats.loc["99%"]["salinity"] + 0.5,
-            ),
-            ylim=(
-                self.stats.loc["1%"]["temperature"] - 0.5,
-                self.stats.loc["99%"]["temperature"] + 0.5,
-            ),
         )
 
         return mplt
@@ -1411,7 +1516,8 @@ class GliderDashboard(param.Parameterized):
         high = self.stats.loc["99%"][self.pick_variables[0]]
 
         mplt = hv.Points(
-            data=self.data_in_view, kdims=[self.pick_variables[0], "depth"]
+            data=self.data_in_view.with_columns(pl.col("depth").alias("depth2")),
+            kdims=[self.pick_scatter_x, "depth2"],
         ).opts(
             xlim=(low * 0.95, high * 1.05),
         )
@@ -1750,12 +1856,36 @@ def create_app_instance(self):
 
     # scatter options
     ctrl_scatter = pn.Column(
+        # pn.Param(
+        #     glider_dashboard,
+        #     parameters=["pick_TS", "pick_activate_scatter_link"],
+        #     default_layout=pn.Row,
+        #     show_name=False,
+        #     # display_threshold=10,
+        # ),
+        # pn.Param(
+        #     glider_dashboard,
+        #     parameters=["pick_scatter_bool"],
+        #     widgets={"pick_scatter_x": pn.widgets.AutocompleteInput},
+        #     show_name=False,
+        # ),
         pn.Param(
             glider_dashboard,
-            parameters=["pick_TS", "pick_activate_scatter_link"],
-            default_layout=pn.Row,
+            parameters=["pick_scatter"],
+            widgets={"pick_scatter": pn.widgets.RadioButtonGroup},
             show_name=False,
-            # display_threshold=10,
+        ),
+        pn.Param(
+            glider_dashboard,
+            parameters=["pick_scatter_x"],
+            widgets={"pick_scatter_x": pn.widgets.AutocompleteInput},
+            show_name=False,
+        ),
+        pn.Param(
+            glider_dashboard,
+            parameters=["pick_scatter_y"],
+            widgets={"pick_scatter_y": pn.widgets.AutocompleteInput},
+            show_name=False,
         ),
         pn.Param(
             glider_dashboard,
@@ -1765,10 +1895,16 @@ def create_app_instance(self):
         ),
         pn.Param(
             glider_dashboard,
-            parameters=["pick_profiles"],
+            parameters=["pick_activate_scatter_link"],
             show_name=False,
             # display_threshold=10,
         ),
+        # pn.Param(
+        #     glider_dashboard,
+        #     parameters=["pick_profiles"],
+        #     show_name=False,
+        #     # display_threshold=10,
+        # ),
         # This is a hidden parameter, which can be specified in url
         # to show or hide the menus. Can be useful when emedding interactive
         # figures in webpages or presentations for example.
@@ -1904,13 +2040,17 @@ def create_app_instance(self):
             "pick_show_ctrls": "pick_show_ctrls",
             # "pick_variable": "pick_variable", # replaced by pick_variables
             "pick_variables": "pick_variables",
+            # "pick_scatter_bool": "pick_scatter_bool",
+            "pick_scatter_x": "pick_scatter_x",
+            "pick_scatter_y": "pick_scatter_y",
+            "pick_scatter": "pick_scatter",
             "pick_aggregation": "pick_aggregation",
             "pick_aggregation_method": "pick_aggregation_method",
             "pick_mld": "pick_mld",
             # "pick_mean": "pick_mean",
             "pick_cnorm": "pick_cnorm",
-            "pick_TS": "pick_TS",
-            "pick_profiles": "pick_profiles",
+            # "pick_TS": "pick_TS",
+            # "pick_profiles": "pick_profiles",
             "pick_activate_scatter_link": "pick_activate_scatter_link",
             "pick_contours": "pick_contours",
             "pick_high_resolution": "pick_high_resolution",
