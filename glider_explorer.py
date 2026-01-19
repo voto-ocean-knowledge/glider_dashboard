@@ -329,7 +329,7 @@ class GliderDashboard(param.Parameterized):
         objects=variables_selectable,
         label="X-axis variable",
         doc="Variable used to create colormesh",
-        precedence=1,
+        precedence=-10,
     )
 
     pick_scatter_y = param.Selector(
@@ -338,7 +338,7 @@ class GliderDashboard(param.Parameterized):
         objects=variables_selectable,
         label="Y-axis variable",
         doc="Variable used to create colormesh",
-        precedence=1,
+        precedence=-10,
     )
     # show all the basins and all the datasets. I use the nrt data
     # from the metadatatables as keys, so I skip the 'delayed' sets
@@ -432,24 +432,24 @@ class GliderDashboard(param.Parameterized):
     )
 
     pick_scatter = param.Selector(
-        default=None,
+        default="TS",
         objects=dict(
             zip(
-                ["Disable", "TS", "profiles", "custom"],
-                [None, "TS", "profiles", "custom"],
+                ["TS", "profiles", "custom"],
+                ["TS", "profiles", "custom"],
             )
         ),
         doc="Type of scatter plot",
         label="scatterplot type",
-        precedence=1,
+        precedence=-10,
     )
 
-    # pick_scatter_bool = param.Boolean(
-    #     default=False,
-    #     label="Show scatter diagram",
-    #     doc="Activate scatter diagram",
-    #     precedence=1,
-    # )
+    pick_scatter_bool = param.Boolean(
+        default=False,
+        label="Show scatter diagram",
+        doc="Activate scatter diagram",
+        precedence=1,
+    )
     # pick_TS = param.Boolean(
     #     default=False,
     #     label="Show TS-diagram",
@@ -461,7 +461,7 @@ class GliderDashboard(param.Parameterized):
         objects=variables_selectable,
         label="Colour scatterplot by",
         doc="blubb",
-        precedence=1,
+        precedence=-10,
     )
     pick_profiles = param.Boolean(
         default=False,
@@ -473,7 +473,7 @@ class GliderDashboard(param.Parameterized):
         default=False,
         label="enable linked selections",
         doc="enables linked brushing with box and lasso select",
-        precedence=1,
+        precedence=-10,
     )
     button = param.Action(
         lambda x: x.param.trigger("button"),
@@ -806,7 +806,7 @@ class GliderDashboard(param.Parameterized):
         "pick_toggle",
         "pick_scatter",
         # "pick_TS",
-        # "pick_scatter_bool",
+        "pick_scatter_bool",
         "pick_scatter_x",
         "pick_scatter_y",
         "pick_contours",
@@ -835,15 +835,36 @@ class GliderDashboard(param.Parameterized):
         self.startX = np.datetime64(self.startX)
         self.endX = np.datetime64(self.endX)
 
-        if self.pick_scatter == "TS":
-            self.pick_scatter_x = "salinity"
-            self.pick_scatter_y = "temperature"
-        elif self.pick_scatter == "profiles":
-            self.pick_scatter_y = "pressure"
-            self.pick_scatter_x = "temperature"  # self.pick_variables[0]
-        elif self.pick_scatter == "custom":
-            self.pick_scatter_x = self.pick_scatter_x
-            self.pick_scatter_y = self.pick_scatter_y
+        if self.pick_scatter_bool:
+            self.param.pick_scatter.precedence = 1
+            if self.pick_scatter == "TS":
+                self.pick_scatter_x = "salinity"
+                self.pick_scatter_y = "temperature"
+                self.param.pick_scatter_x.precedence = -10
+                self.param.pick_scatter_y.precedence = -10
+                self.param.pick_activate_scatter_link.precedence = 1
+                self.param.pick_TS_color_variable.precedence = 1
+            elif self.pick_scatter == "profiles":
+                self.pick_scatter_y = "pressure"
+                self.pick_scatter_x = "temperature"  # self.pick_variables[0]
+                self.param.pick_scatter_x.precedence = -10
+                self.param.pick_scatter_y.precedence = -10
+                self.param.pick_TS_color_variable.precedence = 1
+                self.param.pick_activate_scatter_link = 1
+            elif self.pick_scatter == "custom":
+                self.pick_scatter_x = self.pick_scatter_x
+                self.pick_scatter_y = self.pick_scatter_y
+                self.param.pick_scatter_x.precedence = 1
+                self.param.pick_scatter_y.precedence = 1
+                self.param.pick_TS_color_variable.precedence = 1
+                self.param.pick_activate_scatter_link.precedence = 1
+
+        else:
+            self.param.pick_scatter.precedence = -10
+            self.param.pick_scatter_x.precedence = -10
+            self.param.pick_scatter_y.precedence = -10
+            self.param.pick_TS_color_variable.precedence = -10
+            self.param.pick_activate_scatter_link.precedence = -10
 
         # commonheights = 1000
         x_range = (self.startX, self.endX)
@@ -879,7 +900,7 @@ class GliderDashboard(param.Parameterized):
         # initialize dictionary for resulting plots:
         # plot_elements_dict = dict()
 
-        if self.pick_scatter:
+        if self.pick_scatter_bool:
             dmap_TS = hv.DynamicMap(
                 self.get_xsection_TS,
                 streams=[range_stream],
@@ -1042,7 +1063,7 @@ class GliderDashboard(param.Parameterized):
         for index, variable in enumerate(self.pick_variables):
             if (
                 (index < len(self.pick_variables) - 1)
-                and not self.pick_scatter  # _bool
+                and not self.pick_scatter_bool  # _bool
                 and not self.pick_profiles
             ):
                 plots_dict["dmap_rasterized"][variable] = spread(
@@ -1100,20 +1121,29 @@ class GliderDashboard(param.Parameterized):
             else:
                 return pn.Column()
         ncols = 1
-        if self.pick_scatter or self.pick_profiles:
+        if self.pick_scatter_bool:  # or self.pick_profiles:
             # link the contourplots with the scatterplot
             mpg_ls = link_selections.instance()
             if self.pick_activate_scatter_link:
                 contourplots = mpg_ls(contourplots)
 
-            if self.pick_scatter:
-                xlim = (
-                    self.stats.loc["5%"][self.pick_scatter_x] * 0.95,
-                    self.stats.loc["99%"][self.pick_scatter_x] * 1.05,
+            if self.pick_scatter_bool:
+                diffx = (
+                    self.stats.loc["99%"][self.pick_scatter_x]
+                    - self.stats.loc["5%"][self.pick_scatter_x]
                 )
+                xlim = (
+                    self.stats.loc["5%"][self.pick_scatter_x] - 0.1 * diffx,
+                    self.stats.loc["99%"][self.pick_scatter_x] + 0.1 * diffx,
+                )
+                diffy = (
+                    self.stats.loc["99%"][self.pick_scatter_y]
+                    - self.stats.loc["5%"][self.pick_scatter_y]
+                )
+
                 ylim = (
-                    self.stats.loc["1%"][self.pick_scatter_y] * 0.95,
-                    self.stats.loc["99%"][self.pick_scatter_y] * 1.05,
+                    self.stats.loc["1%"][self.pick_scatter_y] - 0.1 * diffy,
+                    self.stats.loc["99%"][self.pick_scatter_y] + 0.1 * diffy,
                 )
                 ncols += 1
                 if self.pick_activate_scatter_link:
@@ -1147,7 +1177,7 @@ class GliderDashboard(param.Parameterized):
                     fontscale=2,
                 )
             )
-            if self.pick_scatter
+            if self.pick_scatter_bool
             else contourplots
         )
         contourplots = (
@@ -1403,7 +1433,7 @@ class GliderDashboard(param.Parameterized):
             variables = self.pick_variables + [self.pick_contours]
         else:
             variables = self.pick_variables
-        if self.pick_scatter:  # == True:
+        if self.pick_scatter_bool:  # == True:
             if self.pick_scatter_x:
                 variables = variables + [self.pick_scatter_x]
             if self.pick_scatter_y:
@@ -1433,7 +1463,7 @@ class GliderDashboard(param.Parameterized):
             ds = dsdict[dsid]
             varlist_small.append(ds)
 
-        if self.pick_scatter:  # _bool:  # or self.pick_profiles:
+        if self.pick_scatter_bool:  # _bool:  # or self.pick_profiles:
             nanosecond_iterator = 1
             for ndataset in varlist:
                 ndataset = ndataset.with_columns(
@@ -1848,12 +1878,12 @@ def create_app_instance(self):
         #     show_name=False,
         #     # display_threshold=10,
         # ),
-        # pn.Param(
-        #     glider_dashboard,
-        #     parameters=["pick_scatter_bool"],
-        #     widgets={"pick_scatter_x": pn.widgets.AutocompleteInput},
-        #     show_name=False,
-        # ),
+        pn.Param(
+            glider_dashboard,
+            parameters=["pick_scatter_bool"],
+            widgets={"pick_scatter_bool": pn.widgets.Switch},
+            show_name=False,
+        ),
         pn.Param(
             glider_dashboard,
             parameters=["pick_scatter"],
@@ -2025,7 +2055,7 @@ def create_app_instance(self):
             "pick_show_ctrls": "pick_show_ctrls",
             # "pick_variable": "pick_variable", # replaced by pick_variables
             "pick_variables": "pick_variables",
-            # "pick_scatter_bool": "pick_scatter_bool",
+            "pick_scatter_bool": "pick_scatter_bool",
             "pick_scatter_x": "pick_scatter_x",
             "pick_scatter_y": "pick_scatter_y",
             "pick_scatter": "pick_scatter",
