@@ -597,10 +597,6 @@ class GliderDashboard(param.Parameterized):
             self.param.pick_dsids.precedence = -10
             self.param.pick_basin.precedence = 1
 
-    # @param.depends("pick_scatter", watch=True)
-    # def pick_scatter_presets(self):
-    # toggles visibility
-
     @param.depends("button_inflow", watch=True)
     def execute_event(self):
         self.markdown.object = """\
@@ -730,7 +726,7 @@ class GliderDashboard(param.Parameterized):
             items = [create_profile_curve(profile)]
             if len(nextprofile) > 0:
                 items.append(create_profile_curve(nextprofile))
-            print("ITEMS:", items)
+            # print("ITEMS:", items)
             profile_plots.append(
                 hv.Overlay(items=items).opts(
                     legend_position="bottom_right", show_legend=True
@@ -1244,7 +1240,7 @@ class GliderDashboard(param.Parameterized):
             ((fDs["minTime (UTC)"] >= x0) & (fDs["maxTime (UTC)"] <= x1))
         ]
 
-        print(fD_inview)
+        # print(fD_inview)
         # mydslist = [name for name in all_dataset_names if '_small' not in name]
 
         if self.pick_toggle == "SAMBA obs.":
@@ -1393,7 +1389,7 @@ class GliderDashboard(param.Parameterized):
             )
             for element in meta.index
         ]
-        print("PICKSCATTER:", self.pick_scatter)
+
         #################################################################
         # This is currently hard to understand, but:                    #
         # varlist are the datasets that are visualized, either the      #
@@ -1451,16 +1447,11 @@ class GliderDashboard(param.Parameterized):
                 nanosecond_iterator += 1
 
         # This should only be a temporay hack. I don't want all that data to go into my TS plots.
-        # try:
         dsconc = utils.voto_concat_datasets2(varlist)
         dsconc = dsconc.with_columns(pl.col("depth").neg()).sort("time")
 
         dsconc_small = utils.voto_concat_datasets2(varlist_small)
         dsconc_small = dsconc_small.with_columns(pl.col("depth").neg()).sort("time")
-        # except:
-        # import pdb
-
-        # pdb.set_trace()
 
         self.data_in_view = dsconc  # .dropna(subset=['temperature', 'salinity'])
         self.data_in_view_small = dsconc_small
@@ -1496,14 +1487,9 @@ class GliderDashboard(param.Parameterized):
         # t2 = time.perf_counter()
         # if self.pick_variables[0]
         # Needs additional variable.
-        print(self.pick_scatter_x, self.pick_scatter_y, self.pick_TS_color_variable)
-
-        # import pdb
-
-        # pdb.set_trace()
         mplt = hv.Points(
-            data=self.data_in_view,  # .with_columns(pl.col("depth").alias("depth2")),
-            kdims=[self.pick_scatter_x, self.pick_scatter_y],  # self.pick_scatter_y],
+            data=self.data_in_view,
+            kdims=["salinity", "temperature"],
             vdims=self.pick_TS_color_variable if self.pick_TS_color_variable else None,
             # list(variables),
             # temp and salinity need to always be present for TS lasso to work, set for unique elements
@@ -1516,8 +1502,7 @@ class GliderDashboard(param.Parameterized):
         high = self.stats.loc["99%"][self.pick_variables[0]]
 
         mplt = hv.Points(
-            data=self.data_in_view.with_columns(pl.col("depth").alias("depth2")),
-            kdims=[self.pick_scatter_x, "depth2"],
+            data=self.data_in_view, kdims=[self.pick_variables[0], "depth"]
         ).opts(
             xlim=(low * 0.95, high * 1.05),
         )
