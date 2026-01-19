@@ -1489,7 +1489,7 @@ class GliderDashboard(param.Parameterized):
         # Needs additional variable.
         mplt = hv.Points(
             data=self.data_in_view,
-            kdims=["salinity", "temperature"],
+            kdims=[self.pick_scatter_x, self.pick_scatter_y],
             vdims=self.pick_TS_color_variable if self.pick_TS_color_variable else None,
             # list(variables),
             # temp and salinity need to always be present for TS lasso to work, set for unique elements
