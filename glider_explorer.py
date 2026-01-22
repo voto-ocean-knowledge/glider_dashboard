@@ -1460,7 +1460,7 @@ class GliderDashboard(param.Parameterized):
         # import pdb; pdb.set_trace();
         for dsid in metakeys:
             # This is delayed data if available
-            if plt_props["zoomed_out"]:
+            if plt_props["zoomed_out"] and (not self.pick_high_resolution):
                 ds = dsdict[dsid + "_small"]
             else:
                 ds = dsdict[dsid]  # + "_small"]
