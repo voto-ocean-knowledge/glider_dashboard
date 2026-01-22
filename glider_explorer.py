@@ -307,12 +307,6 @@ def create_cbar_range(variable):
     )
 
 
-cbar_range_sliders = {
-    f"pick_cbar_range_{variable}": create_cbar_range(variable)
-    for variable in variables_selectable
-}
-
-
 class GliderDashboard(param.Parameterized):
     pick_display_threshold = param.Number(
         default=1, step=1, bounds=(-10, 10), label="display_treshold"
@@ -380,6 +374,11 @@ class GliderDashboard(param.Parameterized):
         label="Colourbar Scale",
         precedence=1,
     )
+
+    cbar_range_sliders = {
+        f"pick_cbar_range_{variable}": create_cbar_range(variable)
+        for variable in variables_selectable  # GliderDashboard.pick_variables
+    }
 
     (locals().update(cbar_range_sliders),)  # noqa
 
@@ -1460,7 +1459,7 @@ class GliderDashboard(param.Parameterized):
         # import pdb; pdb.set_trace();
         for dsid in metakeys:
             # This is delayed data if available
-            if plt_props["zoomed_out"]:
+            if plt_props["zoomed_out"] and (not self.pick_high_resolution):
                 ds = dsdict[dsid + "_small"]
             else:
                 ds = dsdict[dsid]  # + "_small"]
@@ -1793,6 +1792,7 @@ def create_meta_instance(self):
 
 @param.depends(
     "pick_show_ctrls",
+    "pick_autorange",
     watch=True,
 )
 def create_app_instance(self):
@@ -1814,9 +1814,12 @@ def create_app_instance(self):
                     step=0.1,
                 )
             },
+            # display_threshold=5,
         )
 
-    cbar_cntrls = [create_cbar_cntrl(variable) for variable in variables_selectable]
+    # import pdb
+    # pdb.set_trace()
+    # print(glider_dashboard.pick_variables)
 
     # Data options
     ctrl_data = pn.Column(  # top stack, dataset and basin options
@@ -2006,6 +2009,12 @@ def create_app_instance(self):
             # display_threshold=10,
         ),
     )
+
+    cbar_cntrls = [
+        create_cbar_cntrl(variable) for variable in glider_dashboard.pick_variables
+    ]
+
+    print(glider_dashboard.pick_variables)
     ctrl_colorbars = pn.Column(
         pn.Param(
             glider_dashboard,
@@ -2104,7 +2113,7 @@ def create_app_instance(self):
         # glider_dashboard.create_mean,
         pn.Param(
             glider_dashboard,
-            parameters=["pick_show_ctrls"],
+            parameters=["pick_show_ctrls", "pick_autorange"],
             show_name=False,
         ),
         # height=glider_dashboard.pick_contour_heigth,
@@ -2127,6 +2136,7 @@ def create_app_instance(self):
                     #    )),
                     ("more", ctrl_more),
                     ("adjust Colorbars", ctrl_colorbars),
+                    # ctrl_colorbars,
                     # ('WIP',add_row),
                 ],
             ),
