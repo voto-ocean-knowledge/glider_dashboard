@@ -1,3 +1,4 @@
+import logging
 import time
 
 import cmocean
@@ -31,11 +32,29 @@ import utils
 # IDEA: ON INITIALIZATION, SET OWN minTtime/maxTime (UTC) values based on the
 # lazy parquet statistics included in all the files.,
 
+
+def exception_handler(ex):
+    logging.error("Error", exc_info=ex)
+    pn.state.notifications.error(
+        "Please complete/change input parameters", duration=10000
+    )
+    # pn.state.notifications.error(f"{ex}")
+
+
 pn.extension(
     "plotly",
     "mathjax",
     "tabulator",
+    throttled=True,
+    # sizing_mode="stretch_width",
+    template="bootstrap",
+    # theme="light",
+    loading_indicator=True,
+    exception_handler=exception_handler,
+    notifications=True,
 )  # mathjax is currently not used, but could be cool to render latex in markdown
+
+
 # cudf support works, but is currently not faster
 #
 
@@ -1444,6 +1463,11 @@ class GliderDashboard(param.Parameterized):
         else:
             variables = self.pick_variables
         if self.pick_scatter_bool:  # == True:
+            variables = variables + [
+                "pressure",
+                "salinity",
+                "temperature",
+            ]  # for TS and profile plots
             if self.pick_scatter_x:
                 variables = variables + [self.pick_scatter_x]
             if self.pick_scatter_y:
@@ -1502,8 +1526,7 @@ class GliderDashboard(param.Parameterized):
 
         # THIS IS EXPENSIVE. I SHOULD CREATE STATS ONLY WHERE NEEDED; ESPECIALLY WITH .to_pandas()
         self.stats = (
-            self.data_in_view_small.select(variables)
-            .describe(  # .select(pl.col(self.pick_variables))
+            self.data_in_view_small.describe(  # .select(variables)  # .select(variables)  # .select(pl.col(self.pick_variables))
                 (0.01, 0.05, 0.99)
             )
             .to_pandas()
@@ -2098,16 +2121,25 @@ def create_app_instance(self):
             glider_dashboard,
             other_cntrls,
         )
+    # try:
+    content = glider_dashboard.create_dynmap
+    # except:
+    #    print("something is wrong!!!")
+    #    content = "Something is wrong"
 
     contentcolumn = pn.Column(
         # pn.Row(
-        glider_dashboard.create_dynmap,
+        pn.panel(content, defer_load=True),
+        # pn.panel(content),  # , defer_load=True),
         # glider_dashboard.create_mean,
         pn.Param(
             glider_dashboard,
             parameters=["pick_show_ctrls"],
             show_name=False,
         ),
+        sizing_mode="stretch_width",
+        # responsive=True,
+        # defer_load=True,
         # height=glider_dashboard.pick_contour_heigth,
         # ),
         # pn.Row("# Add data aggregations (mean, max, std...)", button_cols),
@@ -2164,7 +2196,7 @@ button_dash.clicks += (
     1  # to activate the Glider Data dashboard from the start as default
 )
 # mylayout.append(create_app_instance("placeholder"))
-mylayout.servable()
+mylayout.servable(title="Voice of the Ocean Glider Dashboard")
 # app = layout # create_app_instance()
 # app2 = create_app_instance()
 # layout.servable()
