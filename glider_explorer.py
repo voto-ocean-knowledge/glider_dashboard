@@ -1502,7 +1502,8 @@ class GliderDashboard(param.Parameterized):
 
         # THIS IS EXPENSIVE. I SHOULD CREATE STATS ONLY WHERE NEEDED; ESPECIALLY WITH .to_pandas()
         self.stats = (
-            self.data_in_view_small.describe(  # .select(pl.col(self.pick_variables))
+            self.data_in_view_small.select(variables)
+            .describe(  # .select(pl.col(self.pick_variables))
                 (0.01, 0.05, 0.99)
             )
             .to_pandas()
