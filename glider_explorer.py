@@ -2142,7 +2142,7 @@ def create_app_instance(self):
         # defer_load=True,
         # height=glider_dashboard.pick_contour_heigth,
         # ),
-        # pn.Row("# Add data aggregations (mean, max, std...)", button_cols),
+        # pn.Row( "# Add data aggregations (mean, max, std...)", button_cols),
     )
 
     layout = pn.Column(
@@ -2157,7 +2157,7 @@ def create_app_instance(self):
                     #    pick_aggregation_method,
                     #    add_row,
                     #    clear_rows,
-                    #    )),
+                    #    )) ,
                     ("more", ctrl_more),
                     ("adjust Colorbars", ctrl_colorbars),
                     # ('WIP',add_row),
