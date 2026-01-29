@@ -225,9 +225,11 @@ def mixed_layer_depth(ds, variable, thresh=0.01, ref_depth=-10, verbose=True):
         will be an array of depths the length of the
         number of unique dives.
     """
-    groups = group_by_profiles(ds, [variable, "depth", "time"])
+    groups = group_by_profiles(ds, [variable, "depth", "time", "dives"])
     mld = groups.map_groups(
-        lambda group_df: mld_profile(group_df, "temperature", 0.3, 5, True)
+        lambda group_df: mld_profile(
+            group_df, "temperature", 0.3, 5, True
+        ),  # schema=None
     )  # .apply(mld_profile, variable, thresh, ref_depth, verbose)
     return mld
 
@@ -254,7 +256,7 @@ def group_by_profiles(ds, variables=None):
     pandas.groupby methods.
     """
     # .map_groups(lambda group_df: mld_profile(group_df))  ds.collect().group_by('dives')
-    return ds.collect().group_by("dives")
+    return ds.select(pl.col(variables)).collect().group_by("dives")
     # import pdb
 
     # pdb.set_trace()
