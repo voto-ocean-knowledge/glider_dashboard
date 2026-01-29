@@ -4,6 +4,7 @@ import time
 import cmocean
 import datashader as dsh
 import holoviews as hv
+import hvplot.pandas  # noqa
 import hvplot.polars  # noqa
 import numpy as np
 import pandas as pd
@@ -47,7 +48,7 @@ pn.extension(
     "tabulator",
     throttled=True,
     # sizing_mode="stretch_width",
-    template="bootstrap",
+    # template="bootstrap",
     # theme="light",
     loading_indicator=True,
     exception_handler=exception_handler,
@@ -224,8 +225,10 @@ def mixed_layer_depth(ds, variable, thresh=0.01, ref_depth=-10, verbose=True):
         will be an array of depths the length of the
         number of unique dives.
     """
-    groups = group_by_profiles(ds, [variable, "depth"])
-    mld = groups.apply(mld_profile, variable, thresh, ref_depth, verbose)
+    groups = group_by_profiles(ds, [variable, "depth", "time"])
+    mld = groups.map_groups(
+        lambda group_df: mld_profile(group_df, "temperature", 0.3, 5, True)
+    )  # .apply(mld_profile, variable, thresh, ref_depth, verbose)
     return mld
 
 
@@ -250,43 +253,53 @@ def group_by_profiles(ds, variables=None):
     dataset grouped by profiles (dives variable), as created by the
     pandas.groupby methods.
     """
-    ds = ds.reset_coords().to_pandas().reset_index().set_index("dives")
-    if variables:
-        return ds[variables].groupby("dives")
-    else:
-        return ds.groupby("dives")
+    # .map_groups(lambda group_df: mld_profile(group_df))  ds.collect().group_by('dives')
+    return ds.collect().group_by("dives")
+    # import pdb
+
+    # pdb.set_trace()
+    # ds = ds.reset_coords().to_pandas().reset_index().set_index("dives")
+    # if variables:
+    #    return ds[variables].groupby("dives")
+    # else:
+    #    return ds.groupby("dives")
 
 
 def mld_profile(df, variable, thresh, ref_depth, verbose=True):
     exception = False
-    divenum = df.index[0]
-    df = df.dropna(subset=[variable, "depth"])
+    divenum = df["dives"].first()  # df.index[0]
+    ptime = df["time"].first()
+    df = df.drop_nulls(subset=[variable, "depth"])
+    # import pdb
+
+    # pdb.set_trace()
+
     if len(df) == 0:
         mld = np.nan
         exception = True
         message = """no observations found for specified variable in dive {}
                 """.format(divenum)
-    elif np.nanmin(np.abs(df.depth.values + ref_depth)) > 5:
+    elif np.nanmin(np.abs(df["depth"] + ref_depth)) > 5:
         exception = True
         message = """no observations within 5 m of ref_depth for dive {}
                 """.format(divenum)
         mld = np.nan
     else:
-        direction = 1 if np.unique(df.index % 1 == 0) else -1
+        direction = 1 if np.unique(df["dives"] % 1 == 0) else -1
         # create arrays in order of increasing depth
-        var_arr = df[variable].values[:: int(direction)]
-        depth = df.depth.values[:: int(direction)]
+        var_arr = df[variable][:: int(direction)]
+        depth = df["depth"][:: int(direction)]
         # get index closest to ref_depth
         i = np.nanargmin(np.abs(depth + ref_depth))
         # create difference array for threshold variable
-        dd = var_arr - var_arr[i]
+        dd = var_arr - var_arr[int(i)]
         # mask out all values that are shallower then ref_depth
         dd[depth > ref_depth] = np.nan
         # get all values in difference array within treshold range
-        mixed = dd[abs(dd) > thresh]
+        mixed = dd.filter(abs(dd) > thresh)
         if len(mixed) > 0:
             idx_mld = np.argmax(abs(dd) > thresh)
-            mld = depth[idx_mld]
+            mld = depth[int(idx_mld)]
         else:
             exception = True
             mld = np.nan
@@ -294,7 +307,7 @@ def mld_profile(df, variable, thresh, ref_depth, verbose=True):
                 shallow profile) for profile {}""".format(divenum)
     if verbose and exception:
         print(message)
-    return mld
+    return pl.DataFrame({"mld": [mld], "time": [ptime]})  # mld
 
 
 def create_single_ds_plot_raster(data, variables):
@@ -1357,19 +1370,26 @@ class GliderDashboard(param.Parameterized):
         except:
             dscopy = utils.add_dive_column(self.data_in_view)
         # dscopy["depth"] = -dscopy["depth"]
-        mld = mixed_layer_depth(
-            dscopy.to_xarray(), "temperature", thresh=0.3, verbose=False, ref_depth=5
+        dfmld = mixed_layer_depth(
+            dscopy, "temperature", thresh=0.3, verbose=False, ref_depth=5
         )
-        gtime = dscopy.reset_index().groupby(by="profile_num").mean().time
-        dfmld = (
-            pd.DataFrame.from_dict(
-                dict(time=gtime.values, mld=mld.rolling(10, center=True).mean().values)
-            )
-            .sort_values(by="time")
-            .dropna()
-        )
+        # gtime = dscopy.group_by("profile_num").mean().collect()["time"]  # .time
+        # import pdb
 
-        mldscatter = dfmld.hvplot.line(
+        # pdb.set_trace()
+        # dfmld = (
+        #    pd.DataFrame.from_dict(dict(time=gtime, mld=mld["mld"]))
+        #    .set_index("time")
+        #    .sort_values(by="time")
+        #    .dropna()
+        # )
+
+        # import pdb
+
+        # pdb.set_trace()
+        # dfmld = dfmld.rolling(window=10, center=True, min_periods=3).mean()
+
+        mldscatter = dfmld.hvplot.scatter(
             x="time",
             y="mld",
             color="white",

@@ -2,12 +2,13 @@ import pprint
 from ast import literal_eval
 
 import pandas as pd
+import polars as pl
 from erddapy import ERDDAP
 
 project = "SAMBA"
 basin = "Bornholm Basin"
 year = 2024
-month = 13
+month = 2
 GDAC_data = False
 
 
@@ -149,14 +150,13 @@ def filter_metadata():
     mode = "all"  # 'nrt', 'delayed'
     metadata = load_metadata_VOTO()
 
-    """
     metadata = metadata[
         (metadata["project"] == project)
         & (metadata["basin"] == basin)
         & (metadata["time_coverage_start (UTC)"].dt.year == year)
         & (metadata["time_coverage_start (UTC)"].dt.month < month)
     ]
-    """
+
     # Terrible style here.
     # all_datasets = allDatasets[allDatasets["minTime (UTC)"].dt.year == year]
     # all_datasets = all_datasets[
@@ -340,5 +340,13 @@ def add_dive_column(ds):
         Dataset containing a dives column
     """
     # ds["dives"] = np.where(ds.profile_direction == 1, ds.profile_num, ds.profile_num + 0.5)
-    ds["dives"] = ds.profile_num.where(ds.profile_direction == 1, ds.profile_num + 0.5)
+    # ds["dives"] = ds.profile_num.where(ds.profile_direction == 1, ds.profile_num + 0.5)
+    # import pdb
+
+    # pdb.set_trace()
+    ds = ds.with_columns(
+        dives=pl.when(pl.col("profile_direction") == 1)
+        .then(pl.col("profile_num"))
+        .otherwise(pl.col("profile_num") + 0.5)
+    )
     return ds
