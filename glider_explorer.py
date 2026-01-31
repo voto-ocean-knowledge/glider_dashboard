@@ -202,38 +202,6 @@ def plot_limits(plot, element):
     plot.handles["y_range"].max_interval = 500
 
 
-def mixed_layer_depth(ds, variable, thresh=0.01, ref_depth=-10, verbose=True):
-    """
-    Calculates the MLD for ungridded glider array.
-
-    You can provide density or temperature.
-    The default threshold is set for density (0.01).
-
-    Parameters
-    ----------
-    ds : xarray.Dataset Glider dataset
-    variable : str
-         variable that will be used for the threshold criteria
-    thresh : float=0.01 threshold for difference of variable
-    ref_depth : float=10 reference depth for difference
-    return_as_mask : bool, optional
-    verbose : bool, optional
-
-    Return
-    ------
-    mld : array
-        will be an array of depths the length of the
-        number of unique dives.
-    """
-    groups = group_by_profiles(ds, [variable, "depth", "time", "dives"])
-    mld = groups.map_groups(
-        lambda group_df: mld_profile(
-            group_df, "temperature", 0.3, 5, True
-        ),  # schema=None
-    )  # .apply(mld_profile, variable, thresh, ref_depth, verbose)
-    return mld
-
-
 def group_by_profiles(ds, variables=None):
     """
     Group profiles by dives column. Each group member is one dive. The
@@ -256,7 +224,7 @@ def group_by_profiles(ds, variables=None):
     pandas.groupby methods.
     """
     # .map_groups(lambda group_df: mld_profile(group_df))  ds.collect().group_by('dives')
-    return ds.select(pl.col(variables)).collect().group_by("dives")
+    # return ds.select(pl.col(variables)).group_by("dives")
     # import pdb
 
     # pdb.set_trace()
@@ -269,12 +237,9 @@ def group_by_profiles(ds, variables=None):
 
 def mld_profile(df, variable, thresh, ref_depth, verbose=True):
     exception = False
-    divenum = df["dives"].first()  # df.index[0]
+    divenum = df["profile_num"].first()  # df.index[0]
     ptime = df["time"].first()
     df = df.drop_nulls(subset=[variable, "depth"])
-    # import pdb
-
-    # pdb.set_trace()
 
     if len(df) == 0:
         mld = np.nan
@@ -287,7 +252,9 @@ def mld_profile(df, variable, thresh, ref_depth, verbose=True):
                 """.format(divenum)
         mld = np.nan
     else:
-        direction = 1 if np.unique(df["dives"] % 1 == 0) else -1
+        # not using direction because it is not present at GDAC
+        # direction = df["profile_direction"].first()
+        direction = 1 if (df["depth"].first() > df["depth"].last()) else -1
         # create arrays in order of increasing depth
         var_arr = df[variable][:: int(direction)]
         depth = df["depth"][:: int(direction)]
@@ -1367,31 +1334,17 @@ class GliderDashboard(param.Parameterized):
         return allDatasets.loc[meta.index], plt_props
 
     def get_xsection_mld(self, x_range, y_range):
-        try:
-            dscopy = utils.add_dive_column(self.data_in_view).compute()
-        except:
-            dscopy = utils.add_dive_column(self.data_in_view)
-        # dscopy["depth"] = -dscopy["depth"]
-        dfmld = mixed_layer_depth(
-            dscopy, "temperature", thresh=0.3, verbose=False, ref_depth=5
-        )
-        # gtime = dscopy.group_by("profile_num").mean().collect()["time"]  # .time
-        # import pdb
-
-        # pdb.set_trace()
-        # dfmld = (
-        #    pd.DataFrame.from_dict(dict(time=gtime, mld=mld["mld"]))
-        #    .set_index("time")
-        #    .sort_values(by="time")
-        #    .dropna()
+        dfmld = self.mixed_layer_depth(
+            "temperature",
+            thresh=0.3,
+            verbose=False,
+            ref_depth=5,
+        ).to_pandas()
+        # dfmld["mld"] = (
+        #    dfmld["mld"].rolling(window=10, center=True, min_periods=3).mean()
         # )
 
-        # import pdb
-
-        # pdb.set_trace()
-        # dfmld = dfmld.rolling(window=10, center=True, min_periods=3).mean()
-
-        mldscatter = dfmld.hvplot.scatter(
+        mldscatter = dfmld.hvplot.line(
             x="time",
             y="mld",
             color="white",
@@ -1539,8 +1492,12 @@ class GliderDashboard(param.Parameterized):
         dsconc_small = utils.voto_concat_datasets2(varlist_small)
         dsconc_small = dsconc_small.with_columns(pl.col("depth").neg()).sort("time")
 
-        self.data_in_view = dsconc  # .dropna(subset=['temperature', 'salinity'])
-        self.data_in_view_small = dsconc_small
+        self.data_in_view = dsconc.filter(
+            (pl.col("time") > self.pick_startX) & (pl.col("time") < self.pick_endX)
+        )  # .dropna(subset=['temperature', 'salinity'])
+        self.data_in_view_small = dsconc_small.filter(
+            (pl.col("time") > self.pick_startX) & (pl.col("time") < self.pick_endX)
+        )
 
         # print(
         #    f"the length of dsconc is now {dsconc.collect().height}\n and the length of dsconc_small is {dsconc_small.collect().height}"
@@ -1557,7 +1514,7 @@ class GliderDashboard(param.Parameterized):
 
         # THIS MUST BE REMOVE FOR GREAT PERFORMANCE.
         # REQUIRES REWRITE OF SOME CLIM AND QUANTILE FILTERS I BELIEVE
-        # self.update_markdown(x_range, y_range)  # THIS SHOULD BE READDED EVENTUALLY
+        self.update_markdown(x_range, y_range)  # THIS SHOULD BE READDED EVENTUALLY
 
         mplt = create_single_ds_plot_raster(data=self.data_in_view, variables=variables)
         return mplt
@@ -1722,6 +1679,60 @@ class GliderDashboard(param.Parameterized):
             return hv.Overlay(plotslist)  # reduce(lambda x, y: x*y, plotslist)
         else:
             return hv.Overlay()  # return self.create_None_element("Overlay")
+
+    def mixed_layer_depth(self, variable, thresh=0.01, ref_depth=-10, verbose=True):
+        """
+        Calculates the MLD for ungridded glider array.
+
+        You can provide density or temperature.
+        The default threshold is set for density (0.01).
+
+        Parameters
+        ----------
+        ds : xarray.Dataset Glider dataset
+        variable : str
+            variable that will be used for the threshold criteria
+        thresh : float=0.01 threshold for difference of variable
+        ref_depth : float=10 reference depth for difference
+        return_as_mask : bool, optional
+        verbose : bool, optional
+
+        Return
+        ------
+        mld : array
+            will be an array of depths the length of the
+            number of unique dives.
+        """
+        # import pdb
+
+        # pdb.set_trace()
+        groups = (
+            self.data_in_view_small.select(
+                pl.col(
+                    [variable, "depth", "time", "profile_num"]
+                )  # , "profile_direction"])
+            )
+            .filter(
+                pl.col("profile_num")
+                % int(
+                    (pd.to_datetime(self.endX) - pd.to_datetime(self.startX)).days / 30
+                    + 1
+                )
+                == 0
+            )
+            .group_by("profile_num")
+        )  # group_by_profiles(ds, [variable, "depth", "time", "dives"])
+
+        mld = groups.map_groups(
+            lambda group_df: mld_profile(group_df, "temperature", 0.3, 5, False),
+            schema=pl.Schema(
+                {
+                    "mld": pl.Float32,
+                    "time": pl.Time,  # ("us"),
+                }
+            ),
+        )  # .apply(mld_profile, variable, thresh, ref_depth, verbose)
+        return mld.collect()
 
 
 class MetaDashboard(param.Parameterized):

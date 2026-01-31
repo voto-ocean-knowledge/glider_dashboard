@@ -47,7 +47,6 @@ def load_allDatasets_GDAC():
     allDatasetsGDAC["maxTime (UTC)"] = pd.to_datetime(allDatasetsGDAC["maxTime (UTC)"])
     allDatasetsGDAC = allDatasetsGDAC[allDatasetsGDAC["minTime (UTC)"].dt.year == year]
     allDatasetsGDAC = allDatasetsGDAC[allDatasetsGDAC["minTime (UTC)"].dt.month < month]
-    allDatasetsGDAC.drop("maracoos_05-20240801T1650-delayed")
     allDatasetsGDAC = allDatasetsGDAC.iloc[0:90]
     allDatasetsGDAC = allDatasetsGDAC[
         allDatasetsGDAC["institution"] != "C-PROOF"
@@ -315,8 +314,16 @@ def voto_concat_datasets2(datasets):
     # in case the datasets have a different set of variables, emtpy variables are created
     # to allow for concatenation (concat with different set of variables leads to error)
     for index in range(1, len(datasets)):
+        A = (
+            datasets[index - 1]
+            .select("profile_num")
+            .last()
+            .collect()["profile_num"]
+            .to_numpy()[0]
+        )
         datasets[index] = datasets[index].with_columns(
-            pl.col("profile_num") + (index * 10000)
+            pl.col("profile_num") + A
+            # pl.col("profile_num") + (index * 10000)
         )  # datasets[index - 1].select(pl.col("profile_num")).max()  # .collect())
     ds = pl.concat([data for data in datasets], how="diagonal_relaxed")
     # ds = add_dive_column(ds)
