@@ -26,12 +26,7 @@ from holoviews.streams import (
 )
 
 import dictionaries
-
-# import initialize
 import utils
-
-# IDEA: ON INITIALIZATION, SET OWN minTtime/maxTime (UTC) values based on the
-# lazy parquet statistics included in all the files.,
 
 
 def exception_handler(ex):
@@ -48,26 +43,27 @@ pn.extension(
     "tabulator",
     throttled=True,
     # sizing_mode="stretch_width",
-    # template="bootstrap",
+    template="bootstrap",
+    global_css=[
+        ":root {--design-primary-color:lightgrey; --design-primary-text-color:black}"
+    ],
+    # header_background="red",
+    # header_color="black",
     # theme="light",
     loading_indicator=True,
     exception_handler=exception_handler,
     notifications=True,
-)  # mathjax is currently not used, but could be cool to render latex in markdown
+)
 
-
+# mathjax is currently not used, but could be cool to render latex in markdown
 # cudf support works, but is currently not faster
-#
 
 
 # all_metadata is loaded for the metadata visualisation
 # all_metadata, allDatasets = utils.load_metadata()
 all_metadata = utils.load_metadata_VOTO()
 
-# allDatasets = pd.concat([allDatasetsVOTO, allDatasetsGDAC])
-
 ###### filter metadata to prepare download ##############
-# metadata, all_datasets = utils.filter_metadata()
 metadata = utils.filter_metadata()
 
 metadata = metadata.drop(
@@ -145,34 +141,6 @@ if utils.GDAC_data:
             )
             .rename({"profile_id": "profile_num"})
         )
-
-# import pdb; pdb.set_trace();
-# for dsid in all_dataset_names:
-# dsdict[dsid.replace("nrt", "delayed")] = pl.scan_parquet(
-#    f"../voto_erddap_data_cache/{dsid.replace('nrt', 'delayed')}.parquet"
-# )
-"""
-print(f"now reading in {dsid}")
-if (dsid in list(metadata.index)) or (
-    dsid in [element.replace("nrt", "delayed") for element in metadata.index]
-):
-    dsdict[dsid] = pl.scan_parquet(f"../voto_erddap_data_cache/{dsid}.parquet")
-else:
-    dsdict[dsid] = pl.scan_parquet(f"../voto_erddap_data_cache/{dsid}.parquet")
-    dsdict[dsid] = (
-        dsdict[dsid]
-        .drop(cs.string())
-        .with_columns(
-            pl.col("time")
-            .dt.cast_time_unit("ns")
-            .dt.replace_time_zone(None)
-            .cast(pl.Float32, strict=False)
-        )
-        #.rename({"profile_id": "profile_num"})
-    )
-    print(dsdict[dsid].collect()['profile_id'])
-"""
-
 
 variables_selectable = (
     pl.concat(dsdict.values(), how="diagonal_relaxed").collect_schema().names()
