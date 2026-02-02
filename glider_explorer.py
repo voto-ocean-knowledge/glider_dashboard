@@ -47,9 +47,6 @@ pn.extension(
     global_css=[
         ":root {--design-primary-color:lightgrey; --design-primary-text-color:black}"
     ],
-    # header_background="red",
-    # header_color="black",
-    # theme="light",
     loading_indicator=True,
     exception_handler=exception_handler,
     notifications=True,
@@ -87,14 +84,7 @@ dsdict = {}
 # HERE I MUST DIFFERENTIATE INTO TWO DATASETS: ONE COMPLETE METADATA FOR THE METADASHBOARD,
 # AND ONE/TWO DATASETS THAT ARE FILTERED AND SHWON IN THE DASHBOARD
 # all_dataset_names = list(all_datasets.index) + list(metadata.index)
-# MUST BE REIMPLEMENTED!!!
-# all_dataset_names = set(
-#    list(all_datasets.index)
-#    + [element.replace("nrt", "delayed") for element in metadata.index]
-#    + list(metadata.index)
-# )
-# )
-# CURRENTLY I HAVE AN UNCLEAR DOUBLE FILTER EFFECT HERE :()
+
 all_dataset_names = set(allDatasetsVOTO.index).intersection(
     [element.replace("nrt", "delayed") for element in metadata.index]
 )
@@ -104,8 +94,7 @@ all_dataset_names += list(
 )  # Add nrt data because I currently use it for statistics
 if utils.GDAC_data:
     all_dataset_names += list(allDatasetsGDAC.index)
-#   + list(metadata.index)
-# )
+
 all_dataset_names = list(all_dataset_names) + [
     dataset_name + "_small" for dataset_name in all_dataset_names
 ]
@@ -115,10 +104,6 @@ fDs["minTime (UTC)"] = fDs["minTime (UTC)"].dt.tz_localize(None)
 fDs["maxTime (UTC)"] = fDs["maxTime (UTC)"].dt.tz_localize(None)
 allDatasets["minTime (UTC)"] = allDatasets["minTime (UTC)"].dt.tz_localize(None)
 allDatasets["maxTime (UTC)"] = allDatasets["maxTime (UTC)"].dt.tz_localize(None)
-
-# import pdb
-
-# pdb.set_trace()
 
 for dsid in list(allDatasetsVOTO.index) + [
     id + "_small" for id in allDatasetsVOTO.index
@@ -170,39 +155,6 @@ def plot_limits(plot, element):
     plot.handles["y_range"].max_interval = 500
 
 
-def group_by_profiles(ds, variables=None):
-    """
-    Group profiles by dives column. Each group member is one dive. The
-    returned profiles can be evaluated statistically, e.g. by
-    pandas.DataFrame.mean or other aggregating methods. To filter out one
-    specific profile, use xarray.Dataset.where instead.
-
-    Parameters
-    ----------
-    ds : xarray.Dataset
-        1-dimensional Glider dataset
-    variables : list of strings, optional
-        specify variables if only a subset of the dataset should be grouped
-        into profiles. Grouping only a subset is considerably faster and more
-        memory-effective.
-    Return
-    ------
-    profiles:
-    dataset grouped by profiles (dives variable), as created by the
-    pandas.groupby methods.
-    """
-    # .map_groups(lambda group_df: mld_profile(group_df))  ds.collect().group_by('dives')
-    # return ds.select(pl.col(variables)).group_by("dives")
-    # import pdb
-
-    # pdb.set_trace()
-    # ds = ds.reset_coords().to_pandas().reset_index().set_index("dives")
-    # if variables:
-    #    return ds[variables].groupby("dives")
-    # else:
-    #    return ds.groupby("dives")
-
-
 def mld_profile(df, variable, thresh, ref_depth, verbose=True):
     exception = False
     divenum = df["profile_num"].first()  # df.index[0]
@@ -244,11 +196,10 @@ def mld_profile(df, variable, thresh, ref_depth, verbose=True):
                 shallow profile) for profile {}""".format(divenum)
     if verbose and exception:
         print(message)
-    return pl.DataFrame({"mld": [mld], "time": [ptime]})  # mld
+    return pl.DataFrame({"mld": [mld], "time": [ptime]})
 
 
 def create_single_ds_plot_raster(data, variables):
-    # https://stackoverflow.com/questions/32318751/holoviews-how-to-plot-dataframe-with-time-index
     variables = set(variables)
     variables.add("temperature")  # inplace operations
     variables.add("salinity")
@@ -268,9 +219,7 @@ def create_cbar_range(variable):
             1,
             # dictionaries.ranges_dict[variable][0],
             # dictionaries.ranges_dict[variable][1],
-        ),
-        # default=(-2, 30), # this is not respected anyway, but below in redefinition
-        # step=0.5,
+        ),  # this is not respected anyway, but below in redefinition
         doc=f"Cbar limits for {variable}",
         precedence=-10,
     )
@@ -331,8 +280,8 @@ class GliderDashboard(param.Parameterized):
     objectsdict = dict(zip(alldslabels, alldslist))
 
     pick_dsids = param.ListSelector(
-        default=[],  # [alldslist[0]],#dslist[0]],
-        objects=objectsdict,  # alldslist,
+        default=[],
+        objects=objectsdict,
         label="DatasetID",
         precedence=-10,
     )
@@ -419,12 +368,7 @@ class GliderDashboard(param.Parameterized):
         doc="Activate scatter diagram",
         precedence=1,
     )
-    # pick_TS = param.Boolean(
-    #     default=False,
-    #     label="Show TS-diagram",
-    #     doc="Activate salinity-temperature diagram",
-    #     precedence=1,
-    # )
+
     pick_TS_color_variable = param.Selector(
         default=None,
         objects=variables_selectable,
@@ -486,10 +430,8 @@ class GliderDashboard(param.Parameterized):
         precedence=1,
     )
     data_in_view = None
-    # file_download = None
     contour_processing = False
     startX, endX = (
-        # metadata["time_coverage_start (UTC)"].min().to_datetime64(),
         fDs["minTime (UTC)"].min().to_datetime64(),
         # - np.timedelta64(6 * 30 * 24, "s"),  # last six months
         fDs["maxTime (UTC)"].max().to_datetime64(),
@@ -537,7 +479,6 @@ class GliderDashboard(param.Parameterized):
             "pick_cnorm",
             "pick_aggregation",
             "pick_mld",
-            # se
             # "pick_mean",
             # "pick_TS",
             # "pick_profiles",
@@ -553,7 +494,6 @@ class GliderDashboard(param.Parameterized):
         try:
             # first run, when layout does not exist, this fails deliberately.
             mylayout[0][0][0].visible = self.pick_show_ctrls
-            # print(mylayout)
         except:
             pass
 
@@ -573,7 +513,6 @@ class GliderDashboard(param.Parameterized):
         # Baltic Inflows
         Baltic Inflows are transporting salt and oxygen into the depth of the Baltic Sea.
         """
-        # for i in range(10,20):
         self.startX = np.datetime64("2024-01-15")
         self.endX = np.datetime64("2024-01-18")
         self.pick_startX = np.datetime64("2024-01-15")
@@ -617,11 +556,6 @@ class GliderDashboard(param.Parameterized):
             self.pick_endX = None
             return
         incoming_link = not (isinstance(self.pick_startX, pd.Timestamp))
-        # print('ISINSTANCE', isinstance(self.pick_startX, pd.Timestamp))
-        # print('INCOMING VIA LINK:', incoming_link)
-        # import pdb
-
-        # pdb.set_trace()
         if not incoming_link:
             mintime = meta["minTime (UTC)"].min()
             maxtime = meta["maxTime (UTC)"].max()
@@ -696,7 +630,6 @@ class GliderDashboard(param.Parameterized):
             items = [create_profile_curve(profile)]
             if len(nextprofile) > 0:
                 items.append(create_profile_curve(nextprofile))
-            # print("ITEMS:", items)
             profile_plots.append(
                 hv.Overlay(items=items).opts(
                     legend_position="bottom_right", show_legend=True
@@ -735,10 +668,6 @@ class GliderDashboard(param.Parameterized):
     def update_data(self):
         x_range = (self.startX, self.endX)
         meta, plt_props = self.load_viewport_datasets(x_range)
-
-        # if plt_props["zoomed_out"]:
-        #    metakeys = [element.replace("nrt", "delayed") for element in meta.index]
-        # else:
         metakeys = [
             (
                 element.replace("nrt", "delayed")
@@ -798,9 +727,6 @@ class GliderDashboard(param.Parameterized):
 
         self.startY, self.endY = (self.pick_startY, self.pick_endY)
 
-        # self.startY = self.pick_startY
-        # self.endY = self.pick_endY
-
         # in case coming in over json link
         self.startX = np.datetime64(self.startX)
         self.endX = np.datetime64(self.endX)
@@ -816,7 +742,7 @@ class GliderDashboard(param.Parameterized):
                 self.param.pick_TS_color_variable.precedence = 1
             elif self.pick_scatter == "profiles":
                 self.pick_scatter_y = "pressure"
-                self.pick_scatter_x = "temperature"  # self.pick_variables[0]
+                self.pick_scatter_x = "temperature"
                 self.param.pick_scatter_x.precedence = -10
                 self.param.pick_scatter_y.precedence = -10
                 self.param.pick_TS_color_variable.precedence = 1
@@ -854,21 +780,11 @@ class GliderDashboard(param.Parameterized):
             self.get_xsection_raster,
             streams=[range_stream, tap_stream],
         )
-        # t1 = time.perf_counter()
-        # if (self.data_in_view is not None) and
-
-        # t2 = time.perf_counter()
-        # print("statistical operations took:", t2 - t1)
 
         if self.pick_high_resolution:
             pixel_ratio = 1.0
         else:
             pixel_ratio = 0.5
-        # if self.pick_aggregation=='var':
-        #    means = dsh.var(self.pick_variable)
-
-        # initialize dictionary for resulting plots:
-        # plot_elements_dict = dict()
 
         if self.pick_scatter_bool:
             dmap_TS = hv.DynamicMap(
@@ -898,51 +814,11 @@ class GliderDashboard(param.Parameterized):
                     colorbar=True,
                 )
 
-            # dmapTSr = rasterize(
-            #    dmap_TS,
-            #    pixel_ratio=pixel_ratio,
-            # ).opts(
-            #    cnorm="eq_hist",
-            # )
-
         """
             dcont = hv.DynamicMap(
                 self.get_density_contours, streams=[range_stream]
             ).opts(
                 alpha=0.5,
-            )
-            if not self.pick_TS_color_variable:
-                dmapTSr = rasterize(
-                    dmap_TS,
-                    pixel_ratio=pixel_ratio,
-                ).opts(
-                    cnorm="eq_hist",
-                )
-            else:
-                dmapTSr = rasterize(
-                    dmap_TS,
-                    pixel_ratio=pixel_ratio,
-                    aggregator=dsh.mean(self.pick_TS_color_variable),
-                ).opts(
-                    cnorm="eq_hist",
-                    cmap=dictionaries.cmap_dict.get(
-                        self.pick_TS_color_variable, cmocean.cm.solar
-                    ),
-                    # clabel=f"{self.pick_variable}  [{dictionaries.units_dict[self.pick_variable]}]",
-                    colorbar=True,
-                )
-
-        if self.pick_profiles:
-            dmap_profiles = hv.DynamicMap(
-                self.get_xsection_profiles,
-                streams=[range_stream],
-                cache_size=1,
-            )
-            dmap_profilesr = rasterize(
-                dmap_profiles,
-                pixel_ratio=pixel_ratio,
-            ).opts(
-                cnorm="eq_hist",
             )
         """
 
@@ -955,7 +831,6 @@ class GliderDashboard(param.Parameterized):
                 self.get_xsection_mld, streams=[range_stream], cache_size=1
             )  # .opts(responsive=True)
 
-        # cntr_plts = []
         plots_dict = dict(dmap_rasterized=dict(), dmap_rasterized_contour=dict())
         if len(self.pick_variables):
             if self.pick_contour_height:
@@ -1181,10 +1056,6 @@ class GliderDashboard(param.Parameterized):
         x_range = (self.startX, self.endX)
         y_range = (self.startY, self.endY)
         range_stream = RangeXY(x_range=x_range, y_range=y_range).rename()
-        # dmap_raster = hv.DynamicMap(
-        #    self.get_xsection_raster,
-        #    streams=[range_stream],
-        # )
         dmap = hv.DynamicMap(self.get_xsection, streams=[range_stream], cache_size=1)
         dmap_mean = (
             hv.DynamicMap(
@@ -1266,13 +1137,7 @@ class GliderDashboard(param.Parameterized):
             meta = utils.drop_overlaps_fast(meta)
 
         else:
-            # second case, user selected dids
-            # try:
-            #     meta = metadata.loc[self.pick_dsids]
-            # except:
             meta = allDatasets.loc[self.pick_dsids]
-            # meta["time_coverage_start (UTC)"] = meta["minTime (UTC)"]
-            # meta["time_coverage_end (UTC)"] = meta["maxTime (UTC)"]
 
         # print(f'len of meta is {len(meta)} in load_viewport_datasets')
         if (x1 - x0) > np.timedelta64(720, "D"):
@@ -1302,16 +1167,17 @@ class GliderDashboard(param.Parameterized):
         return allDatasets.loc[meta.index], plt_props
 
     def get_xsection_mld(self, x_range, y_range):
-        dfmld = self.mixed_layer_depth(
-            "temperature",
-            thresh=0.3,
-            verbose=False,
-            ref_depth=5,
-        ).to_pandas()
-        # dfmld["mld"] = (
-        #    dfmld["mld"].rolling(window=10, center=True, min_periods=3).mean()
-        # )
+        dfmld = (
+            self.mixed_layer_depth(
+                "temperature",
+                thresh=0.3,
+                verbose=False,
+                ref_depth=5,
+            )
+        ).sort("time")
 
+        dfmld = dfmld.to_pandas()
+        dfmld["mld"] = dfmld["mld"].rolling(window=5, center=True, min_periods=3).mean()
         mldscatter = dfmld.hvplot.line(
             x="time",
             y="mld",
@@ -1371,18 +1237,11 @@ class GliderDashboard(param.Parameterized):
 
         return meanline
 
-    def get_xsection_raster(self, x_range, y_range, x, y):  # , contour_variable=None):
+    def get_xsection_raster(self, x_range, y_range, x, y):
         (x0, x1) = x_range
         self.pick_startX = pd.to_datetime(x0)  # setters
         self.pick_endX = pd.to_datetime(x1)
         meta, plt_props = self.load_viewport_datasets(x_range)
-
-        # if plt_props["zoomed_out"]:
-        #    metakeys = [element.replace("nrt", "delayed") for element in meta.index]
-        # else:
-        # import pdb
-
-        # pdb.set_trace()
         metakeys = [
             (
                 element.replace("nrt", "delayed")
@@ -1417,14 +1276,10 @@ class GliderDashboard(param.Parameterized):
                 variables = variables + [self.pick_scatter_y]
             if self.pick_TS_color_variable:
                 variables = variables + [self.pick_TS_color_variable]
-                # self.pick_scatter_y,
-                # self.pick_TS_color_variable,
-            # ]
         variables = list(set(variables))
         varlist = []
         varlist_small = []
-        # if plt_props["zoomed_out"]:
-        # import pdb; pdb.set_trace();
+
         for dsid in metakeys:
             # This is delayed data if available
             if plt_props["zoomed_out"] and (not self.pick_high_resolution):
@@ -1467,10 +1322,6 @@ class GliderDashboard(param.Parameterized):
             (pl.col("time") > self.pick_startX) & (pl.col("time") < self.pick_endX)
         )
 
-        # print(
-        #    f"the length of dsconc is now {dsconc.collect().height}\n and the length of dsconc_small is {dsconc_small.collect().height}"
-        # )
-
         # THIS IS EXPENSIVE. I SHOULD CREATE STATS ONLY WHERE NEEDED; ESPECIALLY WITH .to_pandas()
         self.stats = (
             self.data_in_view_small.describe(  # .select(variables)  # .select(variables)  # .select(pl.col(self.pick_variables))
@@ -1479,33 +1330,18 @@ class GliderDashboard(param.Parameterized):
             .to_pandas()
             .set_index("statistic")
         )
-
-        # THIS MUST BE REMOVE FOR GREAT PERFORMANCE.
-        # REQUIRES REWRITE OF SOME CLIM AND QUANTILE FILTERS I BELIEVE
-        self.update_markdown(x_range, y_range)  # THIS SHOULD BE READDED EVENTUALLY
-
+        self.update_markdown(x_range, y_range)
         mplt = create_single_ds_plot_raster(data=self.data_in_view, variables=variables)
         return mplt
 
     def get_xsection_TS(self, x_range, y_range):
-        # dsconc = self.data_in_view.filter(pl.col("salinity") > 1)
-        # t1 = time.perf_counter()
-        # stats = dsconc.select(pl.col("temperature", "salinity")).describe((0.01, 0.99))
-
-        # low = #stats.filter(pl.col("statistic") == "1%")
-        # high = #stats.filter(pl.col("statistic") == "99%")
-
-        # t2 = time.perf_counter()
-        # if self.pick_variables[0]
-        # Needs additional variable.
         vdims = ["depth", "time"]
         if self.pick_TS_color_variable:
             vdims.append(self.pick_TS_color_variable)
         mplt = hv.Points(
             data=self.data_in_view,
             kdims=[self.pick_scatter_x, self.pick_scatter_y],
-            vdims=vdims,  # self.pick_TS_color_variable if self.pick_TS_color_variable else None,
-            # list(variables),
+            vdims=vdims,
             # temp and salinity need to always be present for TS lasso to work, set for unique elements
         )
 
@@ -1577,11 +1413,6 @@ class GliderDashboard(param.Parameterized):
             element = hv.Overlay(
                 hv.HLine(0).opts(color="black", alpha=0.1)
                 * hv.HLine(0).opts(color="black", alpha=0.1)
-                # * hv.Text(
-                #    x=self.startX,
-                #    y=-20,
-                #    text="There is no data here!",
-                #    fontsize=10,)
             )
         elif type == "Spikes":
             element = hv.Spikes().opts(color="black", alpha=0.1)
@@ -1613,18 +1444,6 @@ class GliderDashboard(param.Parameterized):
             )  # , spike_length=20)
             # .opts(position=-10)
         )
-        """
-        startvlines = (
-            hv.Vlines(meta_start_in_view["time_coverage_start (UTC)"])
-            .opts(color="grey")
-            #.opts(position=-10)
-        )
-        endvlines = (
-            hv.Vlines(meta_end_in_view["time_coverage_end (UTC)"])
-            .opts(color="red")
-            #.opts(position=-10)
-        )
-        """
 
         data = pd.DataFrame.from_dict(
             dict(
@@ -1671,14 +1490,10 @@ class GliderDashboard(param.Parameterized):
             will be an array of depths the length of the
             number of unique dives.
         """
-        # import pdb
 
-        # pdb.set_trace()
         groups = (
             self.data_in_view_small.select(
-                pl.col(
-                    [variable, "depth", "time", "profile_num"]
-                )  # , "profile_direction"])
+                pl.col([variable, "depth", "time", "profile_num"])
             )
             .filter(
                 pl.col("profile_num")
@@ -1689,7 +1504,7 @@ class GliderDashboard(param.Parameterized):
                 == 0
             )
             .group_by("profile_num")
-        )  # group_by_profiles(ds, [variable, "depth", "time", "dives"])
+        )
 
         mld = groups.map_groups(
             lambda group_df: mld_profile(group_df, "temperature", 0.3, 5, False),
@@ -1699,7 +1514,7 @@ class GliderDashboard(param.Parameterized):
                     "time": pl.Time,  # ("us"),
                 }
             ),
-        )  # .apply(mld_profile, variable, thresh, ref_depth, verbose)
+        )
         return mld.collect()
 
 
@@ -1909,13 +1724,6 @@ def create_app_instance(self):
 
     # scatter options
     ctrl_scatter = pn.Column(
-        # pn.Param(
-        #     glider_dashboard,
-        #     parameters=["pick_TS", "pick_activate_scatter_link"],
-        #     default_layout=pn.Row,
-        #     show_name=False,
-        #     # display_threshold=10,
-        # ),
         pn.Param(
             glider_dashboard,
             parameters=["pick_scatter_bool"],
@@ -1952,12 +1760,6 @@ def create_app_instance(self):
             show_name=False,
             # display_threshold=10,
         ),
-        # pn.Param(
-        #     glider_dashboard,
-        #     parameters=["pick_profiles"],
-        #     show_name=False,
-        #     # display_threshold=10,
-        # ),
         # This is a hidden parameter, which can be specified in url
         # to show or hide the menus. Can be useful when emedding interactive
         # figures in webpages or presentations for example.
@@ -2052,8 +1854,6 @@ def create_app_instance(self):
         """
         Dynamically add a new row to the app.
         """
-        # value = random.randint(0, 100)
-        # column = pn.widgets.TextInput(name="Enter a number", value=str(value))
         global meancolumn
         meancolumn = pn.Column(
             glider_dashboard.create_mean(),
@@ -2066,15 +1866,11 @@ def create_app_instance(self):
         """
         Dynamically remove a column from the app.
         """
-        # value = random.randint(0, 100)
-        # column = pn.widgets.TextInput(name="Enter a number", value=str(value))
         contentcolumn.remove(meancolumn)
         contentcolumn.height = 500
 
     add_row = pn.widgets.Button(name="Add aggregation row")
     clear_rows = pn.widgets.Button(name="Clear additional rows")
-
-    # main = pn.Column("# Dynamically add new rows", button_cols, layout)
 
     # Add interactivity
     clear_rows.on_click(lambda _: remove_column())
@@ -2122,16 +1918,9 @@ def create_app_instance(self):
             glider_dashboard,
             other_cntrls,
         )
-    # try:
     content = glider_dashboard.create_dynmap
-    # except:
-    #    print("something is wrong!!!")
-    #    content = "Something is wrong"
-
     contentcolumn = pn.Column(
-        # pn.Row(
         pn.panel(content, defer_load=True),
-        # pn.panel(content),  # , defer_load=True),
         # glider_dashboard.create_mean,
         pn.Param(
             glider_dashboard,
@@ -2139,10 +1928,6 @@ def create_app_instance(self):
             show_name=False,
         ),
         sizing_mode="stretch_width",
-        # responsive=True,
-        # defer_load=True,
-        # height=glider_dashboard.pick_contour_heigth,
-        # ),
         # pn.Row( "# Add data aggregations (mean, max, std...)", button_cols),
     )
 
@@ -2196,54 +1981,4 @@ mylayout = pn.Column(button_dash, button_meta)
 button_dash.clicks += (
     1  # to activate the Glider Data dashboard from the start as default
 )
-# mylayout.append(create_app_instance("placeholder"))
 mylayout.servable(title="Voice of the Ocean Glider Dashboard")
-# app = layout # create_app_instance()
-# app2 = create_app_instance()
-# layout.servable()
-# app2.servable()
-#    port=12345,
-#    websocket_origin='*',
-#    title='VOTO SAMBA data',
-#    threaded=True)
-
-"""
-pn.serve(
-    create_app_instance,
-    port=12345,
-    websocket_origin='*',
-    title='VOTO SAMBA data',
-    threaded=True)
-
-
-#.show(
-#    title='VOTO SAMBA data',
-#    websocket_origin='*',
-#    port=12345,
-    #admin=True,
-    #profiler=True
-#    )
-
-
-
-Future development ideas:
-* activate hover (for example dataset details, sensor specs, or point details)
-* holoviews autoupdate for development
-* write tests including timings benchmark for development
-* implement async functionen documented in holoviews to not disturb user interaction
-* throw out X_range_stream (possibly) and implement full data dynamic sampling instead. One solution could be to use a dynamic .sample(frac=zoomstufe)
-* plot glidertools gridded data instead (optional, but good for interpolation)...
-* good example to follow is the AdvancedStockExplorer class in the documentation
-* add secondary plot option 'profile', or color in different variables (e.g. the plot variable)
-* disentangle interactivity, so that partial refreshes (e.g. mixed layer calculation only) don't trigger complete refresh
-* otpimal colorbar range (percentiles?)
-* on selection of a new basin, I should reset the ranges. Otherwise it could come up with an error when changing while having unavailable x_range.
-* range tool link, such as the metadata plot
-* optimize performance with dask after this video: https://www.youtube.com/watch?v=LKIRAzsqLb0
-* currently, the import statements make up a substantial part of the initial loading time -> check for unused imports, check enable chaching, check if new import necessary for each intial load. (time saving 4s)
-* Should refactor out the three (?) different methods of concatenating datasets and instead have one function to do that all. Then also switch between dataframes/dask should be easier.
-* in the xr.open_mfdataset, path all the dataset_ids in a list instead and keep parallel=True activated to drastically improve startup time.Maybe this could even enable live loading of the data, instead of preloading it into the RAM/dask
-
-expensive: datashader_apply spreading 2.464
-...
-"""
