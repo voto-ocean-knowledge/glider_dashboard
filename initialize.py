@@ -42,7 +42,10 @@ for dataset_id in all_dataset_ids:
         if os.path.isfile(file_Path_adcp):
             print(f"{file_Path_adcp} already exists, skip")
         else:
-            urllib.request.urlretrieve(url, file_Path_adcp)
+            try:
+                urllib.request.urlretrieve(url, file_Path_adcp)
+            except:
+                print(f"no adcp data for {dataset_id}")
 
 for dataset_id in all_dataset_ids:
     if not (dataset_id[0:7] == "delayed"):
