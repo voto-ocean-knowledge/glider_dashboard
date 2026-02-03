@@ -13,20 +13,26 @@ for file in nc_datasets:
         continue
     elif ("SEA" not in file) and ("SHW" not in file):
         continue
+    elif "adcp" in file:
+        continue
     else:
         # Create large (often full resolution) output
         print(f"now creating {file.replace('nc', 'parquet')}")
+        # import pdb
+
+        # print(file)
+        # pdb.set_trace()
         df = xr.open_dataset(file, drop_variables="ad2cp_time").to_pandas().sort_index()
         if df.index.diff().mean() < np.timedelta64(600, "ms"):
             df = df.resample("1s").mean()
         df = pl.from_dataframe(df.astype(np.float32))
-        df.write_parquet(file.replace("nc", "parquet"))
+        df.write_parquet(file.replace("nc", "parquet").replace("_combined", ""))
         # Create subsampled small output, but only if
         # the current file is a delayed mode file
         # (by checking if file str contains "delayed")
         if "delayed" in file:
             df = df.filter(pl.col("profile_num") % 10 == 0)
-        df.write_parquet(file.replace(".nc", "_small.parquet"))
+        df.write_parquet(file.replace(".nc", "_small.parquet").replace("_combined", ""))
 
 
 netcdf_datasets = glob.glob("../voto_erddap_data_cache/*.nc")

@@ -1,11 +1,12 @@
 import os.path
 import pathlib
+import urllib.request
 from urllib.request import urlretrieve
 
+import xarray
 from erddapy import ERDDAP
 
 import utils
-from download_glider_data import utils as dutils
 
 # all metadata exists for the metadata visualisation
 all_metadata = utils.load_metadata_VOTO()
@@ -22,32 +23,64 @@ allDatasetsVOTO = utils.load_allDatasets_VOTO()
 all_dataset_ids = utils.add_delayed_dataset_ids(metadata, allDatasetsVOTO)  # hacky
 
 ###### download actual data ##############################
-dutils.cache_dir = pathlib.Path("../voto_erddap_data_cache")
-variables = [
-    "temperature",
-    "salinity",
-    "depth",
-    "potential_density",
-    "profile_num",
-    "profile_direction",
-    "chlorophyll",
-    "turbidity",
-    "oxygen_concentration",
-    "phycocyanin",
-    "phycocyanin_tridente",
-    "cdom",
-    "fdom",
-    "backscatter",
-    "backscatter_scaled",
-    "longitude",
-    "latitude",
-    "downwelling_PAR",
-]
+cache_dir = pathlib.Path("../voto_erddap_data_cache")
 # dsids = ['../voto_erddap_data_cache/'+element+'.nc' for element in metadata.index]
-dutils.download_glider_dataset(
-    all_dataset_ids,  # all_dataset_ids may not actually be all datasets
-    # variables=variables,
-)
+# import pdb
+# pdb.set_trace()
+print(all_dataset_ids)
+for dataset_id in all_dataset_ids:
+    url = f"https://erddap.observations.voiceoftheocean.org/erddap/files/{dataset_id}/mission_timeseries.nc"
+    file_Path = f"../voto_erddap_data_cache/{dataset_id}.nc"
+    if os.path.isfile(file_Path):
+        print(f"{file_Path} already exists, skip")
+    else:
+        urllib.request.urlretrieve(url, file_Path)
+    if dataset_id[0:7] == "delayed":
+        dsid = dataset_id.replace("delayed_", "")
+        url = f"https://erddap.observations.voiceoftheocean.org/erddap/files/gliderad2cp_files/{dsid}_adcp_proc.nc"
+        file_Path_adcp = f"../voto_erddap_data_cache/{dsid}_adcp_proc.nc"
+        if os.path.isfile(file_Path_adcp):
+            print(f"{file_Path_adcp} already exists, skip")
+        else:
+            urllib.request.urlretrieve(url, file_Path_adcp)
+
+for dataset_id in all_dataset_ids:
+    print(f"combining {dataset_id} variables with adcp file")
+    file_Path = f"../voto_erddap_data_cache/{dataset_id}.nc"
+    file_Path_adcp = f"../voto_erddap_data_cache/{dsid}_adcp_proc.nc"
+    ds = xarray.open_mfdataset(file_Path).drop_duplicates(dim="time").load()
+    ds2 = (
+        xarray.open_mfdataset(file_Path_adcp)
+        .set_index({"profile_index": "time"})
+        .drop_duplicates(dim="profile_index")
+        .dropna(dim="profile_index", subset=["profile_index"])
+    )
+    # ds2.sortby('depth','profile_index').sel(profile_index=np.datetime64('2024-01-10'), method='nearest')#
+    currentdirections = ds2.interp(
+        profile_index=ds["time"], depth=ds["depth"], method="linear"
+    ).reset_coords("profile_index")  # [
+    # [
+    #    "velocity_N_DAC_reference_sb_corrected",
+    #    "velocity_E_DAC_reference_sb_corrected",
+    # ]
+    # ]
+    ds[["u", "v", "glider_speed_through_water", "shear_E_mean", "shear_N_mean"]] = (
+        currentdirections[
+            [
+                "velocity_N_DAC_reference_sb_corrected",
+                "velocity_E_DAC_reference_sb_corrected",
+                "speed_through_water",
+                "shear_E_mean",
+                "shear_N_mean",
+            ]
+        ]
+    )
+    ds.to_netcdf(f"../voto_erddap_data_cache/{dataset_id}_combined.nc", "w")
+
+# download_glider_dataset(
+#    all_dataset_ids,  # all_dataset_ids may not actually be all datasets
+#    # variables=variables,
+# )
 
 if utils.GDAC_data:
     allDatasetsGDAC = utils.load_allDatasets_GDAC()
