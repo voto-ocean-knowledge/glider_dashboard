@@ -47,6 +47,9 @@ for dataset_id in all_dataset_ids:
 for dataset_id in all_dataset_ids:
     if not (dataset_id[0:7] == "delayed"):
         continue
+    if os.path.isfile(f"../voto_erddap_data_cache/{dataset_id}_combined.nc"):
+        print(f"combined {dataset_id} data/adcp file already excists, skip")
+        continue
     print(f"combining {dataset_id} variables with adcp file")
     file_Path = f"../voto_erddap_data_cache/{dataset_id}.nc"
     dsid = dataset_id.replace("delayed_", "")

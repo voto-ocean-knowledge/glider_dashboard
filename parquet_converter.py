@@ -29,6 +29,11 @@ for file in nc_datasets:
     if df.index.diff().mean() < np.timedelta64(600, "ms"):
         df = df.resample("1s").mean()
     df = pl.from_dataframe(df.astype(np.float32))
+    if Path(file.replace("nc", "parquet").replace("_combined", "")).is_file():
+        print(
+            f"{file.replace('nc', 'parquet').replace('_combined', '')} already exists, skip"
+        )
+        continue
     df.write_parquet(file.replace("nc", "parquet").replace("_combined", ""))
     # Create subsampled small output, but only if
     # the current file is a delayed mode file

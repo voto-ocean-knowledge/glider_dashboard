@@ -23,6 +23,8 @@ cmap_dict = dict(
     methane_raw_concentration=cmocean.cm.thermal,
     longitude="hsv",
     latitude="hsv",
+    u=cmocean.cm.balance,
+    v=cmocean.cm.balance,
     # time="hsv",
 )
 
@@ -76,6 +78,11 @@ units_dict = dict(
     longitude="°E",
     latitude="°N",
     time="[time]",
+    u="[m/s]",
+    v="[m/s]",
+    speed_through_water="[m/s]",
+    shear_E_mean="[s-1]",
+    shear_N_mean="[s-1]",
 )
 
 
