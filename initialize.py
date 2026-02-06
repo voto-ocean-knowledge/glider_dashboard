@@ -3,6 +3,8 @@ import pathlib
 import urllib.request
 from urllib.request import urlretrieve
 
+import numpy as np
+import polars as pl
 import xarray
 from erddapy import ERDDAP
 
@@ -50,8 +52,10 @@ for dataset_id in all_dataset_ids:
 for dataset_id in all_dataset_ids:
     if not (dataset_id[0:7] == "delayed"):
         continue
-    if os.path.isfile(f"../voto_erddap_data_cache/{dataset_id}_combined.nc"):
-        print(f"combined {dataset_id} data/adcp file already excists, skip")
+    if os.path.isfile(f"../voto_erddap_data_cache/{dataset_id}.parquet"):
+        print(
+            f"combined {dataset_id} data/adcp file already excists, skip"
+        )  # not necessarily :/
         continue
     print(f"combining {dataset_id} variables with adcp file")
     file_Path = f"../voto_erddap_data_cache/{dataset_id}.nc"
@@ -93,7 +97,14 @@ for dataset_id in all_dataset_ids:
             ]
         ]
     )
-    ds.to_netcdf(f"../voto_erddap_data_cache/{dataset_id}_combined.nc", "w")
+    df = ds.to_pandas().sort_index()
+    if df.index.diff().mean() < np.timedelta64(600, "ms"):
+        df = df.resample("1s").mean()
+    df = pl.from_dataframe(df.astype(np.float32))
+    df.write_parquet(
+        f"../voto_erddap_data_cache/{dataset_id}.parquet"
+    )  # file.replace("nc", "parquet").replace("_combined", ""))
+    # ds.to_netcdf(f"../voto_erddap_data_cache/{dataset_id}_combined.nc", "w")
 
 # download_glider_dataset(
 #    all_dataset_ids,  # all_dataset_ids may not actually be all datasets
