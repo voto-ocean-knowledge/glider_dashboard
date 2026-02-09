@@ -35,6 +35,7 @@ for dataset_id in all_dataset_ids:
     file_Path = f"../voto_erddap_data_cache/{dataset_id}.nc"
     if os.path.isfile(file_Path):
         print(f"{file_Path} already exists, skip")
+        continue
     else:
         urllib.request.urlretrieve(url, file_Path)
     if dataset_id[0:7] == "delayed":
@@ -50,11 +51,11 @@ for dataset_id in all_dataset_ids:
                 print(f"no adcp data for {dataset_id}")
 
 for dataset_id in all_dataset_ids:
-    if not (dataset_id[0:7] == "delayed"):
-        continue
+    # if not (dataset_id[0:7] == "delayed"):
+    #    continue
     if os.path.isfile(f"../voto_erddap_data_cache/{dataset_id}.parquet"):
         print(
-            f"combined {dataset_id} data/adcp file already excists, skip"
+            f"combined {dataset_id} data/adcp file already exists, skip"
         )  # not necessarily :/
         continue
     print(f"combining {dataset_id} variables with adcp file")
@@ -74,36 +75,42 @@ for dataset_id in all_dataset_ids:
             .drop_duplicates(dim="profile_index")
             .dropna(dim="profile_index", subset=["profile_index"])
         )
+
+        currentdirections = ds2.interp(
+            profile_index=ds["time"], depth=ds["depth"], method="linear"
+        ).reset_coords("profile_index")  # [
+        # [
+        #    "velocity_N_DAC_reference_sb_corrected",
+        #    "velocity_E_DAC_reference_sb_corrected",
+        # ]
+        # ]
+        ds[["u", "v", "glider_speed_through_water", "shear_E_mean", "shear_N_mean"]] = (
+            currentdirections[
+                [
+                    "velocity_N_DAC_reference_sb_corrected",
+                    "velocity_E_DAC_reference_sb_corrected",
+                    "speed_through_water",
+                    "shear_E_mean",
+                    "shear_N_mean",
+                ]
+            ]
+        )
     except:
         print(f"no adcp data for {dsid} found, skip combining")
-        continue
+        # continue
     # ds2.sortby('depth','profile_index').sel(profile_index=np.datetime64('2024-01-10'), method='nearest')#
-    currentdirections = ds2.interp(
-        profile_index=ds["time"], depth=ds["depth"], method="linear"
-    ).reset_coords("profile_index")  # [
-    # [
-    #    "velocity_N_DAC_reference_sb_corrected",
-    #    "velocity_E_DAC_reference_sb_corrected",
-    # ]
-    # ]
-    ds[["u", "v", "glider_speed_through_water", "shear_E_mean", "shear_N_mean"]] = (
-        currentdirections[
-            [
-                "velocity_N_DAC_reference_sb_corrected",
-                "velocity_E_DAC_reference_sb_corrected",
-                "speed_through_water",
-                "shear_E_mean",
-                "shear_N_mean",
-            ]
-        ]
-    )
+
     df = ds.to_pandas().sort_index()
     if df.index.diff().mean() < np.timedelta64(600, "ms"):
         df = df.resample("1s").mean()
     df = pl.from_dataframe(df.astype(np.float32))
+    df.write_parquet(f"../voto_erddap_data_cache/{dataset_id}.parquet")
+    df = df.filter(pl.col("profile_num") % 10 == 0)
     df.write_parquet(
-        f"../voto_erddap_data_cache/{dataset_id}.parquet"
-    )  # file.replace("nc", "parquet").replace("_combined", ""))
+        f"../voto_erddap_data_cache/{dataset_id}_small.parquet"
+    )  # "file.replace(".nc", "_small.parquet").replace("_combined", ""))
+
+    # file.replace("nc", "parquet").replace("_combined", ""))
     # ds.to_netcdf(f"../voto_erddap_data_cache/{dataset_id}_combined.nc", "w")
 
 # download_glider_dataset(
