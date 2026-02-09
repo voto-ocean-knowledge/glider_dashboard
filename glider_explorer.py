@@ -628,11 +628,15 @@ class GliderDashboard(param.Parameterized):
         profile_plots = []
 
         def create_profile_curve(profile):
-            profilelabel = (
-                "descending"
-                if profile.select(pl.col("profile_direction").mean())[0, 0] > 0
-                else "ascending"
-            )
+            try:
+                profilelabel = (
+                    "descending"
+                    if profile.select(pl.col("profile_direction").mean())[0, 0] > 0
+                    else "ascending"
+                )
+            except:
+                profilelabel = ""  # "unknown"
+                print("warning, unknown profile direction")
             profilecurve = hv.Curve(
                 data=profile.to_pandas().dropna(subset=[variable]),
                 kdims=variable,
