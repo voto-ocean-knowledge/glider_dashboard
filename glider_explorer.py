@@ -244,6 +244,13 @@ class GliderDashboard(param.Parameterized):
         precedence=1,
     )
 
+    pick_GDAC = param.Boolean(
+        default=False,
+        label="show GDAC data",
+        doc="show GDAC data",
+        precedence=1,
+    )
+
     pick_scatter_x = param.Selector(
         default=None,  # "salinity",
         allow_None=False,
@@ -501,6 +508,20 @@ class GliderDashboard(param.Parameterized):
     def update_datasource(self):
         # toggles visibility
         if self.pick_toggle == "DatasetID":
+            if not self.pick_GDAC:
+                # self.param.pick_dsids = [id for id in self.param.pick_dsids]
+                filter = ["SEA" in element for element in self.param.pick_dsids.objects]
+                filteredlist = [
+                    i
+                    for indx, i in enumerate(self.param.pick_dsids.objects)
+                    if filter[indx] == True
+                ]
+                alldslabels = [
+                    element[4:] if element[0:4] == "nrt_" else element
+                    for element in filteredlist
+                ]
+                objectsdict = dict(zip(alldslabels, filteredlist))
+                self.param.pick_dsids.objects = objectsdict
             self.param.pick_basin.precedence = -10
             self.param.pick_dsids.precedence = 1
         else:
@@ -1884,6 +1905,7 @@ def create_app_instance(self):
         }
         other_cntrls = {
             "pick_basin": "pick_basin",
+            "pick_GDAC": "pick_GDAC",
             "pick_dsids": "pick_dsids",
             "pick_toggle": "pick_toggle",
             "pick_show_ctrls": "pick_show_ctrls",
