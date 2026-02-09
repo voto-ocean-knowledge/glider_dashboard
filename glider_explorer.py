@@ -622,6 +622,7 @@ class GliderDashboard(param.Parameterized):
         profile = self.data_in_view.filter(
             pl.col("profile_num") == profile_num.collect()[0, 0]
         ).collect()
+        # import pdb; pdb.set_trace();
         nextprofile = self.data_in_view.filter(
             pl.col("profile_num") == profile_num.collect()[0, 0] + 1
         ).collect()
@@ -635,7 +636,12 @@ class GliderDashboard(param.Parameterized):
                     else "ascending"
                 )
             except:
-                profilelabel = ""  # "unknown"
+                df = profile  # .collect()
+                profilelabel = (
+                    "ascending"
+                    if (df["depth"].first() > df["depth"].last())
+                    else "descending"
+                )
                 print("warning, unknown profile direction")
             profilecurve = hv.Curve(
                 data=profile.to_pandas().dropna(subset=[variable]),
