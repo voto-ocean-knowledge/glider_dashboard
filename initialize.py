@@ -35,7 +35,7 @@ for dataset_id in all_dataset_ids:
     file_Path = f"../voto_erddap_data_cache/{dataset_id}.nc"
     if os.path.isfile(file_Path):
         print(f"{file_Path} already exists, skip")
-        continue
+        # pass and look for ADCP file below
     else:
         urllib.request.urlretrieve(url, file_Path)
     if dataset_id[0:7] == "delayed":
