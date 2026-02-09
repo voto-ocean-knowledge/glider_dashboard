@@ -1,7 +1,6 @@
 import glob
 from pathlib import Path
 
-import numpy as np
 import polars as pl
 import xarray as xr
 
@@ -10,6 +9,7 @@ import utils
 nc_datasets = glob.glob("../voto_erddap_data_cache/*.nc")
 print("now converting all files to parquet, please wait...")
 # This for loop covers the VOTO datasets
+"""
 for file in nc_datasets:
     if ("SEA" not in file) and ("SHW" not in file):
         continue
@@ -41,6 +41,7 @@ for file in nc_datasets:
     if "delayed" in file:
         df = df.filter(pl.col("profile_num") % 10 == 0)
     df.write_parquet(file.replace(".nc", "_small.parquet").replace("_combined", ""))
+"""
 
 if utils.GDAC_data:
     netcdf_datasets = glob.glob("../voto_erddap_data_cache/*.nc")
