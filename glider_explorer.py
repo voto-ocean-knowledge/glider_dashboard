@@ -571,10 +571,10 @@ class GliderDashboard(param.Parameterized):
 
         # hacky way to differentiate if called via synclink or refreshed with UI buttons
         if not len(meta):
-            self.startX = None
-            self.endX = None
-            self.pick_startX = None
-            self.pick_endX = None
+            self.startX = pd.NaT  # None
+            self.endX = pd.NaT  # None
+            self.pick_startX = pd.NaT  # None
+            self.pick_endX = pd.NaT  # None
             return
         incoming_link = not (isinstance(self.pick_startX, pd.Timestamp))
         if not incoming_link:
