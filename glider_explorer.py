@@ -215,19 +215,6 @@ def mld_profile(df, variable, thresh, ref_depth, verbose=True):
     return pl.DataFrame({"mld": [mld], "time": [ptime]})
 
 
-def create_single_ds_plot_raster(data, variables):
-    variables = set(variables)
-    variables.add("temperature")  # inplace operations
-    variables.add("salinity")
-    raster = hv.Points(
-        data=data,
-        kdims=["time", "depth"],
-        vdims=list(variables),
-        # temp and salinity need to always be present for TS lasso to work, set for unique elements
-    )
-    return raster
-
-
 def create_cbar_range(variable):
     return param.Range(
         default=(
@@ -454,13 +441,11 @@ class GliderDashboard(param.Parameterized):
     )
     data_in_view = None
     contour_processing = False
-    startX, endX = (
-        fDs["minTime (UTC)"].min().to_datetime64(),
-        # - np.timedelta64(6 * 30 * 24, "s"),  # last six months
-        fDs["maxTime (UTC)"].max().to_datetime64(),
-    )
-
     annotations = []
+    startX = None
+    endX = None
+    startY = None
+    endY = None
 
     def update_markdown(self, x_range, y_range):
         p1 = """\
@@ -475,7 +460,7 @@ class GliderDashboard(param.Parameterized):
             p2 = f""" the datasets {self.pick_dsids} """
         else:  # self.pick_toggle == "SAMBA obs.":
             p2 = f"""for the region {self.pick_basin} """
-        p3 = f"""from {np.datetime_as_string(self.startX, unit="s")} to {np.datetime_as_string(self.endX, unit="s")}. """
+        p3 = ""  # f"""from {np.datetime_as_string(self.startX, unit="s")} to {np.datetime_as_string(self.endX, unit="s")}. """
 
         p4 = f"""Number of profiles {
             self.data_in_view.select("profile_num").last().collect()[0, 0]
@@ -491,6 +476,23 @@ class GliderDashboard(param.Parameterized):
     def keep_zoom(self, x_range, y_range):
         self.startX, self.endX = x_range
         self.startY, self.endY = y_range
+
+    def create_single_ds_plot_raster(self, data, variables):
+        variables = set(variables)
+        variables.add("temperature")  # inplace operations
+        variables.add("salinity")
+        raster = (
+            hv.Points(
+                data=data,
+                kdims=["time", "depth"],
+                vdims=list(variables),
+                # temp and salinity need to always be present for TS lasso to work, set for unique elements
+            ).redim.range(time=(self.startX, self.endX), depth=(self.startY, self.endY))
+            # .opts(
+            #    framewise=True,
+            # )
+        )
+        return raster
 
     @param.depends("pick_display_threshold", watch=True)
     def update_display_threshold(self):
@@ -587,13 +589,17 @@ class GliderDashboard(param.Parameterized):
         if not incoming_link:
             mintime = meta["minTime (UTC)"].min()
             maxtime = meta["maxTime (UTC)"].max()
-            self.startX, self.endX = mintime, maxtime
-            self.pick_startX, self.pick_endX = (mintime, maxtime)
+            self.startX, self.endX = None, None  # mintime, maxtime
+            self.startY, self.endY = None, None
+            # self.pick_startX, self.pick_endX = (mintime, maxtime)
         else:
-            self.pick_startX, self.pick_endX = (self.pick_startX, self.pick_endX)
+            self.startX, self.endX = None, None  # mintime, maxtime
+            self.startY, self.endY = None, None
+            # pass
+            # self.pick_startX, self.pick_endX = (self.pick_startX, self.pick_endX)
 
-        self.startY = None
-        self.endY = 12
+        # self.startY = None
+        # self.endY = 12
 
     @param.depends(
         "pick_autorange",
@@ -760,14 +766,17 @@ class GliderDashboard(param.Parameterized):
     def create_dynmap(self):
         # self.markdown.object = self.update_markdown()
 
-        self.startX = self.pick_startX
-        self.endX = self.pick_endX
-
-        self.startY, self.endY = (self.pick_startY, self.pick_endY)
+        # self.startX = self.pick_startX
+        # self.endX = self.pick_endX
+        # self.startY, self.endY = (self.pick_startY, self.pick_endY)
 
         # in case coming in over json link
-        self.startX = np.datetime64(self.startX)
-        self.endX = np.datetime64(self.endX)
+        # self.startX = np.datetime64(self.startX)
+        # self.endX = np.datetime64(self.endX)
+        #
+        # import pdb
+
+        # pdb.set_trace()
 
         if self.pick_scatter_bool:
             self.param.pick_scatter.precedence = 1
@@ -801,10 +810,12 @@ class GliderDashboard(param.Parameterized):
             self.param.pick_activate_scatter_link.precedence = -10
 
         # commonheights = 1000
-        x_range = (self.startX, self.endX)
-        y_range = (self.startY, self.endY)
+        # x_range = (self.startX, self.endX)
+        # y_range = (self.startY, self.endY)
 
-        range_stream = RangeXY(x_range=x_range, y_range=y_range).rename()
+        range_stream = RangeXY(
+            x_range=(self.startX, self.endX), y_range=(self.startY, self.endY)
+        )  # x_range=x_range, y_range=y_range).rename()
         range_stream.add_subscriber(self.keep_zoom)
         # range_stream.add_subscriber(self.update_markdown) # Is always one step after, thus deactivated here
 
@@ -817,7 +828,7 @@ class GliderDashboard(param.Parameterized):
         dmap_raster = hv.DynamicMap(
             self.get_xsection_raster,
             streams=[range_stream, tap_stream],
-        )
+        ).opts(framewise=True)
 
         if self.pick_high_resolution:
             pixel_ratio = 1.0
@@ -939,6 +950,7 @@ class GliderDashboard(param.Parameterized):
                 clabel=f"{variable}  [{dictionaries.units_dict.get(variable, '')}]",  # self.pick_variable,
                 clim_percentile=True if self.pick_autorange else False,
                 fontscale=2,
+                # framewise=True,
             )
 
             return mraster
@@ -954,8 +966,8 @@ class GliderDashboard(param.Parameterized):
                     px=1,
                     how="source",  # , shape="circle"
                 ).opts(
-                    ylim=(self.startY, self.endY),
-                    xlim=(self.startX, self.endX),
+                    # ylim=(self.startY, self.endY),
+                    # xlim=(self.startX, self.endX),
                     xaxis=None,
                     hooks=[lambda p, _: p.state.update(border_fill_alpha=0)],
                 )
@@ -966,8 +978,8 @@ class GliderDashboard(param.Parameterized):
                     px=1,
                     how="source",  # , shape="circle"
                 ).opts(
-                    ylim=(self.startY, self.endY),
-                    xlim=(self.startX, self.endX),
+                    # ylim=(self.startY, self.endY),
+                    # xlim=(self.startX, self.endX),
                     hooks=[lambda p, _: p.state.update(border_fill_alpha=0)],
                 )
             if self.pick_show_decoration:
@@ -1037,11 +1049,9 @@ class GliderDashboard(param.Parameterized):
                     clim = (None, None)
                 ncols += 1
                 if self.pick_activate_scatter_link:
-                    dmapTSr = mpg_ls(
-                        dmapTSr.opts(xlim=xlim, ylim=ylim, clim=clim)
-                    )  # * dcont
+                    dmapTSr = mpg_ls(dmapTSr.opts(clim=clim))  # * dcont
                 else:
-                    dmapTSr = dmapTSr.opts(xlim=xlim, ylim=ylim, clim=clim)  # * dcont
+                    dmapTSr = dmapTSr.opts(clim=clim)  # * dcont
             if self.pick_profiles:
                 ncols += 1
                 if self.pick_activate_scatter_link:
@@ -1082,6 +1092,11 @@ class GliderDashboard(param.Parameterized):
             if self.pick_profiles
             else contourplots
         )
+        # contourplots = contourplots.opts(axiswise=True, framewise=True).redim.range(
+        #    x=(self.startX, self.endX), y=(self.startY, self.endY)
+        # )
+        print(self.startX, self.endX, self.startY, self.endY)
+
         return pn.Column(contourplots.cols(ncols))
 
     def create_mean(self):
@@ -1125,37 +1140,24 @@ class GliderDashboard(param.Parameterized):
         This is currently based on the metadata information "time_coverage_start/end (UTC), but should
         be generalized to minTime (UTC) to be compatible with the allDatasets table instead of metadata tables.
         """
-        (x0, x1) = x_range
-        dt = x1 - x0
-        dtns = dt / np.timedelta64(1, "ns")
+        # (x0, x1) = x_range
+        # dt = x1 - x0
+        # dtns = dt / np.timedelta64(1, "ns")
         plt_props = {}
-        try:
-            # necessary if changing dsids dynamically
-            x0 = x0.to_datetime64()
-            x1 = x1.to_datetime64()
-        except:
-            pass
+        # try:
+        #    # necessary if changing dsids dynamically
+        #   x0 = x0.to_datetime64()
+        #    x1 = x1.to_datetime64()
+        # except:
+        #    pass
         # filtered Datasets
 
-        # fDs = allDatasets.loc[
-        #    [name for name in all_dataset_names if "_small" not in name]
-        # ]
-        fD_inview = fDs[
-            # x0 and x1 are the time start and end of our view, the other times
-            # are the start and end of the individual datasets. To increase
-            # perfomance, datasets are loaded only if visible, so if
-            # 1. it starts within our view...
-            ((fDs["minTime (UTC)"] >= x0) & (fDs["minTime (UTC)"] <= x1))
-            |
-            # 2. it ends within our view...
-            ((fDs["maxTime (UTC)"] >= x0) & (fDs["maxTime (UTC)"] <= x1))
-            |
-            # 3. it starts before and ends after our view (zoomed in)...
-            ((fDs["minTime (UTC)"] <= x0) & (fDs["maxTime (UTC)"] >= x1))
-            |
-            # 4. or it both, starts and ends within our view (zoomed out)...
-            ((fDs["minTime (UTC)"] >= x0) & (fDs["maxTime (UTC)"] <= x1))
+        # pdb.set_trace()
+        fDs = allDatasets.loc[
+            [name for name in all_dataset_names if "_small" not in name]
         ]
+
+        fD_inview = fDs
 
         # print(fD_inview)
         # mydslist = [name for name in all_dataset_names if '_small' not in name]
@@ -1176,31 +1178,9 @@ class GliderDashboard(param.Parameterized):
         else:
             meta = allDatasets.loc[self.pick_dsids]
 
-        # print(f'len of meta is {len(meta)} in load_viewport_datasets')
-        if (x1 - x0) > np.timedelta64(720, "D"):
-            # activate sparse data mode to speed up reactivity
-            plt_props["zoomed_out"] = True
-            plt_props["dynfontsize"] = 4
-            plt_props["subsample_freq"] = 25
-        elif (x1 - x0) > np.timedelta64(360, "D"):
-            # activate sparse data mode to speed up reactivity
-            plt_props["zoomed_out"] = True
-            plt_props["dynfontsize"] = 4
-            plt_props["subsample_freq"] = 10  # 25  # 10
-        elif (x1 - x0) > np.timedelta64(180, "D"):
-            # activate sparse data mode to speed up reactivity
-            plt_props["zoomed_out"] = False
-            plt_props["dynfontsize"] = 4
-            plt_props["subsample_freq"] = 6
-        elif (x1 - x0) > np.timedelta64(90, "D"):
-            # activate sparse data mode to speed up reactivity
-            plt_props["zoomed_out"] = False
-            plt_props["dynfontsize"] = 4
-            plt_props["subsample_freq"] = 2
-        else:
-            plt_props["zoomed_out"] = False
-            plt_props["dynfontsize"] = 10
-            plt_props["subsample_freq"] = 1
+        plt_props["zoomed_out"] = False
+        plt_props["dynfontsize"] = 10
+        plt_props["subsample_freq"] = 1
         return allDatasets.loc[meta.index], plt_props
 
     def get_xsection_mld(self, x_range, y_range):
@@ -1275,9 +1255,9 @@ class GliderDashboard(param.Parameterized):
         return meanline
 
     def get_xsection_raster(self, x_range, y_range, x, y):
-        (x0, x1) = x_range
-        self.pick_startX = pd.to_datetime(x0)  # setters
-        self.pick_endX = pd.to_datetime(x1)
+        # (x0, x1) = x_range
+        # self.pick_startX = pd.to_datetime(x0)  # setters
+        # self.pick_endX = pd.to_datetime(x1)
         meta, plt_props = self.load_viewport_datasets(x_range)
         metakeys = [
             (
@@ -1352,12 +1332,12 @@ class GliderDashboard(param.Parameterized):
         dsconc_small = utils.voto_concat_datasets2(varlist_small)
         dsconc_small = dsconc_small.with_columns(pl.col("depth").neg()).sort("time")
 
-        self.data_in_view = dsconc.filter(
-            (pl.col("time") > self.pick_startX) & (pl.col("time") < self.pick_endX)
-        )  # .dropna(subset=['temperature', 'salinity'])
-        self.data_in_view_small = dsconc_small.filter(
-            (pl.col("time") > self.pick_startX) & (pl.col("time") < self.pick_endX)
-        )
+        self.data_in_view = dsconc  # .filter(
+        #    (pl.col("time") > self.pick_startX) & (pl.col("time") < self.pick_endX)
+        # )  # .dropna(subset=['temperature', 'salinity'])
+        self.data_in_view_small = dsconc_small  # .filter(
+        #    (pl.col("time") > self.pick_startX) & (pl.col("time") < self.pick_endX)
+        # )
 
         # THIS IS EXPENSIVE. I SHOULD CREATE STATS ONLY WHERE NEEDED; ESPECIALLY WITH .to_pandas()
         self.stats = (
@@ -1368,7 +1348,10 @@ class GliderDashboard(param.Parameterized):
             .set_index("statistic")
         )
         self.update_markdown(x_range, y_range)
-        mplt = create_single_ds_plot_raster(data=self.data_in_view, variables=variables)
+        mplt = self.create_single_ds_plot_raster(
+            data=self.data_in_view, variables=variables
+        )
+        print(self.startX, self.endX, self.startY, self.endY)
         return mplt
 
     def get_xsection_TS(self, x_range, y_range):
@@ -1376,6 +1359,7 @@ class GliderDashboard(param.Parameterized):
         if self.pick_TS_color_variable:
             vdims.append(self.pick_TS_color_variable)
         mplt = hv.Points(
+            framewise=True,
             data=self.data_in_view,
             kdims=[self.pick_scatter_x, self.pick_scatter_y],
             vdims=vdims,
