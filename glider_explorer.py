@@ -4,8 +4,6 @@ import time
 import cmocean
 import datashader as dsh
 import holoviews as hv
-import hvplot.pandas  # noqa
-import hvplot.polars  # noqa
 import numpy as np
 import pandas as pd
 import panel as pn
@@ -481,16 +479,11 @@ class GliderDashboard(param.Parameterized):
         variables = set(variables)
         variables.add("temperature")  # inplace operations
         variables.add("salinity")
-        raster = (
-            hv.Points(
-                data=data,
-                kdims=["time", "depth"],
-                vdims=list(variables),
-                # temp and salinity need to always be present for TS lasso to work, set for unique elements
-            ).redim.range(time=(self.startX, self.endX), depth=(self.startY, self.endY))
-            # .opts(
-            #    framewise=True,
-            # )
+        raster = hv.Points(
+            data=data,
+            kdims=["time", "depth"],
+            vdims=list(variables),
+            # temp and salinity need to always be present for TS lasso to work, set for unique elements
         )
         return raster
 
@@ -1092,9 +1085,9 @@ class GliderDashboard(param.Parameterized):
             if self.pick_profiles
             else contourplots
         )
-        # contourplots = contourplots.opts(axiswise=True, framewise=True).redim.range(
-        #    x=(self.startX, self.endX), y=(self.startY, self.endY)
-        # )
+        contourplots = contourplots.redim.range(
+            time=(self.startX, self.endX), depth=(self.startY, self.endY)
+        )
         print(self.startX, self.endX, self.startY, self.endY)
 
         return pn.Column(contourplots.cols(ncols))
@@ -1332,13 +1325,23 @@ class GliderDashboard(param.Parameterized):
         dsconc_small = utils.voto_concat_datasets2(varlist_small)
         dsconc_small = dsconc_small.with_columns(pl.col("depth").neg()).sort("time")
 
-        self.data_in_view = dsconc  # .filter(
-        #    (pl.col("time") > self.pick_startX) & (pl.col("time") < self.pick_endX)
-        # )  # .dropna(subset=['temperature', 'salinity'])
-        self.data_in_view_small = dsconc_small  # .filter(
-        #    (pl.col("time") > self.pick_startX) & (pl.col("time") < self.pick_endX)
-        # )
-
+        self.data_in_view = dsconc
+        self.data_in_view_small = dsconc_small
+        """ WILL I NEED THIS FOR MLD COMPUTATION?
+        if self.startX is not None:
+            self.data_in_view = dsconc.filter(
+                (pl.col("time") > self.startX)
+                & (pl.col("time") < self.endX)
+                & (pl.col("depth") > self.startY)
+                & (pl.col("depth") < self.endY)
+            )  # .dropna(subset=['temperature', 'salinity'])
+            self.data_in_view_small = dsconc_small.filter(
+                (pl.col("time") > self.startX) & (pl.col("time") < self.endX)
+            )
+        else:
+            self.data_in_view = dsconc
+            self.data_in_view_small = dsconc_small
+        """
         # THIS IS EXPENSIVE. I SHOULD CREATE STATS ONLY WHERE NEEDED; ESPECIALLY WITH .to_pandas()
         self.stats = (
             self.data_in_view_small.describe(  # .select(variables)  # .select(variables)  # .select(pl.col(self.pick_variables))
@@ -1359,8 +1362,12 @@ class GliderDashboard(param.Parameterized):
         if self.pick_TS_color_variable:
             vdims.append(self.pick_TS_color_variable)
         mplt = hv.Points(
-            framewise=True,
-            data=self.data_in_view,
+            data=self.data_in_view.filter(
+                (pl.col("time") > self.startX)
+                & (pl.col("time") < self.endX)
+                & (pl.col("depth") > self.startY)
+                & (pl.col("depth") < self.endY)
+            ),
             kdims=[self.pick_scatter_x, self.pick_scatter_y],
             vdims=vdims,
             # temp and salinity need to always be present for TS lasso to work, set for unique elements
@@ -1764,14 +1771,14 @@ def create_app_instance(self):
             show_name=False,
         ),
         pn.Param(
-            glider_dashboard.param,
-            # parameters=["pick_scatter_y"],
-            widgets={
-                "pick_scatter_y": {
-                    "widget_type": pn.widgets.AutocompleteInput,
-                    "min_characters": 1,
-                }
-            },  # (min_characters=1)},
+            glider_dashboard,  # .param,
+            parameters=["pick_scatter_y"],
+            # widgets={
+            #    "pick_scatter_y": {
+            #        "widget_type": pn.widgets.AutocompleteInput,
+            #        "min_characters": 1,
+            #    }
+            # },  # (min_characters=1)},
             show_name=False,
         ),
         pn.Param(
