@@ -30,10 +30,26 @@ import utils
 
 
 def exception_handler(ex):
+
     logging.error("Error", exc_info=ex)
-    pn.state.notifications.error(
-        "Please complete/change input parameters", duration=10000
-    )
+    # import pdb
+
+    # pdb.set_trace()
+    # if (len(GliderDashboard.pick_dsids) == 0) and (
+    #    GliderDashboard.pick_toggle == "DatasetID"
+    # ):  #
+    if GliderDashboard.data_in_view is None:
+        pn.state.notifications.error(
+            "Please proceed by selecting one or more datasets to display",
+            duration=10000,
+        )
+    else:
+        pn.state.notifications.error(
+            "Please complete/change input parameters", duration=10000
+        )
+    # import pdb
+
+    # pdb.set_trace()
     # pn.state.notifications.error(f"{ex}")
 
 
@@ -507,21 +523,12 @@ class GliderDashboard(param.Parameterized):
     @param.depends("pick_toggle", "pick_basin", watch=True)
     def update_datasource(self):
         # toggles visibility
+        if not self.pick_GDAC:
+            self.param.pick_dsids.objects = set(
+                self.param.pick_dsids.objects
+            ).intersection(set(allDatasetsVOTO.index))
+
         if self.pick_toggle == "DatasetID":
-            if not self.pick_GDAC:
-                # self.param.pick_dsids = [id for id in self.param.pick_dsids]
-                filter = ["SEA" in element for element in self.param.pick_dsids.objects]
-                filteredlist = [
-                    i
-                    for indx, i in enumerate(self.param.pick_dsids.objects)
-                    if filter[indx] == True
-                ]
-                alldslabels = [
-                    element[4:] if element[0:4] == "nrt_" else element
-                    for element in filteredlist
-                ]
-                objectsdict = dict(zip(alldslabels, filteredlist))
-                self.param.pick_dsids.objects = objectsdict
             self.param.pick_basin.precedence = -10
             self.param.pick_dsids.precedence = 1
         else:
@@ -571,10 +578,10 @@ class GliderDashboard(param.Parameterized):
 
         # hacky way to differentiate if called via synclink or refreshed with UI buttons
         if not len(meta):
-            self.startX = pd.NaT  # None
-            self.endX = pd.NaT  # None
-            self.pick_startX = pd.NaT  # None
-            self.pick_endX = pd.NaT  # None
+            # self.startX = pd.NaT  # None
+            # self.endX = pd.NaT  # None
+            # self.pick_startX = pd.NaT  # None
+            # self.pick_endX = pd.NaT  # None
             return
         incoming_link = not (isinstance(self.pick_startX, pd.Timestamp))
         if not incoming_link:
@@ -1130,7 +1137,6 @@ class GliderDashboard(param.Parameterized):
             pass
         # filtered Datasets
 
-        # pdb.set_trace()
         # fDs = allDatasets.loc[
         #    [name for name in all_dataset_names if "_small" not in name]
         # ]
@@ -1774,9 +1780,14 @@ def create_app_instance(self):
             show_name=False,
         ),
         pn.Param(
-            glider_dashboard,
-            parameters=["pick_scatter_y"],
-            widgets={"pick_scatter_y": pn.widgets.AutocompleteInput},
+            glider_dashboard.param,
+            # parameters=["pick_scatter_y"],
+            widgets={
+                "pick_scatter_y": {
+                    "widget_type": pn.widgets.AutocompleteInput,
+                    "min_characters": 1,
+                }
+            },  # (min_characters=1)},
             show_name=False,
         ),
         pn.Param(
