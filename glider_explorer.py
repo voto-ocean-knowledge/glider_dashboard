@@ -1188,13 +1188,15 @@ class GliderDashboard(param.Parameterized):
 
         dfmld = dfmld.to_pandas()
         dfmld["mld"] = dfmld["mld"].rolling(window=5, center=True, min_periods=3).mean()
+        """
         mldscatter = dfmld.hvplot.line(
             x="time",
             y="mld",
             color="white",
             alpha=0.5,
             responsive=True,
-        )
+        )"""
+        mldscatter = hv.Curve(data=dfmld, kdims="time", vdims="mld")
         return mldscatter
 
     def get_xsection_mean(self, x_range, y_range):
@@ -1447,6 +1449,7 @@ class GliderDashboard(param.Parameterized):
         return element
 
     def get_xsection(self, x_range, y_range):
+        """
         (x0, x1) = x_range
         try:
             # necessary if changing dsids dynamically
@@ -1455,19 +1458,25 @@ class GliderDashboard(param.Parameterized):
         except:
             pass
         t1 = time.perf_counter()
+        """
         meta, plt_props = self.load_viewport_datasets(x_range)
+        """
+        try:
+            meta_start_in_view = meta[(meta["minTime (UTC)"] > x0)]
+            meta_end_in_view = meta[(meta["maxTime (UTC)"] < x1)]
+        except:
+            import pdb
 
-        meta_start_in_view = meta[(meta["minTime (UTC)"] > x0)]
-        meta_end_in_view = meta[(meta["maxTime (UTC)"] < x1)]
-
+            pdb.set_trace()
+        """
         startvlines = (
-            hv.VLines(meta_start_in_view["minTime (UTC)"]).opts(
+            hv.VLines(meta["minTime (UTC)"]).opts(
                 color="grey", line_width=1
             )  # , spike_length=20)
             # .opts(position=-10)
         )
         endvlines = (
-            hv.VLines(meta_end_in_view["maxTime (UTC)"]).opts(
+            hv.VLines(meta["maxTime (UTC)"]).opts(
                 color="grey", line_width=1
             )  # , spike_length=20)
             # .opts(position=-10)
@@ -1475,9 +1484,9 @@ class GliderDashboard(param.Parameterized):
 
         data = pd.DataFrame.from_dict(
             dict(
-                time=meta_start_in_view["minTime (UTC)"].values,
+                time=meta["minTime (UTC)"].values,
                 y=5,
-                text=meta_start_in_view.index.str.replace("nrt_", ""),
+                text=meta.index.str.replace("nrt_", ""),
             )
         )
         ds_labels = hv.Labels(data).opts(
@@ -1485,10 +1494,10 @@ class GliderDashboard(param.Parameterized):
             text_align="left",  # plt_props['dynfontsize'],
         )
         plotslist = []
-        if len(meta_start_in_view) > 0:
+        if len(meta) > 0:
             plotslist.append(startvlines)
             plotslist.append(ds_labels)
-        if len(meta_end_in_view) > 0:
+        if len(meta) > 0:
             plotslist.append(endvlines)
         if plotslist:
             return hv.Overlay(plotslist)  # reduce(lambda x, y: x*y, plotslist)
@@ -1519,20 +1528,9 @@ class GliderDashboard(param.Parameterized):
             number of unique dives.
         """
 
-        groups = (
-            self.data_in_view_small.select(
-                pl.col([variable, "depth", "time", "profile_num"])
-            )
-            .filter(
-                pl.col("profile_num")
-                % int(
-                    (pd.to_datetime(self.endX) - pd.to_datetime(self.startX)).days / 30
-                    + 1
-                )
-                == 0
-            )
-            .group_by("profile_num")
-        )
+        groups = self.data_in_view_small.select(
+            pl.col([variable, "depth", "time", "profile_num"])
+        ).group_by("profile_num")
 
         mld = groups.map_groups(
             lambda group_df: mld_profile(group_df, "temperature", 0.3, 5, False),
