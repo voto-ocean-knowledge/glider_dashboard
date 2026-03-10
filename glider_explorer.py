@@ -837,6 +837,8 @@ class GliderDashboard(param.Parameterized):
                     # clabel=f"{self.pick_variable}  [{dictionaries.units_dict[self.pick_variable]}]",
                     colorbar=True,
                 )
+            if self.pick_scatter_y in ["depth", "pressure", "z"]:
+                dmapTSr = dmapTSr.opts(invert_yaxis=True)
 
         """
             dcont = hv.DynamicMap(
