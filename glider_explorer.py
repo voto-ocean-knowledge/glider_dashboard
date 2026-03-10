@@ -751,7 +751,7 @@ class GliderDashboard(param.Parameterized):
         # self.startX = np.datetime64(self.startX)
         # self.endX = np.datetime64(self.endX)
         #
-        print(self.startX, self.endX, self.startY, self.endY)
+        # print(self.startX, self.endX, self.startY, self.endY)
 
         if self.pick_scatter_bool:
             self.param.pick_scatter.precedence = 1
@@ -1123,7 +1123,8 @@ class GliderDashboard(param.Parameterized):
             x0 = x0.to_datetime64()
             x1 = x1.to_datetime64()
         except:
-            pass
+            x0 = np.datetime64("2020-01-01")
+            x1 = np.datetime64("2030-01-01")
 
         fDs = allDatasets.loc[
             [name for name in all_dataset_names if "_small" not in name]
@@ -1169,9 +1170,31 @@ class GliderDashboard(param.Parameterized):
         else:
             meta = allDatasets.loc[self.pick_dsids]
 
-        plt_props["zoomed_out"] = False
-        plt_props["dynfontsize"] = 10
-        plt_props["subsample_freq"] = 1
+        # print(f'len of meta is {len(meta)} in load_viewport_datasets')
+        if (x1 - x0) > np.timedelta64(720, "D"):
+            # activate sparse data mode to speed up reactivity
+            plt_props["zoomed_out"] = True
+            plt_props["dynfontsize"] = 4
+            plt_props["subsample_freq"] = 25
+        elif (x1 - x0) > np.timedelta64(360, "D"):
+            # activate sparse data mode to speed up reactivity
+            plt_props["zoomed_out"] = True
+            plt_props["dynfontsize"] = 4
+            plt_props["subsample_freq"] = 10  # 25  # 10
+        elif (x1 - x0) > np.timedelta64(180, "D"):
+            # activate sparse data mode to speed up reactivity
+            plt_props["zoomed_out"] = False
+            plt_props["dynfontsize"] = 4
+            plt_props["subsample_freq"] = 6
+        elif (x1 - x0) > np.timedelta64(90, "D"):
+            # activate sparse data mode to speed up reactivity
+            plt_props["zoomed_out"] = False
+            plt_props["dynfontsize"] = 4
+            plt_props["subsample_freq"] = 2
+        else:
+            plt_props["zoomed_out"] = False
+            plt_props["dynfontsize"] = 10
+            plt_props["subsample_freq"] = 1
         return allDatasets.loc[meta.index], plt_props
 
     def get_xsection_mld(self, x_range, y_range):
