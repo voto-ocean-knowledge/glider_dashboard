@@ -173,6 +173,8 @@ def mld_profile(df, variable, thresh, ref_depth, verbose=True):
     exception = False
     divenum = df["profile_num"].first()  # df.index[0]
     ptime = df["time"].first()
+    # df["depth"] = df["depth"].neg()
+    df = df.with_columns(pl.col("depth").neg())
     df = df.drop_nulls(subset=[variable, "depth"])
 
     if len(df) == 0:
@@ -210,7 +212,7 @@ def mld_profile(df, variable, thresh, ref_depth, verbose=True):
                 shallow profile) for profile {}""".format(divenum)
     if verbose and exception:
         print(message)
-    return pl.DataFrame({"mld": [mld], "time": [ptime]})
+    return pl.DataFrame({"mld": [-mld], "time": [ptime]})
 
 
 def create_cbar_range(variable):
@@ -458,8 +460,11 @@ class GliderDashboard(param.Parameterized):
             p2 = f""" the datasets {self.pick_dsids} """
         else:  # self.pick_toggle == "SAMBA obs.":
             p2 = f"""for the region {self.pick_basin} """
-        p3 = ""  # f"""from {np.datetime_as_string(self.startX, unit="s")} to {np.datetime_as_string(self.endX, unit="s")}. """
-
+        # try:
+        p3 = f"""from {self.data_in_view.select("time").first().collect()[0, 0]} to {self.data_in_view.select("time").last().collect()[0, 0]}. """
+        # except:
+        #    import pdb
+        #    pdb.set_trace()
         p4 = f"""Number of profiles {
             self.data_in_view.select("profile_num").last().collect()[0, 0]
             - self.data_in_view.select("profile_num").first().collect()[0, 0]
@@ -486,26 +491,6 @@ class GliderDashboard(param.Parameterized):
             # temp and salinity need to always be present for TS lasso to work, set for unique elements
         )
         return raster
-
-    @param.depends("pick_display_threshold", watch=True)
-    def update_display_threshold(self):
-        for var in [
-            "pick_variables",
-            "pick_basin",
-            "pick_toggle",
-            "pick_dsids",
-            "pick_cnorm",
-            "pick_aggregation",
-            "pick_mld",
-            # "pick_mean",
-            # "pick_TS",
-            # "pick_profiles",
-            "pick_activate_scatter_link",
-            "pick_contours",
-            "pick_high_resolution",
-            "button_inflow",
-        ]:
-            self.param[var].precedence = self.pick_display_threshold
 
     @param.depends("pick_show_ctrls", watch=True)
     def update_display_threshold(self):
@@ -628,7 +613,6 @@ class GliderDashboard(param.Parameterized):
         profile = self.data_in_view.filter(
             pl.col("profile_num") == profile_num.collect()[0, 0]
         ).collect()
-        # import pdb; pdb.set_trace();
         nextprofile = self.data_in_view.filter(
             pl.col("profile_num") == profile_num.collect()[0, 0] + 1
         ).collect()
@@ -727,7 +711,7 @@ class GliderDashboard(param.Parameterized):
         # This should only be a temporay hack. I don't want all that data to go into my TS plots.
         # dsconc = utils.voto_concat_datasets2(varlist)
         dsconc = pl.concat([data for data in varlist], how="diagonal_relaxed")
-        dsconc = dsconc.with_columns(pl.col("depth").neg()).sort("time")
+        dsconc = dsconc.with_columns(pl.col("depth")).sort("time")
         self.param["pick_variables"].objects = dsconc.collect_schema().names()
         # self.data_in_view = dsconc
 
@@ -767,9 +751,7 @@ class GliderDashboard(param.Parameterized):
         # self.startX = np.datetime64(self.startX)
         # self.endX = np.datetime64(self.endX)
         #
-        # import pdb
-
-        # pdb.set_trace()
+        print(self.startX, self.endX, self.startY, self.endY)
 
         if self.pick_scatter_bool:
             self.param.pick_scatter.precedence = 1
@@ -911,7 +893,7 @@ class GliderDashboard(param.Parameterized):
                 pixel_ratio=pixel_ratio,
                 # robust=True if self.pick_autorange else False,
             ).opts(
-                # invert_yaxis=True, # Would like to activate this, but breaks the hover tool
+                invert_yaxis=True,  # Would like to activate this, but breaks the hover tool
                 colorbar=True,
                 # clim_percentile=clim_percentile,
                 clim=clim,
@@ -975,10 +957,10 @@ class GliderDashboard(param.Parameterized):
                     # xlim=(self.startX, self.endX),
                     hooks=[lambda p, _: p.state.update(border_fill_alpha=0)],
                 )
-            if self.pick_show_decoration:
-                plots_dict["dmap_rasterized"][variable] = plots_dict["dmap_rasterized"][
-                    variable
-                ].opts(ylim=(None, 12))
+            # if self.pick_show_decoration:
+            #    plots_dict["dmap_rasterized"][variable] = plots_dict["dmap_rasterized"][
+            #        variable
+            # ].opts(ylim=(None, 12))
         if (self.pick_contours is not None) and (self.pick_contours != "same as above"):
             plots_dict["dmap_rasterized_contour"] = rasters(self.pick_contours)
 
@@ -1088,7 +1070,6 @@ class GliderDashboard(param.Parameterized):
         contourplots = contourplots.redim.range(
             time=(self.startX, self.endX), depth=(self.startY, self.endY)
         )
-        print(self.startX, self.endX, self.startY, self.endY)
 
         return pn.Column(contourplots.cols(ncols))
 
@@ -1133,24 +1114,41 @@ class GliderDashboard(param.Parameterized):
         This is currently based on the metadata information "time_coverage_start/end (UTC), but should
         be generalized to minTime (UTC) to be compatible with the allDatasets table instead of metadata tables.
         """
-        # (x0, x1) = x_range
+        (x0, x1) = x_range
         # dt = x1 - x0
         # dtns = dt / np.timedelta64(1, "ns")
         plt_props = {}
-        # try:
-        #    # necessary if changing dsids dynamically
-        #   x0 = x0.to_datetime64()
-        #    x1 = x1.to_datetime64()
-        # except:
-        #    pass
-        # filtered Datasets
+        try:
+            # necessary if changing dsids dynamically
+            x0 = x0.to_datetime64()
+            x1 = x1.to_datetime64()
+        except:
+            pass
 
-        # pdb.set_trace()
         fDs = allDatasets.loc[
             [name for name in all_dataset_names if "_small" not in name]
         ]
+        if (x0 is None) or (x1 is None) or (np.isnan(x0)) or (np.isnan(x1)):
+            fD_inview = fDs
+        else:
+            fD_inview = fDs[
+                # x0 and x1 are the time start and end of our view, the other times
+                # are the start and end of the individual datasets. To increase
+                # perfomance, datasets are loaded only if visible, so if
+                # 1. it starts within our view...
+                ((fDs["minTime (UTC)"] >= x0) & (fDs["minTime (UTC)"] <= x1))
+                |
+                # 2. it ends within our view...
+                ((fDs["maxTime (UTC)"] >= x0) & (fDs["maxTime (UTC)"] <= x1))
+                |
+                # 3. it starts before and ends after our view (zoomed in)...
+                ((fDs["minTime (UTC)"] <= x0) & (fDs["maxTime (UTC)"] >= x1))
+                |
+                # 4. or it both, starts and ends within our view (zoomed out)...
+                ((fDs["minTime (UTC)"] >= x0) & (fDs["maxTime (UTC)"] <= x1))
+            ]
 
-        fD_inview = fDs
+        # fD_inview = fDs
 
         # print(fD_inview)
         # mydslist = [name for name in all_dataset_names if '_small' not in name]
@@ -1177,6 +1175,7 @@ class GliderDashboard(param.Parameterized):
         return allDatasets.loc[meta.index], plt_props
 
     def get_xsection_mld(self, x_range, y_range):
+        # print("DATA IN VIEW:", self.data_in_view.collect())
         dfmld = (
             self.mixed_layer_depth(
                 "temperature",
@@ -1188,6 +1187,10 @@ class GliderDashboard(param.Parameterized):
 
         dfmld = dfmld.to_pandas()
         dfmld["mld"] = dfmld["mld"].rolling(window=5, center=True, min_periods=3).mean()
+        # dfmld["mld2"] = (
+        #    -dfmld["mld"].rolling(window=5, center=True, min_periods=3).mean()
+        # )
+
         """
         mldscatter = dfmld.hvplot.line(
             x="time",
@@ -1196,8 +1199,12 @@ class GliderDashboard(param.Parameterized):
             alpha=0.5,
             responsive=True,
         )"""
+
+        print(dfmld)
         mldscatter = hv.Curve(data=dfmld, kdims="time", vdims="mld")
-        return mldscatter
+        # mldscatter2 = hv.Curve(data=dfmld, kdims="time", vdims="mld2")
+
+        return mldscatter  # * mldscatter2
 
     def get_xsection_mean(self, x_range, y_range):
         # This method is not adapted for multiple variables (pick_variables) yet
@@ -1322,27 +1329,33 @@ class GliderDashboard(param.Parameterized):
 
         # This should only be a temporay hack. I don't want all that data to go into my TS plots.
         dsconc = utils.voto_concat_datasets2(varlist)
-        dsconc = dsconc.with_columns(pl.col("depth").neg()).sort("time")
+        dsconc = dsconc.with_columns(pl.col("depth")).sort("time")
 
         dsconc_small = utils.voto_concat_datasets2(varlist_small)
-        dsconc_small = dsconc_small.with_columns(pl.col("depth").neg()).sort("time")
+        dsconc_small = dsconc_small.with_columns(pl.col("depth")).sort("time")
 
         self.data_in_view = dsconc
         self.data_in_view_small = dsconc_small
-        """ WILL I NEED THIS FOR MLD COMPUTATION?
-        if self.startX is not None:
-            self.data_in_view = dsconc.filter(
-                (pl.col("time") > self.startX)
-                & (pl.col("time") < self.endX)
-                & (pl.col("depth") > self.startY)
-                & (pl.col("depth") < self.endY)
-            )  # .dropna(subset=['temperature', 'salinity'])
-            self.data_in_view_small = dsconc_small.filter(
-                (pl.col("time") > self.startX) & (pl.col("time") < self.endX)
-            )
-        else:
-            self.data_in_view = dsconc
-            self.data_in_view_small = dsconc_small
+        """ WILL I NEED THIS FOR MLD COMPUTATION? """
+        # if self.startX is not None:
+        """
+        self.data_in_view = dsconc.filter(
+            (pl.col("time") > self.startX) & (pl.col("time") < self.endX)
+            # & (pl.col("depth") > self.startY)
+            # & (pl.col("depth") < self.endY)
+        )  # .dropna(subset=['temperature', 'salinity'])
+        self.data_in_view_small = dsconc_small.filter(
+            (pl.col("time") > self.startX) & (pl.col("time") < self.endX)
+            # & (pl.col("depth") > self.startY)
+            # & (pl.col("depth") < self.endY)
+        )
+        # else:
+
+        print(
+            "The length of the datasets is:",
+            dsconc.select(pl.len()).collect().item(),
+            dsconc_small.select(pl.len()).collect().item(),
+        )
         """
         # THIS IS EXPENSIVE. I SHOULD CREATE STATS ONLY WHERE NEEDED; ESPECIALLY WITH .to_pandas()
         self.stats = (
@@ -1356,7 +1369,8 @@ class GliderDashboard(param.Parameterized):
         mplt = self.create_single_ds_plot_raster(
             data=self.data_in_view, variables=variables
         )
-        print(self.startX, self.endX, self.startY, self.endY)
+        # print(self.startX, self.endX, self.startY, self.endY)
+
         return mplt
 
     def get_xsection_TS(self, x_range, y_range):
