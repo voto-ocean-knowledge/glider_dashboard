@@ -1042,7 +1042,7 @@ class GliderDashboard(param.Parameterized):
         #    return linked_plots
 
         if self.pick_show_decoration:
-            contourplots = contourplots * dmap_decorators
+            contourplots = contourplots * dmap_decorators.opts(ylim=(None, 24))
         contourplots = contourplots * dmap_mld if self.pick_mld else contourplots
         contourplots = (
             (
