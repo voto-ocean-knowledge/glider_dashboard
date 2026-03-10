@@ -1120,13 +1120,16 @@ class GliderDashboard(param.Parameterized):
         # dt = x1 - x0
         # dtns = dt / np.timedelta64(1, "ns")
         plt_props = {}
-        try:
-            # necessary if changing dsids dynamically
-            x0 = x0.to_datetime64()
-            x1 = x1.to_datetime64()
-        except:
+        if x0 is None:
+            # fallback values for initialization
             x0 = np.datetime64("2020-01-01")
             x1 = np.datetime64("2030-01-01")
+        elif type(x_range[0]) == np.datetime64:
+            x0 = x_range[0]
+            x1 = x_range[1]
+        else:
+            x0 = pd.to_datetime(x_range[0])
+            x1 = pd.to_datetime(x_range[1])
 
         fDs = allDatasets.loc[
             [name for name in all_dataset_names if "_small" not in name]
