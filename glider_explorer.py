@@ -1026,9 +1026,11 @@ class GliderDashboard(param.Parameterized):
                     clim = (None, None)
                 ncols += 1
                 if self.pick_activate_scatter_link:
-                    dmapTSr = mpg_ls(dmapTSr.opts(clim=clim))  # * dcont
+                    dmapTSr = mpg_ls(
+                        dmapTSr.opts(xlim=xlim, ylim=ylim, clim=clim)
+                    )  # * dcont
                 else:
-                    dmapTSr = dmapTSr.opts(clim=clim)  # * dcont
+                    dmapTSr = dmapTSr.opts(xlim=xlim, ylim=ylim, clim=clim)  # * dcont
             if self.pick_profiles:
                 ncols += 1
                 if self.pick_activate_scatter_link:
