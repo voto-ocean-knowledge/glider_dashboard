@@ -477,8 +477,9 @@ class GliderDashboard(param.Parameterized):
     markdown = pn.pane.Markdown("")
 
     def keep_zoom(self, x_range, y_range):
-        self.startX, self.endX = x_range
-        self.startY, self.endY = y_range
+        if not np.isnan(x_range[0]):
+            self.startX, self.endX = x_range
+            self.startY, self.endY = y_range
 
     def create_single_ds_plot_raster(self, data, variables):
         variables = set(variables)
@@ -787,6 +788,10 @@ class GliderDashboard(param.Parameterized):
         # commonheights = 1000
         # x_range = (self.startX, self.endX)
         # y_range = (self.startY, self.endY)
+        if self.startX is not None:
+            if np.isnan(self.startX):
+                self.startX = self.pick_startX
+                self.endX = self.pick_endX
 
         range_stream = RangeXY(
             x_range=(self.startX, self.endX), y_range=(self.startY, self.endY)
@@ -803,7 +808,7 @@ class GliderDashboard(param.Parameterized):
         dmap_raster = hv.DynamicMap(
             self.get_xsection_raster,
             streams=[range_stream, tap_stream],
-        ).opts(framewise=True)
+        )  # .opts(framewise=True)
 
         if self.pick_high_resolution:
             pixel_ratio = 1.0
@@ -988,7 +993,10 @@ class GliderDashboard(param.Parameterized):
             # There is nothing to show here, return empty
             if self.pick_variables:
                 contourplots = hv.Layout(
-                    [element for element in plots_dict["dmap_rasterized"].values()]
+                    [
+                        element.opts(xlim=(self.startX, self.endX))
+                        for element in plots_dict["dmap_rasterized"].values()
+                    ]
                 )
             else:
                 return pn.Column()
@@ -1071,9 +1079,9 @@ class GliderDashboard(param.Parameterized):
             if self.pick_profiles
             else contourplots
         )
-        contourplots = contourplots.redim.range(
-            time=(self.startX, self.endX), depth=(self.startY, self.endY)
-        )
+        contourplots = contourplots  # .redim.range(
+        # time=(self.startX, self.endX), depth=(self.startY, self.endY)
+        # )
 
         return pn.Column(contourplots.cols(ncols))
 
@@ -1136,7 +1144,7 @@ class GliderDashboard(param.Parameterized):
         fDs = allDatasets.loc[
             [name for name in all_dataset_names if "_small" not in name]
         ]
-        if (x0 is None) or (x1 is None) or (np.isnan(x0)) or (np.isnan(x1)):
+        if (x0 is None) or (x1 is None):  # or (np.isnan(x0)) or (np.isnan(x1)):
             fD_inview = fDs
         else:
             fD_inview = fDs[
