@@ -78,7 +78,9 @@ for dataset_id in all_dataset_ids:
 
         currentdirections = ds2.interp(
             profile_index=ds["time"], depth=ds["depth"], method="linear"
-        ).reset_coords("profile_index")  # [
+        ).reset_coords(
+            "profile_index"
+        )  # [
         # [
         #    "velocity_N_DAC_reference_sb_corrected",
         #    "velocity_E_DAC_reference_sb_corrected",

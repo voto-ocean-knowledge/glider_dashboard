@@ -173,9 +173,11 @@ def filter_metadata():
 def add_delayed_dataset_ids(metadata, all_datasets):
     nrt_dataset_ids = list(metadata.index)
     delayed_dataset_ids = [
-        datasetid.replace("nrt", "delayed")
-        if datasetid.replace("nrt", "delayed") in all_datasets.index
-        else datasetid
+        (
+            datasetid.replace("nrt", "delayed")
+            if datasetid.replace("nrt", "delayed") in all_datasets.index
+            else datasetid
+        )
         for datasetid in metadata.index
     ]
 
@@ -322,7 +324,8 @@ def voto_concat_datasets2(datasets):
             .to_numpy()[0]
         )
         datasets[index] = datasets[index].with_columns(
-            pl.col("profile_num") + A
+            pl.col("profile_num")
+            + A
             # pl.col("profile_num") + (index * 10000)
         )  # datasets[index - 1].select(pl.col("profile_num")).max()  # .collect())
     ds = pl.concat([data for data in datasets], how="diagonal_relaxed")
