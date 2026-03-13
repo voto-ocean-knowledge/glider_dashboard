@@ -1,3 +1,4 @@
+```python
 import functools
 import time
 import timeit
@@ -5,110 +6,127 @@ from os.path import join
 
 import numpy as np
 import panel as pn
-
 import glider_explorer as gdb
 
-# tests to add:
-# 1. Are datapoints drawn?
-# 2. Are datapoints still drawn if zoomed all the way in to a single day?
-# 3. Can the x_range be defined by (url-) parameters?
-# 4. Tipp: I could probably implement tests the same way I implement events.
-outpath = "./test_plots"
-
+# Define constants
+OUTPATH = "./test_plots"
 
 def test_import():
-    # tests if correct python environment is activated, syntax is reasonable, packages installed...
+    """
+    Test if the correct Python environment is activated and packages are installed.
+    """
     assert 1 == 1
 
-
 def test_dataset_is_loaded():
-    # data is loaded
+    """
+    Test if the dataset is loaded.
+    """
     assert len(gdb.metadata) > 0
     print(gdb.metadata)
 
-
 def test_filter_metadata():
+    """
+    Test filtering metadata.
+    """
     gdb.utils.year = 2024
     metadata = gdb.utils.filter_metadata()
     print(len(gdb.metadata))
     print(len(metadata))
 
+def test_glider_dashboard():
+    """
+    Test the GliderDashboard class.
+    """
+    gdb.GliderDashboard()
 
-def test_salinity():
+def test_create_dynmap():
+    """
+    Test creating a dynamic map.
+    """
     GDB = gdb.GliderDashboard()
-    # GDB.startX = np.datetime64('2024-03-01')
-    # GDB.endX = np.datetime64('2024-05-01')
-
     GDB.pick_startX = np.datetime64("2024-01-01")
     GDB.pick_endX = np.datetime64("2024-12-19")
     GDB.pick_variable = "salinity"
-    # import pdb; pdb.set_trace();
+    dyn = GDB.create_dynmap()
+    dyn.save(join(OUTPATH, "salinity.png"))
 
-    # create output for variable salinity
-    t1 = time.perf_counter()
-    dyn = GDB.create_dynmap()  # .opts(width=500, height=500)
-    # myapp = pn.panel(dyn)
-    dyn.save(join(outpath, "salinity.png"))
-    t2 = time.perf_counter()
-    print("creating the first serve took", t2 - t1)
-
-
-def test_temperature():
+def test_create_dynmap_temperature():
+    """
+    Test creating a dynamic map for temperature.
+    """
     GDB = gdb.GliderDashboard()
-    # GDB.startX = np.datetime64('2024-03-01')
-    # GDB.endX = np.datetime64('2024-05-01')
-
     GDB.pick_startX = np.datetime64("2024-01-18")
     GDB.pick_endX = np.datetime64("2024-12-19")
-
-    # create output for variable temperature
-    t1 = time.perf_counter()
     GDB.pick_variable = "temperature"
     dyn = GDB.create_dynmap()
-    dyn.save(join(outpath, "temperature.png"))
-    t2 = time.perf_counter()
-    print("creating the second serve took", t2 - t1)
+    dyn.save(join(OUTPATH, "temperature.png"))
+
+def test_load_viewport_datasets():
+    """
+    Test loading viewport datasets.
+    """
+    GDB = gdb.GliderDashboard()
+    GDB.pick_startX = np.datetime64("2024-01-01")
+    GDB.pick_endX = np.datetime64("2024-12-19")
     t = timeit.Timer(
         functools.partial(GDB.load_viewport_datasets, (GDB.pick_startX, GDB.pick_endX))
     )
     print("load_viewport_datasets takes:", t.timeit(10) / 10)
 
-    # activate mld
-    t1 = time.perf_counter()
-    # GDB.pick_mld = True
-    # dyn = GDB.create_dynmap()  # .opts(width=500, height=500)
-    # # myapp = pn.panel(dyn)
-    # dyn.save(join(outpath, "mld.png"))
-    # t2 = time.perf_counter()
-    # print("creating the third serve took", t2 - t1)
-    # GDB.pick_mld = False
+def test_create_dynmap_mld():
+    """
+    Test creating a dynamic map for MLD.
+    """
+    GDB = gdb.GliderDashboard()
+    GDB.pick_startX = np.datetime64("2024-01-01")
+    GDB.pick_endX = np.datetime64("2024-12-19")
+    GDB.pick_mld = True
+    dyn = GDB.create_dynmap()
+    dyn.save(join(OUTPATH, "mld.png"))
 
-    # activate scatter plot
+def test_create_dynmap_scatter_plot():
+    """
+    Test creating a dynamic map for scatter plot.
+    """
+    GDB = gdb.GliderDashboard()
+    GDB.pick_startX = np.datetime64("2024-01-01")
+    GDB.pick_endX = np.datetime64("2024-12-19")
     GDB.pick_TS = True
-    dyn = GDB.create_dynmap()  # .opts(width=500, height=500)
-    myapp = pn.panel(dyn)
-    dyn.save(join(outpath, "TS.png"))
-    GDB.pick_TS = False
+    dyn = GDB.create_dynmap()
+    dyn.save(join(OUTPATH, "TS.png"))
 
-    # activate profile plots
+def test_create_dynmap_profile_plots():
+    """
+    Test creating a dynamic map for profile plots.
+    """
+    GDB = gdb.GliderDashboard()
+    GDB.pick_startX = np.datetime64("2024-01-01")
+    GDB.pick_endX = np.datetime64("2024-12-19")
     GDB.pick_profiles = True
-    dyn = GDB.create_dynmap()  # .opts(width=500, height=500)
-    myapp = pn.panel(dyn)
-    dyn.save(join(outpath, "profiles.png"))
-    GDB.pick_profiles = False
+    dyn = GDB.create_dynmap()
+    dyn.save(join(OUTPATH, "profiles.png"))
 
-    # toggle to DatasetID
-    # GDB.pick_toggle = 'DatasetID'
-    # dyn = GDB.create_dynmap().opts(width=500, height=500)
-    # myapp = pn.panel(dyn)
-    # pn.pane.HoloViews(dyn).save(join(outpath, 'DatasetID.png'))
-    # GDB.pick_toggle = 'SAMBA obs.'
-
-    # colorbar
+def test_create_dynmap_cnorm():
+    """
+    Test creating a dynamic map with a custom colormap.
+    """
+    GDB = gdb.GliderDashboard()
+    GDB.pick_startX = np.datetime64("2024-01-01")
+    GDB.pick_endX = np.datetime64("2024-12-19")
     GDB.cnorm = "eq_hist"
-    dyn = GDB.create_dynmap()  # .opts(width=500, height=500)
-    myapp = pn.panel(dyn)
-    dyn.save(join(outpath, "eq_hist.png"))
-    GDB.pick_cnorm = "linear"
+    dyn = GDB.create_dynmap()
+    dyn.save(join(OUTPATH, "eq_hist.png"))
 
-    assert 1 == 1
+if __name__ == "__main__":
+    test_import()
+    test_dataset_is_loaded()
+    test_filter_metadata()
+    test_glider_dashboard()
+    test_create_dynmap()
+    test_create_dynmap_temperature()
+    test_load_viewport_datasets()
+    test_create_dynmap_mld()
+    test_create_dynmap_scatter_plot()
+    test_create_dynmap_profile_plots()
+    test_create_dynmap_cnorm()
+```
