@@ -19,3 +19,5 @@ dependencies:
   - spatialpandas
   - pytest
   - polars
+  - selenium
+  - pytest

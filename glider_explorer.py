@@ -1,3 +1,4 @@
+import datetime
 import logging
 import time
 
@@ -383,7 +384,7 @@ class GliderDashboard(param.Parameterized):
         default=None,
         objects=variables_selectable,
         label="Colour scatterplot by",
-        doc="blubb",
+        doc="Colour of the scatterplot",
         precedence=-10,
     )
     pick_profiles = param.Boolean(
@@ -477,9 +478,8 @@ class GliderDashboard(param.Parameterized):
     markdown = pn.pane.Markdown("")
 
     def keep_zoom(self, x_range, y_range):
-        if not np.isnan(x_range[0]):
-            self.startX, self.endX = x_range
-            self.startY, self.endY = y_range
+        self.startX, self.endX = x_range
+        self.startY, self.endY = y_range
 
     def create_single_ds_plot_raster(self, data, variables):
         variables = set(variables)
@@ -786,12 +786,11 @@ class GliderDashboard(param.Parameterized):
             self.param.pick_activate_scatter_link.precedence = -10
 
         # commonheights = 1000
-        # x_range = (self.startX, self.endX)
-        # y_range = (self.startY, self.endY)
-        if self.startX is not None:
-            if np.isnan(self.startX):
-                self.startX = self.pick_startX
-                self.endX = self.pick_endX
+
+        if type(self.pick_startX) is datetime.datetime:
+            # User comes in via URL
+            self.startX = pd.to_datetime(self.pick_startX)
+            self.endX = pd.to_datetime(self.pick_endX)
 
         range_stream = RangeXY(
             x_range=(self.startX, self.endX), y_range=(self.startY, self.endY)
@@ -1008,23 +1007,26 @@ class GliderDashboard(param.Parameterized):
                 contourplots = mpg_ls(contourplots)
 
             if self.pick_scatter_bool:
-                diffx = (
-                    self.stats.loc["99%"][self.pick_scatter_x]
-                    - self.stats.loc["5%"][self.pick_scatter_x]
-                )
-                xlim = (
-                    self.stats.loc["5%"][self.pick_scatter_x] - 0.1 * diffx,
-                    self.stats.loc["99%"][self.pick_scatter_x] + 0.1 * diffx,
-                )
-                diffy = (
-                    self.stats.loc["99%"][self.pick_scatter_y]
-                    - self.stats.loc["5%"][self.pick_scatter_y]
-                )
+                if self.data_in_view is not None:
+                    diffx = (
+                        self.stats.loc["99%"][self.pick_scatter_x]
+                        - self.stats.loc["5%"][self.pick_scatter_x]
+                    )
 
-                ylim = (
-                    self.stats.loc["1%"][self.pick_scatter_y] - 0.1 * diffy,
-                    self.stats.loc["99%"][self.pick_scatter_y] + 0.1 * diffy,
-                )
+                    xlim = (
+                        self.stats.loc["5%"][self.pick_scatter_x] - 0.1 * diffx,
+                        self.stats.loc["99%"][self.pick_scatter_x] + 0.1 * diffx,
+                    )
+                    diffy = (
+                        self.stats.loc["99%"][self.pick_scatter_y]
+                        - self.stats.loc["5%"][self.pick_scatter_y]
+                    )
+                    ylim = (
+                        self.stats.loc["1%"][self.pick_scatter_y] - 0.1 * diffy,
+                        self.stats.loc["99%"][self.pick_scatter_y] + 0.1 * diffy,
+                    )
+                else:
+                    xlim = ylim = (None, None)
                 if self.pick_TS_color_variable:
                     clim = (
                         self.stats.loc["5%"][self.pick_TS_color_variable],
@@ -1083,7 +1085,7 @@ class GliderDashboard(param.Parameterized):
         # time=(self.startX, self.endX), depth=(self.startY, self.endY)
         # )
 
-        return pn.Column(contourplots.cols(ncols))
+        return pn.Column(contourplots.opts(height=cheight).cols(ncols))
 
     def create_mean(self):
         self.startX = self.pick_startX
@@ -1295,9 +1297,13 @@ class GliderDashboard(param.Parameterized):
         return meanline
 
     def get_xsection_raster(self, x_range, y_range, x, y):
-        # (x0, x1) = x_range
-        # self.pick_startX = pd.to_datetime(x0)  # setters
-        # self.pick_endX = pd.to_datetime(x1)
+        (x0, x1) = x_range
+        if (x0 is not None) and (x1 is not None):
+            # user interacts with program via ui, the URL is dynamically updated to keep up to date
+            # setters have to be in DynamicMap functions to work dynamically!)
+            self.pick_startX = pd.to_datetime(x0)
+            self.pick_endX = pd.to_datetime(x1)
+
         meta, plt_props = self.load_viewport_datasets(x_range)
         metakeys = [
             (
