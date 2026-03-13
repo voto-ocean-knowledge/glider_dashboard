@@ -135,7 +135,9 @@ if utils.GDAC_data:
             dsdict[dsid]
             .drop(cs.string())
             .with_columns(
-                pl.col("time").dt.cast_time_unit("ns").dt.replace_time_zone(None)
+                pl.col("time")
+                .dt.cast_time_unit("ns")
+                .dt.replace_time_zone(None)
                 # .cast(pl.Float32, strict=False) # if this is activated, time is cast into float32, which leads to bugs in keeping x-range across parameter changes
             )
             .rename({"profile_id": "profile_num"})
@@ -1126,7 +1128,7 @@ class GliderDashboard(param.Parameterized):
         This is currently based on the metadata information "time_coverage_start/end (UTC), but should
         be generalized to minTime (UTC) to be compatible with the allDatasets table instead of metadata tables.
         """
-        (x0, x1) = x_range
+        x0, x1 = x_range
         # dt = x1 - x0
         # dtns = dt / np.timedelta64(1, "ns")
         plt_props = {}
@@ -1442,6 +1444,7 @@ class GliderDashboard(param.Parameterized):
 
     def get_density_contours(self, x_range, y_range):
         import gsw
+
         # +/- 5 gives plently of space for the density line drawing, if user zoomes out.
 
         smin, smax = (
