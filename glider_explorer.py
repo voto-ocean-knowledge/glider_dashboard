@@ -71,7 +71,7 @@ class GliderDashboard(param.Parameterized):
         objects=lod.variables_selectable,
         label="Y-axis variable",
         doc="Variable used to create colormesh",
-        # precedence=-10,
+        precedence=-10,
     )
     # show all the basins and all the datasets. I use the nrt data
     # from the metadatatables as keys, so I skip the 'delayed' sets
@@ -562,28 +562,28 @@ class GliderDashboard(param.Parameterized):
                 self.pick_scatter_x = "salinity"
                 self.pick_scatter_y = "temperature"
                 self.param.pick_scatter_x.precedence = -10
-                # self.param.pick_scatter_y.precedence = -10
+                self.param.pick_scatter_y.precedence = -10
                 self.param.pick_activate_scatter_link.precedence = 1
                 self.param.pick_TS_color_variable.precedence = 1
             elif self.pick_scatter == "profiles":
                 self.pick_scatter_y = "pressure"
                 self.pick_scatter_x = "temperature"
                 self.param.pick_scatter_x.precedence = -10
-                # self.param.pick_scatter_y.precedence = -10
+                self.param.pick_scatter_y.precedence = -10
                 self.param.pick_TS_color_variable.precedence = 1
                 self.param.pick_activate_scatter_link = 1
             elif self.pick_scatter == "custom":
                 self.pick_scatter_x = self.pick_scatter_x
                 self.pick_scatter_y = self.pick_scatter_y
                 self.param.pick_scatter_x.precedence = 1
-                # self.param.pick_scatter_y.precedence = 1
+                self.param.pick_scatter_y.precedence = 1
                 self.param.pick_TS_color_variable.precedence = 1
                 self.param.pick_activate_scatter_link.precedence = 1
 
         else:
             self.param.pick_scatter.precedence = -10
             self.param.pick_scatter_x.precedence = -10
-            # self.param.pick_scatter_y.precedence = -10
+            self.param.pick_scatter_y.precedence = -10
             self.param.pick_TS_color_variable.precedence = -10
             self.param.pick_activate_scatter_link.precedence = -10
 
@@ -1656,7 +1656,6 @@ class GliderDashboard(param.Parameterized):
 
         # this keeps the url in sync with the parameter choices and vice versa
 
-        """
         if pn.state.location:
             other_cntrls = {
                 "pick_basin": "pick_basin",
@@ -1695,7 +1694,6 @@ class GliderDashboard(param.Parameterized):
                 other_cntrls,
             )
 
-        """
         content = self.create_dynmap
         contentcolumn = pn.Column(
             pn.panel(content),  # , defer_load=True),
@@ -1768,15 +1766,15 @@ class GliderDashboard(param.Parameterized):
                                 widgets={
                                     "pick_scatter_bool": pn.widgets.Switch,
                                     "pick_scatter": pn.widgets.RadioButtonGroup,
-                                    "pick_scatter_x": {
-                                        "visible": self.param.pick_scatter_bool,
-                                        "disabled": self.pick_scatter == "TS",
-                                    },  # pn.widgets.AutocompleteInput,  # AutocompleteInput"
-                                    "pick_scatter_y": {
-                                        # "type": pn.widgets.Select,
-                                        "visible": self.param.pick_scatter_bool,
-                                        "disabled": self.pick_scatter == "TS",
-                                    },
+                                    # "pick_scatter_x": {
+                                    #    "visible": self.param.pick_scatter_bool,
+                                    #    "disabled": self.pick_scatter == "TS",
+                                    # },  # pn.widgets.AutocompleteInput,  # AutocompleteInput"
+                                    # "pick_scatter_y": {
+                                    #    # "type": pn.widgets.Select,
+                                    #    "visible": self.param.pick_scatter_bool,
+                                    #    "disabled": self.pick_scatter == "TS",
+                                    # },
                                     "pick_TS_color_variable": pn.widgets.AutocompleteInput,
                                 },
                             ),
