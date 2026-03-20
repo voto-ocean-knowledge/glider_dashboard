@@ -118,10 +118,11 @@ if utils.GDAC_data:
             .rename({"profile_id": "profile_num"})
         )
 
-variables_selectable = ["time", "depth", "temperature", "pressure", "salinity"]
-# variables_selectable = (
-#    pl.concat(dsdict.values(), how="diagonal_relaxed").collect_schema().names()
-# )
+# variables_selectable = ["time", "depth", "temperature", "pressure", "salinity"]
+variables_selectable = (
+    pl.concat(dsdict.values(), how="diagonal_relaxed").collect_schema().names()
+)
+variables_selectable.sort()  # inplace function
 
 ####### specify global plot variables ####################
 # df.index = cudf.to_datetime(df.index)

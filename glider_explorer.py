@@ -57,7 +57,7 @@ class GliderDashboard(param.Parameterized):
     )
 
     pick_scatter_x = param.Selector(
-        default=None,  # "salinity",
+        default="salinity",  # "salinity",
         allow_None=False,
         objects=lod.variables_selectable,
         label="X-axis variable",
@@ -66,12 +66,12 @@ class GliderDashboard(param.Parameterized):
     )
 
     pick_scatter_y = param.Selector(
-        default=None,  # "temperature",
+        default="temperature",  # "temperature",
         allow_None=False,
         objects=lod.variables_selectable,
         label="Y-axis variable",
         doc="Variable used to create colormesh",
-        precedence=-10,
+        # precedence=-10,
     )
     # show all the basins and all the datasets. I use the nrt data
     # from the metadatatables as keys, so I skip the 'delayed' sets
@@ -178,12 +178,12 @@ class GliderDashboard(param.Parameterized):
         default=False,
         label="Show scatter diagram",
         doc="Activate scatter diagram",
-        precedence=1,
+        # precedence=1,
     )
 
     pick_TS_color_variable = param.Selector(
         default=None,
-        objects=lod.variables_selectable,
+        objects=([None] + lod.variables_selectable),
         label="Colour scatterplot by",
         doc="Colour of the scatterplot",
         precedence=-10,
@@ -544,26 +544,6 @@ class GliderDashboard(param.Parameterized):
     )  # outcommenting this means just depend on all, redraw always
     # @pn.io.profile("clustering", engine="snakeviz")
     def create_dynmap(self):
-        # import os
-
-        # import psutil
-
-        # print(len(self.alldslist))
-        # print(len(self.objectsdict))
-        # print(len(dsdict))
-        # print(len(all_metadata))
-        # print(len(metadata))
-        # print("dsdict len:", len(lod.dsdict))
-        # print(len(cbar_range_sliders))
-        # process = psutil.Process(os.getpid())
-        # ram_used = process.memory_info().rss / (1024 * 1024)  # in MB
-        # print("ram used:", ram_used)
-        # import pdb
-
-        # pdb.set_trace()
-
-        # return pn.Column()
-        # print(self)
         # self.markdown.object = self.update_markdown()
 
         # self.startX = self.pick_startX
@@ -582,28 +562,28 @@ class GliderDashboard(param.Parameterized):
                 self.pick_scatter_x = "salinity"
                 self.pick_scatter_y = "temperature"
                 self.param.pick_scatter_x.precedence = -10
-                self.param.pick_scatter_y.precedence = -10
+                # self.param.pick_scatter_y.precedence = -10
                 self.param.pick_activate_scatter_link.precedence = 1
                 self.param.pick_TS_color_variable.precedence = 1
             elif self.pick_scatter == "profiles":
                 self.pick_scatter_y = "pressure"
                 self.pick_scatter_x = "temperature"
                 self.param.pick_scatter_x.precedence = -10
-                self.param.pick_scatter_y.precedence = -10
+                # self.param.pick_scatter_y.precedence = -10
                 self.param.pick_TS_color_variable.precedence = 1
                 self.param.pick_activate_scatter_link = 1
             elif self.pick_scatter == "custom":
                 self.pick_scatter_x = self.pick_scatter_x
                 self.pick_scatter_y = self.pick_scatter_y
                 self.param.pick_scatter_x.precedence = 1
-                self.param.pick_scatter_y.precedence = 1
+                # self.param.pick_scatter_y.precedence = 1
                 self.param.pick_TS_color_variable.precedence = 1
                 self.param.pick_activate_scatter_link.precedence = 1
 
         else:
             self.param.pick_scatter.precedence = -10
             self.param.pick_scatter_x.precedence = -10
-            self.param.pick_scatter_y.precedence = -10
+            # self.param.pick_scatter_y.precedence = -10
             self.param.pick_TS_color_variable.precedence = -10
             self.param.pick_activate_scatter_link.precedence = -10
 
@@ -750,7 +730,7 @@ class GliderDashboard(param.Parameterized):
                 # int(500/(len(self.pick_variables))),#250+int(250*2/len(self.pick_variables)), #500, 250,
                 cnorm=self.pick_cnorm,
                 bgcolor="dimgrey",
-                clabel=f"{variable}  [{dictionaries.units_dict.get(variable, '')}]",  # self.pick_variable,
+                clabel=f"{variable}  [{dictionaries.units_dict.get(variable, '')}]",  # self.pick_variable,pick_TS_col
                 clim_percentile=True if self.pick_autorange else False,
                 fontscale=2,
                 # framewise=True,
@@ -906,13 +886,7 @@ class GliderDashboard(param.Parameterized):
         contourplots = contourplots  # .redim.range(
         # time=(self.startX, self.endX), depth=(self.startY, self.endY)
         # )
-        # import os
-
-        # import psutil
-
-        # process = psutil.Process(os.getpid())
-        # ram_used = process.memory_info().rss / (1024 * 1024)  # in MB
-        # print(round(ram_used, 2))
+        # ToDo: Test if this actually helps the garbage collector
         self.stats = None
         self.data_in_view = None
         self.data_in_view_small = None
@@ -1433,6 +1407,418 @@ class GliderDashboard(param.Parameterized):
         )
         return mld.collect()
 
+    def create_app_instance(self):
+        # pick_show_ctrls = param.Boolean(
+        #     default=True,
+        #     label="show controls",
+        #     precedence=1,
+        # )
+
+        # pick_scatter_bool = param.Boolean(
+        #     default=False,
+        #     label="Show scatter diagram",
+        #     doc="Activate scatter diagram",
+        #     # precedence=1,
+        # )
+
+        # @param.depends(
+        #     "pick_show_ctrls",
+        #     "pick_scatter_bool",
+        #     watch=True,
+        # )
+        # def doit(self):
+        # glider_dashboard = GliderDashboard()
+
+        """
+        # Data options
+        ctrl_data = pn.Column(  # top stack, dataset and basin options
+            "Choose input data either based on basin location or ID",
+            pn.Param(
+                glider_dashboard,
+                parameters=["pick_toggle"],
+                widgets={
+                    "pick_toggle": pn.widgets.RadioButtonGroup,
+                    "button_type": "success",
+                },
+                # css_classes=["widget-button"],
+                # default_layout=pn.Column,
+                show_name=False,
+                # width=100,
+            ),
+            pn.Param(
+                glider_dashboard,
+                parameters=["pick_basin"],
+                # widgets={'pick_basin':pn.widgets.MultiChoice(max_items=1)}
+                default_layout=pn.Column,
+                # max_items=1,
+                show_name=False,
+            ),
+            pn.Param(
+                glider_dashboard,
+                parameters=["pick_dsids"],
+                widgets={"pick_dsids": pn.widgets.MultiChoice},
+                show_name=False,
+            ),
+            # styles={"background": "#C0C0C0"},
+        )
+
+        # contour plot options
+        ctrl_contour = pn.Column(
+            pn.Param(
+                glider_dashboard,
+                parameters=["pick_variables"],
+                widgets={
+                    "pick_variables": pn.widgets.MultiChoice
+                },  # pn.widgets.CheckBoxGroup},
+                default_layout=pn.Column,
+                show_name=False,
+            ),
+            # pn.widgets.
+            pn.Param(
+                glider_dashboard,
+                parameters=["pick_cnorm"],
+                widgets={"pick_cnorm": pn.widgets.RadioButtonGroup},
+                show_name=False,
+            ),
+            pn.Param(
+                glider_dashboard,
+                parameters=["pick_aggregation"],
+                widgets={"pick_aggregation": pn.widgets.RadioButtonGroup},
+                show_name=False,
+                show_labels=True,
+            ),
+            pn.Param(
+                glider_dashboard,
+                parameters=["pick_contours"],
+                show_name=False,
+            ),
+        )
+
+        # scatter options
+        ctrl_scatter = pn.Column(
+            pn.Param(
+                glider_dashboard,
+                parameters=["pick_scatter_bool"],
+                widgets={"pick_scatter_bool": pn.widgets.Switch},
+                show_name=False,
+            ),
+            pn.Param(
+                glider_dashboard,
+                parameters=["pick_scatter"],
+                widgets={"pick_scatter": pn.widgets.RadioButtonGroup},
+                show_name=False,
+            ),
+            pn.Param(
+                glider_dashboard,
+                parameters=["pick_scatter_x"],
+                widgets={"pick_scatter_x": pn.widgets.AutocompleteInput},
+                show_name=False,
+            ),
+            pn.Param(
+                glider_dashboard,  # .param,
+                parameters=["pick_scatter_y"],
+                # widgets={
+                #    "pick_scatter_y": {
+                #        "widget_type": pn.widgets.AutocompleteInput,
+                #        "min_characters": 1,
+                #    }
+                # },  # (min_characters=1)},
+                show_name=False,
+            ),
+            pn.Param(
+                glider_dashboard,
+                parameters=["pick_TS_color_variable"],
+                widgets={"pick_TS_color_variable": pn.widgets.AutocompleteInput},
+                show_name=False,
+            ),
+            pn.Param(
+                glider_dashboard,
+                parameters=["pick_activate_scatter_link"],
+                show_name=False,
+                # display_threshold=10,
+            ),
+            # This is a hidden parameter, which can be specified in url
+            # to show or hide the menus. Can be useful when emedding interactive
+            # figures in webpages or presentations for example.
+            # pn.Param(glider_explorer,
+            #    parameters=['pick_display_threshold'],
+            #    show_name=False,
+            #    display_threshold=10,),
+        )
+
+        ctrl_more = pn.Column(
+            pn.Param(
+                glider_dashboard,
+                parameters=["startX"],
+                show_name=False,
+                # display_threshold=10,
+            ),
+            pn.Param(
+                glider_dashboard,
+                parameters=["pick_high_resolution"],
+                show_name=False,
+                # display_threshold=10,
+            ),
+            pn.Param(
+                glider_dashboard,
+                parameters=["pick_mld"],
+                show_name=False,
+                # display_threshold=0.5,
+            ),
+            pn.Param(
+                glider_dashboard,
+                parameters=["pick_show_decoration"],
+                show_name=False,
+                # display_threshold=0.5,
+            ),
+            # pn.Param(
+            #    glider_dashboard,
+            #    parameters=["pick_mean"],
+            #    show_name=False,
+            #    # display_threshold=0.5,
+            # ),
+            # pn.Param(
+            #    glider_dashboard,
+            #    parameters=["button_inflow"],
+            #    show_name=False,
+            #    # display_threshold=10,
+            # ),
+            # button_cols,
+            pn.Param(
+                glider_dashboard,
+                parameters=["button"],
+                show_name=False,
+                # widgets={"button": pn.widgets.Button},
+                # display_threshold=0.5,
+            ),
+            pn.Param(
+                glider_dashboard,
+                parameters=["endX"],
+                show_name=False,
+                # display_threshold=10,
+            ),
+            pn.Param(
+                glider_dashboard,
+                parameters=["startY"],
+                show_name=False,
+                # display_threshold=10,
+            ),
+            pn.Param(
+                glider_dashboard,
+                parameters=["endY"],
+                show_name=False,
+                # display_threshold=10,
+            ),
+        )
+        ctrl_colorbars = pn.Column(
+            pn.Param(
+                glider_dashboard,
+                parameters=["pick_autorange"],
+                show_name=False,
+            ),
+            *cbar_cntrls,
+        )
+
+        pick_aggregation_method = pn.Param(
+            glider_dashboard,
+            parameters=["pick_aggregation_method"],
+            widgets={"pick_aggregation_method": pn.widgets.RadioButtonGroup},
+            show_name=False,
+            show_labels=True,
+        )
+        """
+
+        def create_column(hex_id=None):
+            """
+            Dynamically add a new row to the app.
+            """
+            global meancolumn
+            meancolumn = pn.Column(
+                self.create_mean(),
+                height=500,
+            )
+            contentcolumn.append(meancolumn)
+            contentcolumn.height = 1050
+
+        def remove_column(hex_id=None):
+            """
+            Dynamically remove a column from the app.
+            """
+            contentcolumn.remove(meancolumn)
+            contentcolumn.height = 500
+
+        add_row = pn.widgets.Button(name="Add aggregation row")
+        clear_rows = pn.widgets.Button(name="Clear additional rows")
+
+        # Add interactivity
+        clear_rows.on_click(lambda _: remove_column())
+        add_row.on_click(lambda _: create_column())
+
+        # this keeps the url in sync with the parameter choices and vice versa
+
+        """
+        if pn.state.location:
+            other_cntrls = {
+                "pick_basin": "pick_basin",
+                "pick_GDAC": "pick_GDAC",
+                "pick_dsids": "pick_dsids",
+                "pick_toggle": "pick_toggle",
+                "pick_show_ctrls": "pick_show_ctrls",
+                # "pick_variable": "pick_variable", # replaced by pick_variables
+                "pick_variables": "pick_variables",
+                "pick_scatter_bool": "pick_scatter_bool",
+                "pick_scatter_x": "pick_scatter_x",
+                "pick_scatter_y": "pick_scatter_y",
+                "pick_scatter": "pick_scatter",
+                "pick_aggregation": "pick_aggregation",
+                "pick_aggregation_method": "pick_aggregation_method",
+                "pick_mld": "pick_mld",
+                # "pick_mean": "pick_mean",
+                "pick_cnorm": "pick_cnorm",
+                # "pick_TS": "pick_TS",
+                # "pick_profiles": "pick_profiles",
+                "pick_activate_scatter_link": "pick_activate_scatter_link",
+                "pick_contours": "pick_contours",
+                "pick_high_resolution": "pick_high_resolution",
+                "pick_startX": "pick_startX",
+                "pick_endX": "pick_endX",
+                "pick_startY": "pick_startY",
+                "pick_endY": "pick_endY",
+                "pick_display_threshold": "pick_display_threshold",
+                "pick_contour_height": "pick_contour_height",
+                "pick_show_decoration": "pick_show_decoration",
+                "pick_autorange": "pick_autorange",
+                "pick_TS_color_variable": "pick_TS_color_variable",
+            }
+            pn.state.location.sync(
+                self,
+                other_cntrls,
+            )
+
+        """
+        content = self.create_dynmap
+        contentcolumn = pn.Column(
+            pn.panel(content),  # , defer_load=True),
+            # glider_dashboard.create_mean,
+            pn.Param(
+                self,
+                parameters=["pick_show_ctrls"],
+                show_name=False,
+            ),
+            sizing_mode="stretch_width",
+            # pn.Row( "# Add data aggregations (mean, max, std...)", button_cols),
+        )
+        print(
+            "EEXXXEEECUTTTEEEE",
+            self.pick_scatter_bool,
+            self.pick_scatter,
+        )
+
+        layout = pn.Column(
+            pn.Row(  # row with controls, trajectory plot and TS plot
+                pn.Accordion(
+                    # toggle=True, # allows only one card to be opened at a time
+                    objects=[
+                        (
+                            "Choose dataset(s)",
+                            pn.Param(
+                                self,
+                                parameters=["pick_toggle", "pick_basin", "pick_dsids"],
+                                widgets={
+                                    "pick_toggle": {
+                                        "type": pn.widgets.RadioButtonGroup,
+                                        "button_type": "success",
+                                    },
+                                    "pick_dsids": pn.widgets.MultiChoice,
+                                },
+                                # {"type": pn.widgets.LiteralInput, "width": 100}
+                                #  # "button_type": "success",
+                                # },
+                            ),
+                        ),
+                        (
+                            "Contour plot options",
+                            pn.Param(
+                                self,
+                                parameters=[
+                                    "pick_variables",
+                                    "pick_cnorm",
+                                    "pick_aggregation",
+                                    "pick_contours",
+                                ],
+                                widgets={
+                                    "pick_variables": pn.widgets.MultiChoice,
+                                    "pick_cnorm": pn.widgets.RadioButtonGroup,
+                                    "pick_aggregation": pn.widgets.RadioButtonGroup,
+                                },
+                            ),
+                        ),
+                        (
+                            "Linked (scatter-)plots",
+                            pn.Param(
+                                self,
+                                parameters=[
+                                    "pick_scatter_bool",
+                                    "pick_scatter",
+                                    "pick_scatter_x",
+                                    "pick_scatter_y",
+                                    "pick_TS_color_variable",
+                                    "pick_activate_scatter_link",
+                                ],
+                                widgets={
+                                    "pick_scatter_bool": pn.widgets.Switch,
+                                    "pick_scatter": pn.widgets.RadioButtonGroup,
+                                    "pick_scatter_x": {
+                                        "visible": self.param.pick_scatter_bool,
+                                        "disabled": self.pick_scatter == "TS",
+                                    },  # pn.widgets.AutocompleteInput,  # AutocompleteInput"
+                                    "pick_scatter_y": {
+                                        # "type": pn.widgets.Select,
+                                        "visible": self.param.pick_scatter_bool,
+                                        "disabled": self.pick_scatter == "TS",
+                                    },
+                                    "pick_TS_color_variable": pn.widgets.AutocompleteInput,
+                                },
+                            ),
+                        ),
+                        (
+                            "more",
+                            pn.Param(
+                                self,
+                                parameters=[
+                                    "pick_mld",
+                                    "pick_high_resolution",
+                                    "pick_show_decoration",
+                                ],
+                            ),
+                        ),
+                    ],
+                ),
+                pn.Spacer(width=50),
+                contentcolumn,
+                # pn.Param(
+                #    glider_dashboard,
+                #    parameters=["pick_scatter_y"],
+                #    show_name=False,
+                #    # display_threshold=10,
+                # ),
+                # height=800,
+            ),
+            pn.Row(pn.Column(), self.markdown),
+            pn.Row(),  # Important placeholder for dynamic profile plots, created in glider_dashboard.location
+        )
+
+        # it is necessary to hide the controls as a very last option, because hidden controls cannot be accessed as variables
+        # in the control flow above. So hiding the controls earlier "defaults" all url and manual settings.
+        if self.pick_show_ctrls == False:
+            layout[0][0].visible = self.pick_show_ctrls
+        # if glider_dashboard.pick_scatter_bool:
+
+        mylayout.clear()
+        mylayout.append(layout)
+        mylayout.append(pn.Column(button_dash, button_meta))
+        return layout  # mylayout
+
 
 class MetaDashboard(param.Parameterized):
     options = [
@@ -1546,320 +1932,27 @@ def create_meta_instance(self):
     mylayout.append(pn.Column(button_dash, button_meta))
     return mylayout
 
-
-@param.depends(
-    "pick_show_ctrls",
-    watch=True,
-)
-def create_app_instance(self):
-    glider_dashboard = GliderDashboard()
-
-    def create_cbar_cntrl(variable):
-        return pn.Param(
-            glider_dashboard,
-            parameters=[f"pick_cbar_range_{variable}"],
-            show_name=False,
-            widgets={
-                f"pick_cbar_range_{variable}": pn.widgets.EditableRangeSlider(
-                    value=(
-                        dictionaries.ranges_dict.get(variable, (0, 10))[0],
-                        dictionaries.ranges_dict.get(variable, (0, 10))[1],
-                    ),
-                    start=dictionaries.ranges_dict.get(variable, (0, 10))[0],
-                    end=dictionaries.ranges_dict.get(variable, (0, 10))[1],
-                    step=0.1,
-                )
-            },
-        )
-
-    cbar_cntrls = [create_cbar_cntrl(variable) for variable in lod.variables_selectable]
-
-    # Data options
-    ctrl_data = pn.Column(  # top stack, dataset and basin options
-        "Choose input data either based on basin location or ID",
-        pn.Param(
-            glider_dashboard,
-            parameters=["pick_toggle"],
-            widgets={
-                "pick_toggle": pn.widgets.RadioButtonGroup,
-                "button_type": "success",
-            },
-            # css_classes=["widget-button"],
-            # default_layout=pn.Column,
-            show_name=False,
-            # width=100,
-        ),
-        pn.Param(
-            glider_dashboard,
-            parameters=["pick_basin"],
-            # widgets={'pick_basin':pn.widgets.MultiChoice(max_items=1)}
-            default_layout=pn.Column,
-            # max_items=1,
-            show_name=False,
-        ),
-        pn.Param(
-            glider_dashboard,
-            parameters=["pick_dsids"],
-            widgets={"pick_dsids": pn.widgets.MultiChoice},
-            show_name=False,
-        ),
-        # styles={"background": "#C0C0C0"},
-    )
-
-    # contour plot options
-    ctrl_contour = pn.Column(
-        pn.Param(
-            glider_dashboard,
-            parameters=["pick_variables"],
-            widgets={
-                "pick_variables": pn.widgets.MultiChoice
-            },  # pn.widgets.CheckBoxGroup},
-            default_layout=pn.Column,
-            show_name=False,
-        ),
-        # pn.widgets.
-        pn.Param(
-            glider_dashboard,
-            parameters=["pick_cnorm"],
-            widgets={"pick_cnorm": pn.widgets.RadioButtonGroup},
-            show_name=False,
-        ),
-        pn.Param(
-            glider_dashboard,
-            parameters=["pick_aggregation"],
-            widgets={"pick_aggregation": pn.widgets.RadioButtonGroup},
-            show_name=False,
-            show_labels=True,
-        ),
-        pn.Param(
-            glider_dashboard,
-            parameters=["pick_contours"],
-            show_name=False,
-        ),
-    )
-
-    # scatter options
-    ctrl_scatter = pn.Column(
-        pn.Param(
-            glider_dashboard,
-            parameters=["pick_scatter_bool"],
-            widgets={"pick_scatter_bool": pn.widgets.Switch},
-            show_name=False,
-        ),
-        pn.Param(
-            glider_dashboard,
-            parameters=["pick_scatter"],
-            widgets={"pick_scatter": pn.widgets.RadioButtonGroup},
-            show_name=False,
-        ),
-        pn.Param(
-            glider_dashboard,
-            parameters=["pick_scatter_x"],
-            widgets={"pick_scatter_x": pn.widgets.AutocompleteInput},
-            show_name=False,
-        ),
-        pn.Param(
-            glider_dashboard,  # .param,
-            parameters=["pick_scatter_y"],
-            # widgets={
-            #    "pick_scatter_y": {
-            #        "widget_type": pn.widgets.AutocompleteInput,
-            #        "min_characters": 1,
-            #    }
-            # },  # (min_characters=1)},
-            show_name=False,
-        ),
-        pn.Param(
-            glider_dashboard,
-            parameters=["pick_TS_color_variable"],
-            widgets={"pick_TS_color_variable": pn.widgets.AutocompleteInput},
-            show_name=False,
-        ),
-        pn.Param(
-            glider_dashboard,
-            parameters=["pick_activate_scatter_link"],
-            show_name=False,
-            # display_threshold=10,
-        ),
-        # This is a hidden parameter, which can be specified in url
-        # to show or hide the menus. Can be useful when emedding interactive
-        # figures in webpages or presentations for example.
-        # pn.Param(glider_explorer,
-        #    parameters=['pick_display_threshold'],
-        #    show_name=False,
-        #    display_threshold=10,),
-    )
-
-    ctrl_more = pn.Column(
-        pn.Param(
-            glider_dashboard,
-            parameters=["startX"],
-            show_name=False,
-            # display_threshold=10,
-        ),
-        pn.Param(
-            glider_dashboard,
-            parameters=["pick_high_resolution"],
-            show_name=False,
-            # display_threshold=10,
-        ),
-        pn.Param(
-            glider_dashboard,
-            parameters=["pick_mld"],
-            show_name=False,
-            # display_threshold=0.5,
-        ),
-        pn.Param(
-            glider_dashboard,
-            parameters=["pick_show_decoration"],
-            show_name=False,
-            # display_threshold=0.5,
-        ),
-        # pn.Param(
-        #    glider_dashboard,
-        #    parameters=["pick_mean"],
-        #    show_name=False,
-        #    # display_threshold=0.5,
-        # ),
-        # pn.Param(
-        #    glider_dashboard,
-        #    parameters=["button_inflow"],
-        #    show_name=False,
-        #    # display_threshold=10,
-        # ),
-        # button_cols,
-        pn.Param(
-            glider_dashboard,
-            parameters=["button"],
-            show_name=False,
-            # widgets={"button": pn.widgets.Button},
-            # display_threshold=0.5,
-        ),
-        pn.Param(
-            glider_dashboard,
-            parameters=["endX"],
-            show_name=False,
-            # display_threshold=10,
-        ),
-        pn.Param(
-            glider_dashboard,
-            parameters=["startY"],
-            show_name=False,
-            # display_threshold=10,
-        ),
-        pn.Param(
-            glider_dashboard,
-            parameters=["endY"],
-            show_name=False,
-            # display_threshold=10,
-        ),
-    )
-    ctrl_colorbars = pn.Column(
-        pn.Param(
-            glider_dashboard,
-            parameters=["pick_autorange"],
-            show_name=False,
-        ),
-        *cbar_cntrls,
-    )
-
-    pick_aggregation_method = pn.Param(
-        glider_dashboard,
-        parameters=["pick_aggregation_method"],
-        widgets={"pick_aggregation_method": pn.widgets.RadioButtonGroup},
-        show_name=False,
-        show_labels=True,
-    )
-
-    def create_column(hex_id=None):
-        """
-        Dynamically add a new row to the app.
-        """
-        global meancolumn
-        meancolumn = pn.Column(
-            glider_dashboard.create_mean(),
-            height=500,
-        )
-        contentcolumn.append(meancolumn)
-        contentcolumn.height = 1050
-
-    def remove_column(hex_id=None):
-        """
-        Dynamically remove a column from the app.
-        """
-        contentcolumn.remove(meancolumn)
-        contentcolumn.height = 500
-
-    add_row = pn.widgets.Button(name="Add aggregation row")
-    clear_rows = pn.widgets.Button(name="Clear additional rows")
-
-    # Add interactivity
-    clear_rows.on_click(lambda _: remove_column())
-    add_row.on_click(lambda _: create_column())
-
-    content = glider_dashboard.create_dynmap
-    contentcolumn = pn.Column(
-        pn.panel(content, defer_load=True),
-        # glider_dashboard.create_mean,
-        pn.Param(
-            glider_dashboard,
-            parameters=["pick_show_ctrls"],
-            show_name=False,
-        ),
-        sizing_mode="stretch_width",
-        # pn.Row( "# Add data aggregations (mean, max, std...)", button_cols),
-    )
-
-    layout = pn.Column(
-        pn.Row(  # row with controls, trajectory plot and TS plot
-            pn.Accordion(
-                # toggle=True, # allows only one card to be opened at a time
-                objects=[
-                    ("Choose dataset(s)", ctrl_data),
-                    ("Contour plot options", ctrl_contour),
-                    ("Linked (scatter-)plots", ctrl_scatter),
-                    # ('Aggregations (WIP)', pn.Column(
-                    #    pick_aggregation_method,
-                    #    add_row,
-                    #    clear_rows,
-                    #    )) ,
-                    ("more", ctrl_more),
-                    ("adjust Colorbars", ctrl_colorbars),
-                    # ('WIP',add_row),
-                ],
-            ),
-            pn.Spacer(width=50),
-            contentcolumn,
-            # height=800,
-        ),
-        pn.Row(pn.Column(), glider_dashboard.markdown),
-        pn.Row(),  # Important placeholder for dynamic profile plots, created in glider_dashboard.location
-    )
-
-    # it is necessary to hide the controls as a very last option, because hidden controls cannot be accessed as variables
-    # in the control flow above. So hiding the controls earlier "defaults" all url and manual settings.
-    if glider_dashboard.pick_show_ctrls == False:
-        layout[0][0].visible = glider_dashboard.pick_show_ctrls
-    mylayout.clear()
-    mylayout.append(layout)
-    mylayout.append(pn.Column(button_dash, button_meta))
-    return mylayout
+    # return layout
 
 
 button_dash = pn.widgets.Button(name="activate Glider Datasets Dashboard")
-button_dash.on_click(create_app_instance)
-
+button_dash.on_click(GliderDashboard.create_app_instance)
 button_meta = pn.widgets.Button(
     name="activate schematic Mission Overview and Metadata Table "
 )
 button_meta.on_click(create_meta_instance)
 
+"""
 # usefull to create secondary plot, but not fully indepentently working yet:
 # glider_explorer2=GliderExplorer()
 
 
 def glider_dashboard_app():
     glider_dashboard = GliderDashboard()
+    # import pdb
+
+    # pdb.set_trace()
+    print(glider_dashboard.pick_scatter_bool)
     return pn.Row(
         pn.Accordion(
             # toggle=True, # allows only one card to be opened at a time
@@ -1898,15 +1991,41 @@ def glider_dashboard_app():
                         },
                     ),
                 ),
-                # ("Linked (scatter-)plots", ctrl_scatter),
-                # ('Aggregations (WIP)', pn.Column(
-                #    pick_aggregation_method,
-                #    add_row,
-                #    clear_rows,
-                #    )) ,
-                # ("more", ctrl_more),
-                # ("adjust Colorbars", ctrl_colorbars),
-                # ('WIP',add_row),
+                (
+                    "Linked (scatter-)plots",
+                    pn.Param(
+                        glider_dashboard,
+                        parameters=[
+                            "pick_scatter_bool",
+                            "pick_scatter",
+                            "pick_scatter_x",
+                            "pick_scatter_y",
+                            "pick_TS_color_variable",
+                            "pick_activate_scatter_link",
+                        ],
+                        widgets={
+                            "pick_scatter_bool": pn.widgets.Switch,
+                            "pick_scatter": pn.widgets.RadioButtonGroup,
+                            # "pick_scatter_x": pn.widgets.AutocompleteInput,  # AutocompleteInput"
+                            # "pick_scatter_y": {
+                            #    "type": pn.widgets.Select,
+                            #    "visible": True,
+                            # },
+                            # "pick_TS_color_variable": pn.widgets.AutocompleteInput,
+                        },
+                    ),
+                ),
+                (
+                    "more",
+                    pn.Param(
+                        glider_dashboard,
+                        parameters=[
+                            "pick_mld",
+                            "pick_high_resolution",
+                            "pick_show_decoration",
+                        ],
+                    ),
+                ),
             ],
         ),
         glider_dashboard.create_dynmap,
@@ -1915,12 +2034,18 @@ def glider_dashboard_app():
     # wrap app in a function, ensuring that each user gets a new instance of the application
     #
 
-
+"""
 mylayout = pn.Column(button_dash, button_meta)
-button_dash.clicks += (
-    1  # to activate the Glider Data dashboard from the start as default
-)
+# button_dash.clicks += (
+#    1  # to activate the Glider Data dashboard from the start as default
+# )
 # mylayout.servable(title="Voice of the Ocean Glider Dashboard")
 # pn.serve({"GliderDashboard": glider_dashboard_app})
-gdash = glider_dashboard_app()
-gdash.servable()
+# gdash = create_app_instance()
+
+GDB = GliderDashboard()
+# theplot = GDB.create_dynmap()
+thecontrols = GDB.create_app_instance()
+pn.Row(thecontrols).servable()
+
+# gdash.servable()
