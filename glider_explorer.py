@@ -914,6 +914,7 @@ class GliderDashboard(param.Parameterized):
                     "crosshair",  # show where the mouse is on axis
                     "box_zoom",  # zoom on selection along x
                     "undo",  # undo action
+                    "reset",    # reset view
                     "hover",
                     "tap",
                     "save",
