@@ -36,7 +36,7 @@ pn.extension(
     throttled=True,
     # sizing_mode="stretch_width",
     template="fast",
-    accent="grey",
+    # accent="grey",
     # global_css=[
     #    ":root {--design-primary-color:lightgrey; --design-primary-text-color:black}"
     # ],
