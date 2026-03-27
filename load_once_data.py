@@ -1,6 +1,5 @@
 import logging
 
-import holoviews as hv
 import pandas as pd
 import panel as pn
 import param
@@ -31,22 +30,6 @@ def exception_handler(ex):
 
     # pdb.set_trace()
     # pn.state.notifications.error(f"{ex}")
-
-
-pn.extension(
-    "plotly",
-    "mathjax",
-    "tabulator",
-    throttled=True,
-    # sizing_mode="stretch_width",
-    template="bootstrap",
-    global_css=[
-        ":root {--design-primary-color:lightgrey; --design-primary-text-color:black}"
-    ],
-    loading_indicator=True,
-    exception_handler=exception_handler,
-    notifications=True,
-)
 
 
 all_metadata = utils.load_metadata_VOTO()
@@ -126,15 +109,6 @@ variables_selectable.sort()  # inplace function
 
 ####### specify global plot variables ####################
 # df.index = cudf.to_datetime(df.index)
-text_opts = hv.opts.Text(text_align="left", text_color="black")
-ropts = dict(
-    toolbar="above",
-    tools=["xwheel_zoom", "reset", "xpan", "ywheel_zoom", "ypan"],
-    default_tools=[],
-    active_tools=["xpan", "xwheel_zoom"],
-    bgcolor="dimgrey",
-    # ylim=(-8,None)
-)
 
 
 def plot_limits(plot, element):
