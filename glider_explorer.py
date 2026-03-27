@@ -1,5 +1,4 @@
 import datetime
-import logging
 import time
 
 import cmocean
@@ -11,7 +10,6 @@ import panel as pn
 import param
 import plotly.express as px
 import polars as pl
-import polars.selectors as cs
 from holoviews.operation.datashader import (
     rasterize,
     spread,
@@ -25,32 +23,11 @@ from holoviews.streams import (
 )
 
 import dictionaries
+import load_once_data as lod
 import utils
 
-
-def exception_handler(ex):
-
-    logging.error("Error", exc_info=ex)
-    # import pdb
-
-    # pdb.set_trace()
-    # if (len(GliderDashboard.pick_dsids) == 0) and (
-    #    GliderDashboard.pick_toggle == "DatasetID"
-    # ):  #
-    if GliderDashboard.data_in_view is None:
-        pn.state.notifications.error(
-            "Please proceed by selecting one or more datasets to display",
-            duration=10000,
-        )
-    else:
-        pn.state.notifications.error(
-            "Please complete/change input parameters", duration=10000
-        )
-    # import pdb
-
-    # pdb.set_trace()
-    # pn.state.notifications.error(f"{ex}")
-
+pn.config.reconnect = True
+pn.config.notifications = True
 
 pn.extension(
     "plotly",
@@ -58,97 +35,17 @@ pn.extension(
     "tabulator",
     throttled=True,
     # sizing_mode="stretch_width",
-    template="bootstrap",
-    global_css=[
-        ":root {--design-primary-color:lightgrey; --design-primary-text-color:black}"
-    ],
+    template="fast",
+    accent="grey",
+    # global_css=[
+    #    ":root {--design-primary-color:lightgrey; --design-primary-text-color:black}"
+    # ],
     loading_indicator=True,
-    exception_handler=exception_handler,
+    exception_handler=lod.exception_handler,
     notifications=True,
 )
 
-# mathjax is currently not used, but could be cool to render latex in markdown
-# cudf support works, but is currently not faster
-
-
-# all_metadata is loaded for the metadata visualisation
-# all_metadata, allDatasets = utils.load_metadata()
-all_metadata = utils.load_metadata_VOTO()
-
-###### filter metadata to prepare download ##############
-metadata = utils.filter_metadata()
-
-metadata = metadata.drop(
-    ["nrt_SEA067_M15", "nrt_SEA079_M14", "nrt_SEA061_M63"], errors="ignore"
-)  # temporary data inconsistency
-metadata["time_coverage_start (UTC)"] = metadata[
-    "time_coverage_start (UTC)"
-].dt.tz_convert(None)
-metadata["time_coverage_end (UTC)"] = metadata["time_coverage_end (UTC)"].dt.tz_convert(
-    None
-)
-allDatasetsVOTO = utils.load_allDatasets_VOTO()
-if utils.GDAC_data:
-    allDatasetsGDAC = utils.load_allDatasets_GDAC()
-    allDatasets = pd.concat([allDatasetsVOTO, allDatasetsGDAC])
-else:
-    allDatasets = allDatasetsVOTO
-
-dsdict = {}
-
-# HERE I MUST DIFFERENTIATE INTO TWO DATASETS: ONE COMPLETE METADATA FOR THE METADASHBOARD,
-# AND ONE/TWO DATASETS THAT ARE FILTERED AND SHWON IN THE DASHBOARD
-# all_dataset_names = list(all_datasets.index) + list(metadata.index)
-
-all_dataset_names = set(allDatasetsVOTO.index).intersection(
-    [element.replace("nrt", "delayed") for element in metadata.index]
-)
-all_dataset_names = list(all_dataset_names)
-all_dataset_names += list(
-    metadata.index
-)  # Add nrt data because I currently use it for statistics
-if utils.GDAC_data:
-    all_dataset_names += list(allDatasetsGDAC.index)
-
-all_dataset_names = list(all_dataset_names) + [
-    dataset_name + "_small" for dataset_name in all_dataset_names
-]
-
-fDs = allDatasets.loc[[name for name in all_dataset_names if "_small" not in name]]
-fDs["minTime (UTC)"] = fDs["minTime (UTC)"].dt.tz_localize(None)
-fDs["maxTime (UTC)"] = fDs["maxTime (UTC)"].dt.tz_localize(None)
-allDatasets["minTime (UTC)"] = allDatasets["minTime (UTC)"].dt.tz_localize(None)
-allDatasets["maxTime (UTC)"] = allDatasets["maxTime (UTC)"].dt.tz_localize(None)
-
-for dsid in list(allDatasetsVOTO.index) + [
-    id + "_small" for id in allDatasetsVOTO.index
-]:
-    if dsid not in all_dataset_names:
-        continue
-    dsdict[dsid] = pl.scan_parquet(f"../voto_erddap_data_cache/{dsid}.parquet")
-
-if utils.GDAC_data:
-    for dsid in list(allDatasetsGDAC.index) + [
-        id + "_small" for id in allDatasetsGDAC.index
-    ]:
-        dsdict[dsid] = pl.scan_parquet(f"../voto_erddap_data_cache/{dsid}.parquet")
-        dsdict[dsid] = (
-            dsdict[dsid]
-            .drop(cs.string())
-            .with_columns(
-                pl.col("time").dt.cast_time_unit("ns").dt.replace_time_zone(None)
-                # .cast(pl.Float32, strict=False) # if this is activated, time is cast into float32, which leads to bugs in keeping x-range across parameter changes
-            )
-            .rename({"profile_id": "profile_num"})
-        )
-
-variables_selectable = (
-    pl.concat(dsdict.values(), how="diagonal_relaxed").collect_schema().names()
-)
-
-####### specify global plot variables ####################
-# df.index = cudf.to_datetime(df.index)
-text_opts = hv.opts.Text(text_align="left", text_color="black")
+text_opts = hv.opts.Text(text_align="left", text_color="black", fontsize=10)
 ropts = dict(
     toolbar="above",
     tools=["xwheel_zoom", "reset", "xpan", "ywheel_zoom", "ypan"],
@@ -157,82 +54,15 @@ ropts = dict(
     bgcolor="dimgrey",
     # ylim=(-8,None)
 )
+# pn.extension(template="fast")
+# pn.extension("plotly")
+# pn.extension("tabulator")
+# mathjax is currently not used, but could be cool to render latex in markdown
+# cudf support works, but is currently not faster
 
 
-def plot_limits(plot, element):
-    # function to limit user interaction. Can prevent crashes
-    # caused by data before 0AD, data out of range...
-    plot.handles["x_range"].min_interval = np.timedelta64(2, "h")
-    plot.handles["x_range"].max_interval = np.timedelta64(
-        int(5 * 3.15e7), "s"
-    )  # 5 years
-    plot.handles["y_range"].min_interval = 10
-    plot.handles["y_range"].max_interval = 500
-
-
-def mld_profile(df, variable, thresh, ref_depth, verbose=True):
-    exception = False
-    divenum = df["profile_num"].first()  # df.index[0]
-    ptime = df["time"].first()
-    # df["depth"] = df["depth"].neg()
-    df = df.with_columns(pl.col("depth").neg())
-    df = df.drop_nulls(subset=[variable, "depth"])
-
-    if len(df) == 0:
-        mld = np.nan
-        exception = True
-        message = """no observations found for specified variable in dive {}
-                """.format(divenum)
-    elif np.nanmin(np.abs(df["depth"] + ref_depth)) > 5:
-        exception = True
-        message = """no observations within 5 m of ref_depth for dive {}
-                """.format(divenum)
-        mld = np.nan
-    else:
-        # not using direction because it is not present at GDAC
-        # direction = df["profile_direction"].first()
-        direction = 1 if (df["depth"].first() > df["depth"].last()) else -1
-        # create arrays in order of increasing depth
-        var_arr = df[variable][:: int(direction)]
-        depth = df["depth"][:: int(direction)]
-        # get index closest to ref_depth
-        i = np.nanargmin(np.abs(depth + ref_depth))
-        # create difference array for threshold variable
-        dd = var_arr - var_arr[int(i)]
-        # mask out all values that are shallower then ref_depth
-        dd[depth > ref_depth] = np.nan
-        # get all values in difference array within treshold range
-        mixed = dd.filter(abs(dd) > thresh)
-        if len(mixed) > 0:
-            idx_mld = np.argmax(abs(dd) > thresh)
-            mld = depth[int(idx_mld)]
-        else:
-            exception = True
-            mld = np.nan
-            message = """threshold criterion never true (all mixed or \
-                shallow profile) for profile {}""".format(divenum)
-    if verbose and exception:
-        print(message)
-    return pl.DataFrame({"mld": [-mld], "time": [ptime]})
-
-
-def create_cbar_range(variable):
-    return param.Range(
-        default=(
-            0,
-            1,
-            # dictionaries.ranges_dict[variable][0],
-            # dictionaries.ranges_dict[variable][1],
-        ),  # this is not respected anyway, but below in redefinition
-        doc=f"Cbar limits for {variable}",
-        precedence=-10,
-    )
-
-
-cbar_range_sliders = {
-    f"pick_cbar_range_{variable}": create_cbar_range(variable)
-    for variable in variables_selectable
-}
+# all_metadata is loaded for the metadata visualisation
+# all_metadata, allDatasets = utils.load_metadata()
 
 
 class GliderDashboard(param.Parameterized):
@@ -242,7 +72,7 @@ class GliderDashboard(param.Parameterized):
     pick_variables = param.ListSelector(
         default=["temperature"],
         allow_None=False,
-        objects=variables_selectable,
+        objects=lod.variables_selectable,
         label="variable",
         doc="Variable used to create colormesh",
         precedence=1,
@@ -256,18 +86,18 @@ class GliderDashboard(param.Parameterized):
     )
 
     pick_scatter_x = param.Selector(
-        default=None,  # "salinity",
+        default="salinity",  # "salinity",
         allow_None=False,
-        objects=variables_selectable,
+        objects=lod.variables_selectable,
         label="X-axis variable",
         doc="Variable used to create colormesh",
         precedence=-10,
     )
 
     pick_scatter_y = param.Selector(
-        default=None,  # "temperature",
+        default="temperature",  # "temperature",
         allow_None=False,
-        objects=variables_selectable,
+        objects=lod.variables_selectable,
         label="Y-axis variable",
         doc="Variable used to create colormesh",
         precedence=-10,
@@ -281,10 +111,10 @@ class GliderDashboard(param.Parameterized):
         label="SAMBA observatory",
         precedence=1,
     )
-    alldslist = list(filter(lambda k: "nrt" in k, dsdict.keys()))
+    alldslist = list(filter(lambda k: "nrt" in k, lod.dsdict.keys()))
     alldslist = [x for x in alldslist if "_small" not in x]
     if utils.GDAC_data:
-        alldslist += list(allDatasetsGDAC.index)
+        alldslist += list(lod.allDatasetsGDAC.index)
     alldslabels = [
         element[4:] if element[0:4] == "nrt_" else element for element in alldslist
     ]
@@ -310,7 +140,7 @@ class GliderDashboard(param.Parameterized):
         precedence=1,
     )
 
-    (locals().update(cbar_range_sliders),)  # noqa
+    (locals().update(lod.cbar_range_sliders),)  # noqa
 
     pick_autorange = param.Boolean(
         default=True,
@@ -343,13 +173,13 @@ class GliderDashboard(param.Parameterized):
     #    default=False, label="mean", doc="Show column mean", precedence=1
     # )
     pick_startX = param.Date(
-        default=allDatasets["minTime (UTC)"].min(),
+        default=lod.allDatasets["minTime (UTC)"].min(),
         label="startX",
         doc="startX",
         precedence=1,
     )
     pick_endX = param.Date(
-        default=allDatasets["maxTime (UTC)"].max(),
+        default=lod.allDatasets["maxTime (UTC)"].max(),
         label="endX",
         doc="endX",
         precedence=1,
@@ -377,12 +207,12 @@ class GliderDashboard(param.Parameterized):
         default=False,
         label="Show scatter diagram",
         doc="Activate scatter diagram",
-        precedence=1,
+        # precedence=1,
     )
 
     pick_TS_color_variable = param.Selector(
         default=None,
-        objects=variables_selectable,
+        objects=([None] + lod.variables_selectable),
         label="Colour scatterplot by",
         doc="Colour of the scatterplot",
         precedence=-10,
@@ -413,7 +243,7 @@ class GliderDashboard(param.Parameterized):
                 None,
                 "same as above",
             ]
-            + variables_selectable
+            + lod.variables_selectable
         ),
         label="contour variable",
         doc="Variable presented as contour",
@@ -507,7 +337,7 @@ class GliderDashboard(param.Parameterized):
         if not self.pick_GDAC:
             self.param.pick_dsids.objects = set(
                 self.param.pick_dsids.objects
-            ).intersection(set(allDatasetsVOTO.index))
+            ).intersection(set(lod.allDatasetsVOTO.index))
 
         if self.pick_toggle == "DatasetID":
             self.param.pick_basin.precedence = -10
@@ -548,14 +378,14 @@ class GliderDashboard(param.Parameterized):
         # setting watch=False fixes initialization but does not keep y-coordinate.
         if self.pick_toggle == "SAMBA obs.":
             # first case, , user selected an aggregation, e.g. 'Bornholm Basin'
-            meta = metadata[metadata["basin"] == self.pick_basin]
+            meta = lod.metadata[lod.metadata["basin"] == self.pick_basin]
             meta = meta[meta["project"] == "SAMBA"]
             meta = meta[meta["time_coverage_start (UTC)"] > np.datetime64("2021-01-01")]
             meta = utils.drop_overlaps_fast(meta)
-            meta = fDs.loc[meta.index]
+            meta = lod.fDs.loc[meta.index]
         else:
             # second case, user selected dids
-            meta = allDatasets.loc[self.pick_dsids]  # metadata.loc[self.pick_dsids]
+            meta = lod.allDatasets.loc[self.pick_dsids]  # metadata.loc[self.pick_dsids]
 
         # hacky way to differentiate if called via synclink or refreshed with UI buttons
         if not len(meta):
@@ -693,7 +523,7 @@ class GliderDashboard(param.Parameterized):
         metakeys = [
             (
                 element.replace("nrt", "delayed")
-                if element.replace("nrt", "delayed") in allDatasets.index
+                if element.replace("nrt", "delayed") in lod.allDatasets.index
                 else element
             )
             for element in meta.index
@@ -702,9 +532,9 @@ class GliderDashboard(param.Parameterized):
         for dsid in metakeys:
             # This is delayed data if available
             if plt_props["zoomed_out"]:
-                ds = dsdict[dsid + "_small"]
+                ds = lod.dsdict[dsid + "_small"]
             else:
-                ds = dsdict[dsid]
+                ds = lod.dsdict[dsid]
 
             # ds = ds.filter(pl.col("profile_num") % plt_props["subsample_freq"] == 0)
             varlist.append(ds)
@@ -736,11 +566,12 @@ class GliderDashboard(param.Parameterized):
         # "pick_profiles",
         "pick_display_threshold",
         "pick_show_decoration",  #'pick_startX', 'pick_endX',
-        *list(cbar_range_sliders.keys()),  # noqa
+        *list(lod.cbar_range_sliders.keys()),  # noqa
         "pick_autorange",
         "pick_TS_color_variable",
         # watch=True,
     )  # outcommenting this means just depend on all, redraw always
+    # @pn.io.profile("clustering", engine="snakeviz")
     def create_dynmap(self):
         # self.markdown.object = self.update_markdown()
 
@@ -818,7 +649,7 @@ class GliderDashboard(param.Parameterized):
             dmap_TS = hv.DynamicMap(
                 self.get_xsection_TS,
                 streams=[range_stream],
-                cache_size=1,
+                # cache_size=1,
             )
 
             if not self.pick_TS_color_variable:
@@ -853,12 +684,14 @@ class GliderDashboard(param.Parameterized):
         """
 
         dmap_decorators = hv.DynamicMap(
-            self.get_xsection, streams=[range_stream], cache_size=1
+            self.get_xsection,
+            streams=[range_stream],  # cache_size=1
         )
         if self.pick_mld:
             # Important!!! Compute MLD only once and apply it to all plots!!!
             dmap_mld = hv.DynamicMap(
-                self.get_xsection_mld, streams=[range_stream], cache_size=1
+                self.get_xsection_mld,
+                streams=[range_stream],  # cache_size=1
             )  # .opts(responsive=True)
 
         plots_dict = dict(dmap_rasterized=dict(), dmap_rasterized_contour=dict())
@@ -928,7 +761,7 @@ class GliderDashboard(param.Parameterized):
                 # int(500/(len(self.pick_variables))),#250+int(250*2/len(self.pick_variables)), #500, 250,
                 cnorm=self.pick_cnorm,
                 bgcolor="dimgrey",
-                clabel=f"{variable}  [{dictionaries.units_dict.get(variable, '')}]",  # self.pick_variable,
+                clabel=f"{variable}  [{dictionaries.units_dict.get(variable, '')}]",  # self.pick_variable,pick_TS_col
                 clim_percentile=True if self.pick_autorange else False,
                 fontscale=2,
                 # framewise=True,
@@ -1084,6 +917,10 @@ class GliderDashboard(param.Parameterized):
         contourplots = contourplots  # .redim.range(
         # time=(self.startX, self.endX), depth=(self.startY, self.endY)
         # )
+        # ToDo: Test if this actually helps the garbage collector
+        self.stats = None
+        self.data_in_view = None
+        self.data_in_view_small = None
 
         return pn.Column(contourplots.opts(height=cheight).cols(ncols))
 
@@ -1097,10 +934,15 @@ class GliderDashboard(param.Parameterized):
         x_range = (self.startX, self.endX)
         y_range = (self.startY, self.endY)
         range_stream = RangeXY(x_range=x_range, y_range=y_range).rename()
-        dmap = hv.DynamicMap(self.get_xsection, streams=[range_stream], cache_size=1)
+        dmap = hv.DynamicMap(
+            self.get_xsection,
+            streams=[range_stream],
+            # cache_size=1,
+        )
         dmap_mean = (
             hv.DynamicMap(
-                self.get_xsection_mean, streams=[range_stream], cache_size=1
+                self.get_xsection_mean,
+                streams=[range_stream],  # cache_size=1
             ).opts(
                 # invert_yaxis=True, # Would like to activate this, but breaks the hover tool
                 # colorbar=True,
@@ -1143,8 +985,8 @@ class GliderDashboard(param.Parameterized):
             x0 = pd.to_datetime(x_range[0])
             x1 = pd.to_datetime(x_range[1])
 
-        fDs = allDatasets.loc[
-            [name for name in all_dataset_names if "_small" not in name]
+        fDs = lod.allDatasets.loc[
+            [name for name in lod.all_dataset_names if "_small" not in name]
         ]
         if (x0 is None) or (x1 is None):  # or (np.isnan(x0)) or (np.isnan(x1)):
             fD_inview = fDs
@@ -1177,7 +1019,7 @@ class GliderDashboard(param.Parameterized):
             fD_inview = fD_inview[
                 fD_inview["institution"] == "Voice of the Ocean Foundation"
             ]
-            meta = metadata.loc[
+            meta = lod.metadata.loc[
                 [name for name in fD_inview.index if "delayed" not in name]
             ]
             meta = meta[meta["basin"] == self.pick_basin]
@@ -1185,7 +1027,7 @@ class GliderDashboard(param.Parameterized):
             meta = utils.drop_overlaps_fast(meta)
 
         else:
-            meta = allDatasets.loc[self.pick_dsids]
+            meta = lod.allDatasets.loc[self.pick_dsids]
 
         # print(f'len of meta is {len(meta)} in load_viewport_datasets')
         if (x1 - x0) > np.timedelta64(720, "D"):
@@ -1212,7 +1054,7 @@ class GliderDashboard(param.Parameterized):
             plt_props["zoomed_out"] = False
             plt_props["dynfontsize"] = 10
             plt_props["subsample_freq"] = 1
-        return allDatasets.loc[meta.index], plt_props
+        return lod.allDatasets.loc[meta.index], plt_props
 
     def get_xsection_mld(self, x_range, y_range):
         # print("DATA IN VIEW:", self.data_in_view.collect())
@@ -1308,7 +1150,7 @@ class GliderDashboard(param.Parameterized):
         metakeys = [
             (
                 element.replace("nrt", "delayed")
-                if element.replace("nrt", "delayed") in allDatasetsVOTO.index
+                if element.replace("nrt", "delayed") in lod.allDatasetsVOTO.index
                 else element
             )
             for element in meta.index
@@ -1346,16 +1188,16 @@ class GliderDashboard(param.Parameterized):
         for dsid in metakeys:
             # This is delayed data if available
             if plt_props["zoomed_out"] and (not self.pick_high_resolution):
-                ds = dsdict[dsid + "_small"]
+                ds = lod.dsdict[dsid + "_small"]
             else:
-                ds = dsdict[dsid]  # + "_small"]
+                ds = lod.dsdict[dsid]  # + "_small"]
 
             # ds = ds.filter(pl.col("profile_num") % plt_props["subsample_freq"] == 0)
             varlist.append(ds)
 
         for dsid in meta.index:
             # This is only the nrt data
-            ds = dsdict[dsid]
+            ds = lod.dsdict[dsid]
             varlist_small.append(ds)
 
         if self.pick_scatter_bool:  # _bool:  # or self.pick_profiles:
@@ -1601,6 +1443,176 @@ class GliderDashboard(param.Parameterized):
         )
         return mld.collect()
 
+    def create_app_instance(self):
+
+        def create_column(hex_id=None):
+            """
+            Dynamically add a new row to the app.
+            """
+            global meancolumn
+            meancolumn = pn.Column(
+                self.create_mean(),
+                height=500,
+            )
+            contentcolumn.append(meancolumn)
+            contentcolumn.height = 1050
+
+        def remove_column(hex_id=None):
+            """
+            Dynamically remove a column from the app.
+            """
+            contentcolumn.remove(meancolumn)
+            contentcolumn.height = 500
+
+        add_row = pn.widgets.Button(name="Add aggregation row")
+        clear_rows = pn.widgets.Button(name="Clear additional rows")
+
+        # Add interactivity
+        clear_rows.on_click(lambda _: remove_column())
+        add_row.on_click(lambda _: create_column())
+
+        # this keeps the url in sync with the parameter choices and vice versa
+
+        if pn.state.location:
+            other_cntrls = {
+                "pick_basin": "pick_basin",
+                "pick_GDAC": "pick_GDAC",
+                "pick_dsids": "pick_dsids",
+                "pick_toggle": "pick_toggle",
+                "pick_show_ctrls": "pick_show_ctrls",
+                # "pick_variable": "pick_variable", # replaced by pick_variables
+                "pick_variables": "pick_variables",
+                "pick_scatter_bool": "pick_scatter_bool",
+                "pick_scatter_x": "pick_scatter_x",
+                "pick_scatter_y": "pick_scatter_y",
+                "pick_scatter": "pick_scatter",
+                "pick_aggregation": "pick_aggregation",
+                "pick_aggregation_method": "pick_aggregation_method",
+                "pick_mld": "pick_mld",
+                # "pick_mean": "pick_mean",
+                "pick_cnorm": "pick_cnorm",
+                # "pick_TS": "pick_TS",
+                # "pick_profiles": "pick_profiles",
+                "pick_activate_scatter_link": "pick_activate_scatter_link",
+                "pick_contours": "pick_contours",
+                "pick_high_resolution": "pick_high_resolution",
+                "pick_startX": "pick_startX",
+                "pick_endX": "pick_endX",
+                "pick_startY": "pick_startY",
+                "pick_endY": "pick_endY",
+                "pick_display_threshold": "pick_display_threshold",
+                "pick_contour_height": "pick_contour_height",
+                "pick_show_decoration": "pick_show_decoration",
+                "pick_autorange": "pick_autorange",
+                "pick_TS_color_variable": "pick_TS_color_variable",
+            }
+            pn.state.location.sync(
+                self,
+                other_cntrls,
+            )
+
+        content = self.create_dynmap
+        contentcolumn = pn.Column(
+            pn.panel(content),  # , defer_load=True),
+            # glider_dashboard.create_mean,
+            pn.Param(
+                self,
+                parameters=["pick_show_ctrls"],
+                show_name=False,
+            ),
+            sizing_mode="stretch_width",
+            # pn.Row( "# Add data aggregations (mean, max, std...)", button_cols),
+        )
+
+        layout = pn.Column(
+            pn.Row(  # row with controls, trajectory plot and TS plot
+                pn.Accordion(
+                    # toggle=True, # allows only one card to be opened at a time
+                    objects=[
+                        (
+                            "Choose dataset(s)",
+                            pn.Param(
+                                self,
+                                parameters=["pick_toggle", "pick_basin", "pick_dsids"],
+                                widgets={
+                                    "pick_toggle": {
+                                        "type": pn.widgets.RadioButtonGroup,
+                                        "button_type": "success",
+                                    },
+                                    "pick_dsids": pn.widgets.MultiChoice,
+                                },
+                            ),
+                        ),
+                        (
+                            "Contour plot options",
+                            pn.Param(
+                                self,
+                                parameters=[
+                                    "pick_variables",
+                                    "pick_cnorm",
+                                    "pick_aggregation",
+                                    "pick_contours",
+                                ],
+                                widgets={
+                                    "pick_variables": pn.widgets.MultiChoice,
+                                    "pick_cnorm": pn.widgets.RadioButtonGroup,
+                                    "pick_aggregation": pn.widgets.RadioButtonGroup,
+                                },
+                            ),
+                        ),
+                        (
+                            "Linked (scatter-)plots",
+                            pn.Param(
+                                self,
+                                parameters=[
+                                    "pick_scatter_bool",
+                                    "pick_scatter",
+                                    "pick_scatter_x",
+                                    "pick_scatter_y",
+                                    "pick_TS_color_variable",
+                                    "pick_activate_scatter_link",
+                                ],
+                                widgets={
+                                    "pick_scatter_bool": pn.widgets.Switch,
+                                    "pick_scatter": pn.widgets.RadioButtonGroup,
+                                    "pick_TS_color_variable": pn.widgets.AutocompleteInput,
+                                },
+                            ),
+                        ),
+                        (
+                            "more",
+                            pn.Param(
+                                self,
+                                parameters=[
+                                    "pick_mld",
+                                    "pick_high_resolution",
+                                    "pick_show_decoration",
+                                ],
+                            ),
+                        ),
+                    ],
+                ),
+                pn.Spacer(width=50),
+                contentcolumn,
+            ),
+            pn.Row(pn.Column(), self.markdown),
+            pn.Row(),  # Important placeholder for dynamic profile plots, created in glider_dashboard.location
+        )
+
+        # it is necessary to hide the controls as a very last option, because hidden controls cannot be accessed as variables
+        # in the control flow above. So hiding the controls earlier "defaults" all url and manual settings.
+        if self.pick_show_ctrls == False:
+            layout[0][0].visible = self.pick_show_ctrls
+
+        try:
+            # In case user is updating preexisting page
+            mylayout.clear()
+        except:
+            mylayout = pn.Row()
+
+        mylayout.append(layout)
+        return mylayout  # mylayout
+
 
 class MetaDashboard(param.Parameterized):
     options = [
@@ -1610,7 +1622,7 @@ class MetaDashboard(param.Parameterized):
         "irradiance_serial",
         "project",
     ]
-    options += list(all_metadata.columns)
+    options += list(lod.all_metadata.columns)
 
     pick_serial = param.ObjectSelector(
         default="glider_serial",
@@ -1623,7 +1635,7 @@ class MetaDashboard(param.Parameterized):
         "pick_serial"
     )  # outcommenting this means just depend on all, redraw always
     def create_timeline(self):
-        dfm = all_metadata.sort_values("basin")
+        dfm = lod.all_metadata.sort_values("basin")
         dims = self.pick_serial
         fig = px.timeline(
             dfm,
@@ -1649,7 +1661,7 @@ class MetaDashboard(param.Parameterized):
         for shape in fig["data"]:
             shape["opacity"] = 0.7
         for i, d in enumerate(fig.data):
-            d.width = (metadata.deployment_id % 2 + 10) / 12
+            d.width = (lod.metadata.deployment_id % 2 + 10) / 12
         fig.layout.autosize = True
         fig.update_layout(height=400)
         return fig
@@ -1666,17 +1678,20 @@ def create_meta_instance(self):
             meta_dashboard.create_timeline,
             height=500,
         ),
-        height=500,
+        height=1500,
         scroll=True,
     )
 
-    mylayout.clear()  # =
-    mylayout.append(myrow)
+    try:
+        # In case user is updating preexisting page
+        mylayout.clear()
+    except:
+        mylayout = pn.Row()
     mylayout.append(
         pn.widgets.Tabulator(
-            all_metadata[
+            lod.all_metadata.reset_index()[
                 [
-                    # "datasetID",
+                    "datasetID",
                     "basin",
                     "time_coverage_start (UTC)",
                     "time_coverage_end (UTC)",
@@ -1684,7 +1699,6 @@ def create_meta_instance(self):
                     "project",
                     "glider_model",
                     "glider_serial",
-                    "variables",
                     # "glider_name",
                     "ctd_model",
                     "ctd_long_name",
@@ -1704,371 +1718,46 @@ def create_meta_instance(self):
                     "metadata_link",
                     "summary",
                     "comment",
+                    "variables",
                 ]
             ],
+            frozen_columns=["DatasetID"],
             header_filters=True,
-            layout="fit_data_table",
-            # widths=120,
+            sizing_mode="stretch_both",
+            page_size=20,
         )
     )
-    mylayout.append(pn.Column(button_dash, button_meta))
     return mylayout
 
 
-@param.depends(
-    "pick_show_ctrls",
-    watch=True,
-)
-def create_app_instance(self):
-    glider_dashboard = GliderDashboard()
+GDB = GliderDashboard()
 
-    def create_cbar_cntrl(variable):
-        return pn.Param(
-            glider_dashboard,
-            parameters=[f"pick_cbar_range_{variable}"],
-            show_name=False,
-            widgets={
-                f"pick_cbar_range_{variable}": pn.widgets.EditableRangeSlider(
-                    value=(
-                        dictionaries.ranges_dict.get(variable, (0, 10))[0],
-                        dictionaries.ranges_dict.get(variable, (0, 10))[1],
-                    ),
-                    start=dictionaries.ranges_dict.get(variable, (0, 10))[0],
-                    end=dictionaries.ranges_dict.get(variable, (0, 10))[1],
-                    step=0.1,
-                )
-            },
+# theplot = GDB.create_dynmap()
+thecontrols = GDB.create_app_instance()
+
+
+def home():
+    pn.panel(pn.Column(thecontrols, "[Open Metadata tables](?page=page1)")).servable(
+        title="Glider Dashboard"
+    )
+
+
+def page1():
+    pn.panel(
+        pn.Column(
+            create_meta_instance("self"), " [Return to data visualisation](?page=home)"
         )
-
-    cbar_cntrls = [create_cbar_cntrl(variable) for variable in variables_selectable]
-
-    # Data options
-    ctrl_data = pn.Column(  # top stack, dataset and basin options
-        "Choose input data either based on basin location or ID",
-        pn.Param(
-            glider_dashboard,
-            parameters=["pick_toggle"],
-            widgets={
-                "pick_toggle": pn.widgets.RadioButtonGroup,
-                "button_type": "success",
-            },
-            # css_classes=["widget-button"],
-            # default_layout=pn.Column,
-            show_name=False,
-            # width=100,
-        ),
-        pn.Param(
-            glider_dashboard,
-            parameters=["pick_basin"],
-            # widgets={'pick_basin':pn.widgets.MultiChoice(max_items=1)}
-            default_layout=pn.Column,
-            # max_items=1,
-            show_name=False,
-        ),
-        pn.Param(
-            glider_dashboard,
-            parameters=["pick_dsids"],
-            widgets={"pick_dsids": pn.widgets.MultiChoice},
-            show_name=False,
-        ),
-        # styles={"background": "#C0C0C0"},
-    )
-
-    # contour plot options
-    ctrl_contour = pn.Column(
-        pn.Param(
-            glider_dashboard,
-            parameters=["pick_variables"],
-            widgets={
-                "pick_variables": pn.widgets.MultiChoice
-            },  # pn.widgets.CheckBoxGroup},
-            default_layout=pn.Column,
-            show_name=False,
-        ),
-        # pn.widgets.
-        pn.Param(
-            glider_dashboard,
-            parameters=["pick_cnorm"],
-            widgets={"pick_cnorm": pn.widgets.RadioButtonGroup},
-            show_name=False,
-        ),
-        pn.Param(
-            glider_dashboard,
-            parameters=["pick_aggregation"],
-            widgets={"pick_aggregation": pn.widgets.RadioButtonGroup},
-            show_name=False,
-            show_labels=True,
-        ),
-        pn.Param(
-            glider_dashboard,
-            parameters=["pick_contours"],
-            show_name=False,
-        ),
-    )
-
-    # scatter options
-    ctrl_scatter = pn.Column(
-        pn.Param(
-            glider_dashboard,
-            parameters=["pick_scatter_bool"],
-            widgets={"pick_scatter_bool": pn.widgets.Switch},
-            show_name=False,
-        ),
-        pn.Param(
-            glider_dashboard,
-            parameters=["pick_scatter"],
-            widgets={"pick_scatter": pn.widgets.RadioButtonGroup},
-            show_name=False,
-        ),
-        pn.Param(
-            glider_dashboard,
-            parameters=["pick_scatter_x"],
-            widgets={"pick_scatter_x": pn.widgets.AutocompleteInput},
-            show_name=False,
-        ),
-        pn.Param(
-            glider_dashboard,  # .param,
-            parameters=["pick_scatter_y"],
-            # widgets={
-            #    "pick_scatter_y": {
-            #        "widget_type": pn.widgets.AutocompleteInput,
-            #        "min_characters": 1,
-            #    }
-            # },  # (min_characters=1)},
-            show_name=False,
-        ),
-        pn.Param(
-            glider_dashboard,
-            parameters=["pick_TS_color_variable"],
-            widgets={"pick_TS_color_variable": pn.widgets.AutocompleteInput},
-            show_name=False,
-        ),
-        pn.Param(
-            glider_dashboard,
-            parameters=["pick_activate_scatter_link"],
-            show_name=False,
-            # display_threshold=10,
-        ),
-        # This is a hidden parameter, which can be specified in url
-        # to show or hide the menus. Can be useful when emedding interactive
-        # figures in webpages or presentations for example.
-        # pn.Param(glider_explorer,
-        #    parameters=['pick_display_threshold'],
-        #    show_name=False,
-        #    display_threshold=10,),
-    )
-
-    ctrl_more = pn.Column(
-        pn.Param(
-            glider_dashboard,
-            parameters=["startX"],
-            show_name=False,
-            # display_threshold=10,
-        ),
-        pn.Param(
-            glider_dashboard,
-            parameters=["pick_high_resolution"],
-            show_name=False,
-            # display_threshold=10,
-        ),
-        pn.Param(
-            glider_dashboard,
-            parameters=["pick_mld"],
-            show_name=False,
-            # display_threshold=0.5,
-        ),
-        pn.Param(
-            glider_dashboard,
-            parameters=["pick_show_decoration"],
-            show_name=False,
-            # display_threshold=0.5,
-        ),
-        # pn.Param(
-        #    glider_dashboard,
-        #    parameters=["pick_mean"],
-        #    show_name=False,
-        #    # display_threshold=0.5,
-        # ),
-        # pn.Param(
-        #    glider_dashboard,
-        #    parameters=["button_inflow"],
-        #    show_name=False,
-        #    # display_threshold=10,
-        # ),
-        # button_cols,
-        pn.Param(
-            glider_dashboard,
-            parameters=["button"],
-            show_name=False,
-            # widgets={"button": pn.widgets.Button},
-            # display_threshold=0.5,
-        ),
-        pn.Param(
-            glider_dashboard,
-            parameters=["endX"],
-            show_name=False,
-            # display_threshold=10,
-        ),
-        pn.Param(
-            glider_dashboard,
-            parameters=["startY"],
-            show_name=False,
-            # display_threshold=10,
-        ),
-        pn.Param(
-            glider_dashboard,
-            parameters=["endY"],
-            show_name=False,
-            # display_threshold=10,
-        ),
-    )
-    ctrl_colorbars = pn.Column(
-        pn.Param(
-            glider_dashboard,
-            parameters=["pick_autorange"],
-            show_name=False,
-        ),
-        *cbar_cntrls,
-    )
-
-    pick_aggregation_method = pn.Param(
-        glider_dashboard,
-        parameters=["pick_aggregation_method"],
-        widgets={"pick_aggregation_method": pn.widgets.RadioButtonGroup},
-        show_name=False,
-        show_labels=True,
-    )
-
-    def create_column(hex_id=None):
-        """
-        Dynamically add a new row to the app.
-        """
-        global meancolumn
-        meancolumn = pn.Column(
-            glider_dashboard.create_mean(),
-            height=500,
-        )
-        contentcolumn.append(meancolumn)
-        contentcolumn.height = 1050
-
-    def remove_column(hex_id=None):
-        """
-        Dynamically remove a column from the app.
-        """
-        contentcolumn.remove(meancolumn)
-        contentcolumn.height = 500
-
-    add_row = pn.widgets.Button(name="Add aggregation row")
-    clear_rows = pn.widgets.Button(name="Clear additional rows")
-
-    # Add interactivity
-    clear_rows.on_click(lambda _: remove_column())
-    add_row.on_click(lambda _: create_column())
-
-    # this keeps the url in sync with the parameter choices and vice versa
-    if pn.state.location:
-        cbar_dict = {
-            f"pick_cbar_range_{variable}": f"pick_cbar_range_{variable}"
-            for variable in variables_selectable
-        }
-        other_cntrls = {
-            "pick_basin": "pick_basin",
-            "pick_GDAC": "pick_GDAC",
-            "pick_dsids": "pick_dsids",
-            "pick_toggle": "pick_toggle",
-            "pick_show_ctrls": "pick_show_ctrls",
-            # "pick_variable": "pick_variable", # replaced by pick_variables
-            "pick_variables": "pick_variables",
-            "pick_scatter_bool": "pick_scatter_bool",
-            "pick_scatter_x": "pick_scatter_x",
-            "pick_scatter_y": "pick_scatter_y",
-            "pick_scatter": "pick_scatter",
-            "pick_aggregation": "pick_aggregation",
-            "pick_aggregation_method": "pick_aggregation_method",
-            "pick_mld": "pick_mld",
-            # "pick_mean": "pick_mean",
-            "pick_cnorm": "pick_cnorm",
-            # "pick_TS": "pick_TS",
-            # "pick_profiles": "pick_profiles",
-            "pick_activate_scatter_link": "pick_activate_scatter_link",
-            "pick_contours": "pick_contours",
-            "pick_high_resolution": "pick_high_resolution",
-            "pick_startX": "pick_startX",
-            "pick_endX": "pick_endX",
-            "pick_startY": "pick_startY",
-            "pick_endY": "pick_endY",
-            "pick_display_threshold": "pick_display_threshold",
-            "pick_contour_height": "pick_contour_height",
-            "pick_show_decoration": "pick_show_decoration",
-            "pick_autorange": "pick_autorange",
-            "pick_TS_color_variable": "pick_TS_color_variable",
-        }
-        other_cntrls.update(cbar_dict)
-        pn.state.location.sync(
-            glider_dashboard,
-            other_cntrls,
-        )
-    content = glider_dashboard.create_dynmap
-    contentcolumn = pn.Column(
-        pn.panel(content, defer_load=True),
-        # glider_dashboard.create_mean,
-        pn.Param(
-            glider_dashboard,
-            parameters=["pick_show_ctrls"],
-            show_name=False,
-        ),
-        sizing_mode="stretch_width",
-        # pn.Row( "# Add data aggregations (mean, max, std...)", button_cols),
-    )
-
-    layout = pn.Column(
-        pn.Row(  # row with controls, trajectory plot and TS plot
-            pn.Accordion(
-                # toggle=True, # allows only one card to be opened at a time
-                objects=[
-                    ("Choose dataset(s)", ctrl_data),
-                    ("Contour plot options", ctrl_contour),
-                    ("Linked (scatter-)plots", ctrl_scatter),
-                    # ('Aggregations (WIP)', pn.Column(
-                    #    pick_aggregation_method,
-                    #    add_row,
-                    #    clear_rows,
-                    #    )) ,
-                    ("more", ctrl_more),
-                    ("adjust Colorbars", ctrl_colorbars),
-                    # ('WIP',add_row),
-                ],
-            ),
-            pn.Spacer(width=50),
-            contentcolumn,
-            # height=800,
-        ),
-        pn.Row(pn.Column(), glider_dashboard.markdown),
-        pn.Row(),  # Important placeholder for dynamic profile plots, created in glider_dashboard.location
-    )
-
-    # it is necessary to hide the controls as a very last option, because hidden controls cannot be accessed as variables
-    # in the control flow above. So hiding the controls earlier "defaults" all url and manual settings.
-    if glider_dashboard.pick_show_ctrls == False:
-        layout[0][0].visible = glider_dashboard.pick_show_ctrls
-    mylayout.clear()
-    mylayout.append(layout)
-    mylayout.append(pn.Column(button_dash, button_meta))
-    return mylayout
+    ).servable(title="Metadata tables")
 
 
-button_dash = pn.widgets.Button(name="activate Glider Datasets Dashboard")
-button_dash.on_click(create_app_instance)
+PAGES = {"home": home, "page1": page1}
 
-button_meta = pn.widgets.Button(
-    name="activate schematic Mission Overview and Metadata Table "
-)
-button_meta.on_click(create_meta_instance)
 
-# usefull to create secondary plot, but not fully indepentently working yet:
-# glider_explorer2=GliderExplorer()
-mylayout = pn.Column(button_dash, button_meta)
-button_dash.clicks += (
-    1  # to activate the Glider Data dashboard from the start as default
-)
-mylayout.servable(title="Voice of the Ocean Glider Dashboard")
+def get_page_name():
+    return pn.state.session_args.get("page", [b"home"])[0].decode(("utf8"))
+
+
+page_name = get_page_name()
+page_func = PAGES[page_name]
+page_func()
+# pn.serve(APP_ROUTES, title={'app1': 'Some title', 'app2': 'Some other title'}, port=14034)

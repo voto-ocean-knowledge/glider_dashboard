@@ -84,18 +84,20 @@ def test_temperature():
     # GDB.pick_mld = False
 
     # activate scatter plot
-    GDB.pick_TS = True
+    GDB.pick_scatter_bool = True
+    GDB.pick_scatter_x = "temperature"
+    GDB.pick_scatter_y = "pressure"
     dyn = GDB.create_dynmap()  # .opts(width=500, height=500)
     myapp = pn.panel(dyn)
     dyn.save(join(outpath, "TS.png"))
     GDB.pick_TS = False
 
     # activate profile plots
-    GDB.pick_profiles = True
-    dyn = GDB.create_dynmap()  # .opts(width=500, height=500)
-    myapp = pn.panel(dyn)
-    dyn.save(join(outpath, "profiles.png"))
-    GDB.pick_profiles = False
+    # GDB.pick_scatter_bool = True
+    # dyn = GDB.create_dynmap()  # .opts(width=500, height=500)
+    # myapp = pn.panel(dyn)
+    # dyn.save(join(outpath, "profiles.png"))
+    # GDB.pick_profiles = False
 
     # toggle to DatasetID
     # GDB.pick_toggle = 'DatasetID'
