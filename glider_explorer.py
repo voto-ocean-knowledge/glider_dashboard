@@ -1082,7 +1082,7 @@ class GliderDashboard(param.Parameterized):
             responsive=True,
         )"""
 
-        print(dfmld)
+        # print(dfmld)
         mldscatter = hv.Curve(data=dfmld, kdims="time", vdims="mld")
         # mldscatter2 = hv.Curve(data=dfmld, kdims="time", vdims="mld2")
 
@@ -1443,6 +1443,7 @@ class GliderDashboard(param.Parameterized):
         )
         return mld.collect()
 
+    # @param.depends("pick_autorange")
     def create_app_instance(self):
 
         def create_column(hex_id=None):
@@ -1524,6 +1525,36 @@ class GliderDashboard(param.Parameterized):
             # pn.Row( "# Add data aggregations (mean, max, std...)", button_cols),
         )
 
+        def create_cbar_cntrl(variable):
+            return pn.Param(
+                self,
+                parameters=[f"pick_cbar_range_{variable}"],
+                show_name=False,
+                widgets={
+                    f"pick_cbar_range_{variable}": pn.widgets.EditableRangeSlider(
+                        value=(
+                            self.stats.loc["1%"][variable],
+                            self.stats.loc["99%"][variable],
+                            # dictionaries.ranges_dict.get(variable, (0, 10))[0],
+                            # dictionaries.ranges_dict.get(variable, (0, 10))[1],
+                        ),
+                        start=self.stats.loc["1%"][
+                            variable
+                        ],  # dictionaries.ranges_dict.get(variable, (0, 10))[0],
+                        end=self.stats.loc["99%"][
+                            variable
+                        ],  # dictionaries.ranges_dict.get(variable, (0, 10))[1],
+                        # step=0.1,
+                    )
+                },
+            )
+
+        colorbar_widgets_dict = {}
+        for variable in lod.variables_selectable:
+            colorbar_widgets_dict[f"pick_cbar_range_{variable}"] = (
+                pn.widgets.EditableRangeSlider
+            )
+        # print(colorbar_widgets_dict)
         layout = pn.Column(
             pn.Row(  # row with controls, trajectory plot and TS plot
                 pn.Accordion(
@@ -1590,6 +1621,22 @@ class GliderDashboard(param.Parameterized):
                                 ],
                             ),
                         ),
+                        (
+                            "Adjust colorbars",
+                            pn.Column(
+                                pn.Param(
+                                    self,
+                                    parameters=["pick_autorange"]
+                                    + [
+                                        f"pick_cbar_range_{variable}"
+                                        for variable in lod.variables_selectable
+                                    ],
+                                    widgets=colorbar_widgets_dict,
+                                    show_name=False,
+                                ),
+                                "upper and lower boundaries can be overwritten manually.",
+                            ),
+                        ),
                     ],
                 ),
                 pn.Spacer(width=50),
@@ -1598,7 +1645,7 @@ class GliderDashboard(param.Parameterized):
             pn.Row(pn.Column(), self.markdown),
             pn.Row(),  # Important placeholder for dynamic profile plots, created in glider_dashboard.location
         )
-
+        # print([f"pick_cbar_range_{variable}" for variable in self.pick_variables])
         # it is necessary to hide the controls as a very last option, because hidden controls cannot be accessed as variables
         # in the control flow above. So hiding the controls earlier "defaults" all url and manual settings.
         if self.pick_show_ctrls == False:

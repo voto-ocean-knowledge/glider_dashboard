@@ -4,6 +4,7 @@ import pandas as pd
 import panel as pn
 import param
 import polars as pl
+import polars.selectors as cs
 
 import utils
 
@@ -177,6 +178,7 @@ def create_cbar_range(variable):
             # dictionaries.ranges_dict[variable][1],
         ),  # this is not respected anyway, but below in redefinition
         doc=f"Cbar limits for {variable}",
+        label=variable,
         precedence=-10,
     )
 
