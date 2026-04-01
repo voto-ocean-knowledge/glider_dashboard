@@ -279,6 +279,7 @@ class GliderDashboard(param.Parameterized):
     endY = None
 
     def update_markdown(self, x_range, y_range):
+        metadata = lod.metadata
         time_start = self.data_in_view.select("time").first().collect()[0, 0]
         time_end = self.data_in_view.select("time").last().collect()[0, 0]
         duration_d = (time_end - time_start).days
@@ -307,7 +308,7 @@ Ocean """
         #    pdb.set_trace()
         p4 = f"""Number of profiles {n_prof}."""
 
-#   Table 1: Basic summary of the view.
+        #   Table 1: Basic summary of the view.
         table1 = f"""
 <b>Data Summary</b>
 
@@ -320,7 +321,7 @@ Ocean """
 | Maximum Depth (m)     | {max_d:.2f}               |
 """
 
-#   Table 2: Statistics for the picked variables in "Contour plot options".
+        #   Table 2: Statistics for the picked variables in "Contour plot options".
         def var_row(variable):
             """For a specified variable, create a table row with basic stats"""
             try:
@@ -337,7 +338,7 @@ Ocean """
         for variable in self.pick_variables:
             table_var_rows.append(var_row(variable))
             if str(variable + "_qc") in self.data_in_view.collect_schema():
-                table_var_rows.append(var_row(variable+"_qc"))
+                table_var_rows.append(var_row(variable + "_qc"))
         table_var_to_add = "\n".join(table_var_rows)
 
         table2 = f"""
@@ -348,16 +349,20 @@ Ocean """
 {table_var_to_add}
 """
 
-#   Table 3: Pull the metadata for datasetIDs within the current time period.
-        current_meta = metadata[(metadata["time_coverage_start (UTC)"] <= time_end)
-                          & (metadata["time_coverage_end (UTC)"]  >= time_start)]
-        
-        meta_rows = ""        
-        for idx, row in current_meta.iterrows():    #   Create nested tables, summary makes Parameters collapsible
+        #   Table 3: Pull the metadata for datasetIDs within the current time period.
+        current_meta = metadata[
+            (metadata["time_coverage_start (UTC)"] <= time_end)
+            & (metadata["time_coverage_end (UTC)"] >= time_start)
+        ]
+
+        meta_rows = ""
+        for (
+            idx,
+            row,
+        ) in current_meta.iterrows():
+            #   Create nested tables, summary formatting makes Parameters collapsible
             params = "".join(
-                f"<tr><td>{col}</td><td>{row[col]}</td></tr>"
-                for col in row.index
-                # if col not in ["time_coverage_start (UTC)", "time_coverage_end (UTC)"]
+                f"<tr><td>{col}</td><td>{row[col]}</td></tr>" for col in row.index
             )
             meta_rows += f"""
 <tr>
@@ -396,7 +401,6 @@ Ocean """
 </div>
 </div>
 """
-        breakpoint()
         self.markdown.object = (
             p1 + p2 + p3 + p4 + tables_side_by_side
         )  # +r"$$\frac{1}{n}$$"
