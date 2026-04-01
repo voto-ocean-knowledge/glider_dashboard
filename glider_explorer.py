@@ -487,7 +487,7 @@ class GliderDashboard(param.Parameterized):
                     legend_position="bottom_right", show_legend=True
                 )
             )
-        mylayout[0][2] = pn.Row(hv.Layout(profile_plots))
+        self.mylayout[0][2] = pn.Row(hv.Layout(profile_plots))
 
     @param.depends(
         "button",
@@ -509,7 +509,7 @@ class GliderDashboard(param.Parameterized):
         for index, element in enumerate(mylayout):
             if type(element) == pn.widgets.misc.FileDownload:
                 mylayout.pop(index)
-        mylayout.append(self.file_download)
+        self.mylayout.append(self.file_download)
 
     @param.depends(
         "pick_dsids",
@@ -1653,12 +1653,12 @@ class GliderDashboard(param.Parameterized):
 
         try:
             # In case user is updating preexisting page
-            mylayout.clear()
+            self.mylayout.clear()
         except:
-            mylayout = pn.Row()
+            self.mylayout = pn.Row()
 
-        mylayout.append(layout)
-        return mylayout  # mylayout
+        self.mylayout.append(layout)
+        return self.mylayout  # mylayout
 
 
 class MetaDashboard(param.Parameterized):
