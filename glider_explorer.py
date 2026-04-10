@@ -569,9 +569,10 @@ class GliderDashboard(param.Parameterized):
 
         # This should only be a temporay hack. I don't want all that data to go into my TS plots.
         # dsconc = utils.voto_concat_datasets2(varlist)
-        dsconc = pl.concat([data for data in varlist], how="diagonal_relaxed")
-        dsconc = dsconc.with_columns(pl.col("depth")).sort("time")
-        self.param["pick_variables"].objects = dsconc.collect_schema().names()
+        if varlist:
+            dsconc = pl.concat([data for data in varlist], how="diagonal_relaxed")
+            dsconc = dsconc.with_columns(pl.col("depth")).sort("time")
+            self.param["pick_variables"].objects = dsconc.collect_schema().names()
         # self.data_in_view = dsconc
 
     @param.depends(
@@ -663,6 +664,17 @@ class GliderDashboard(param.Parameterized):
 
         pick_cnorm = "linear"
 
+        # print(
+        #    self.load_viewport_datasets(x_range=(self.startX, self.endX)),
+        #    not self.load_viewport_datasets(x_range=(self.startX, self.endX)),
+        # )
+        # import pdb
+
+        # pdb.set_trace()
+        if len(self.load_viewport_datasets(x_range=(self.startX, self.endX))[0]) == 0:
+            return pn.Column(
+                "# Please select a DatasetID. A list of possible options will be displayed after click into the DatasetID field."
+            )
         dmap_raster = hv.DynamicMap(
             self.get_xsection_raster,
             streams=[range_stream, tap_stream],
