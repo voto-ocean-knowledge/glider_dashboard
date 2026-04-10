@@ -1,4 +1,5 @@
 import datetime
+import logging
 import time
 
 import cmocean
@@ -29,6 +30,31 @@ import utils
 pn.config.reconnect = True
 pn.config.notifications = True
 
+
+def exception_handler(ex):
+
+    logging.error("Error", exc_info=ex)
+    # import pdb
+
+    # pdb.set_trace()
+    # if (len(GliderDashboard.pick_dsids) == 0) and (
+    #    GliderDashboard.pick_toggle == "DatasetID"
+    # ):  #
+    if GDB.data_in_view is None:
+        pn.state.notifications.error(
+            "Please proceed by selecting one or more datasets to display",
+            duration=10000,
+        )
+    else:
+        pn.state.notifications.error(
+            "Please complete/change input parameters", duration=10000
+        )
+    # import pdb
+
+    # pdb.set_trace()
+    # pn.state.notifications.error(f"{ex}")
+
+
 pn.extension(
     "plotly",
     "mathjax",
@@ -41,8 +67,10 @@ pn.extension(
     #    ":root {--design-primary-color:lightgrey; --design-primary-text-color:black}"
     # ],
     loading_indicator=True,
-    exception_handler=lod.exception_handler,
+    exception_handler=exception_handler,
     notifications=True,
+    nthreads=0,
+    defer_load=True,
 )
 
 text_opts = hv.opts.Text(text_align="left", text_color="black", fontsize=10)
@@ -1554,91 +1582,95 @@ class GliderDashboard(param.Parameterized):
             colorbar_widgets_dict[f"pick_cbar_range_{variable}"] = (
                 pn.widgets.EditableRangeSlider
             )
+
+        controls_accordion = pn.Accordion(
+            # toggle=True, # allows only one card to be opened at a time
+            objects=[
+                (
+                    "Choose dataset(s)",
+                    pn.Param(
+                        self,
+                        parameters=["pick_toggle", "pick_basin", "pick_dsids"],
+                        widgets={
+                            "pick_toggle": {
+                                "type": pn.widgets.RadioButtonGroup,
+                                "button_type": "success",
+                            },
+                            "pick_dsids": pn.widgets.MultiChoice,
+                        },
+                    ),
+                ),
+                (
+                    "Contour plot options",
+                    pn.Param(
+                        self,
+                        parameters=[
+                            "pick_variables",
+                            "pick_cnorm",
+                            "pick_aggregation",
+                            "pick_contours",
+                        ],
+                        widgets={
+                            "pick_variables": pn.widgets.MultiChoice,
+                            "pick_cnorm": pn.widgets.RadioButtonGroup,
+                            "pick_aggregation": pn.widgets.RadioButtonGroup,
+                        },
+                    ),
+                ),
+                (
+                    "Linked (scatter-)plots",
+                    pn.Param(
+                        self,
+                        parameters=[
+                            "pick_scatter_bool",
+                            "pick_scatter",
+                            "pick_scatter_x",
+                            "pick_scatter_y",
+                            "pick_TS_color_variable",
+                            "pick_activate_scatter_link",
+                        ],
+                        widgets={
+                            "pick_scatter_bool": pn.widgets.Switch,
+                            "pick_scatter": pn.widgets.RadioButtonGroup,
+                            "pick_TS_color_variable": pn.widgets.AutocompleteInput,
+                        },
+                    ),
+                ),
+                (
+                    "more",
+                    pn.Param(
+                        self,
+                        parameters=[
+                            "pick_mld",
+                            "pick_high_resolution",
+                            "pick_show_decoration",
+                        ],
+                    ),
+                ),
+                (
+                    "Adjust colorbars",
+                    pn.Column(
+                        pn.Param(
+                            self,
+                            parameters=["pick_autorange"]
+                            + [
+                                f"pick_cbar_range_{variable}"
+                                for variable in lod.variables_selectable
+                            ],
+                            widgets=colorbar_widgets_dict,
+                            show_name=False,
+                        ),
+                        "upper and lower boundaries can be overwritten manually.",
+                    ),
+                ),
+            ],
+        )
+
         # print(colorbar_widgets_dict)
         layout = pn.Column(
-            pn.Row(  # row with controls, trajectory plot and TS plot
-                pn.Accordion(
-                    # toggle=True, # allows only one card to be opened at a time
-                    objects=[
-                        (
-                            "Choose dataset(s)",
-                            pn.Param(
-                                self,
-                                parameters=["pick_toggle", "pick_basin", "pick_dsids"],
-                                widgets={
-                                    "pick_toggle": {
-                                        "type": pn.widgets.RadioButtonGroup,
-                                        "button_type": "success",
-                                    },
-                                    "pick_dsids": pn.widgets.MultiChoice,
-                                },
-                            ),
-                        ),
-                        (
-                            "Contour plot options",
-                            pn.Param(
-                                self,
-                                parameters=[
-                                    "pick_variables",
-                                    "pick_cnorm",
-                                    "pick_aggregation",
-                                    "pick_contours",
-                                ],
-                                widgets={
-                                    "pick_variables": pn.widgets.MultiChoice,
-                                    "pick_cnorm": pn.widgets.RadioButtonGroup,
-                                    "pick_aggregation": pn.widgets.RadioButtonGroup,
-                                },
-                            ),
-                        ),
-                        (
-                            "Linked (scatter-)plots",
-                            pn.Param(
-                                self,
-                                parameters=[
-                                    "pick_scatter_bool",
-                                    "pick_scatter",
-                                    "pick_scatter_x",
-                                    "pick_scatter_y",
-                                    "pick_TS_color_variable",
-                                    "pick_activate_scatter_link",
-                                ],
-                                widgets={
-                                    "pick_scatter_bool": pn.widgets.Switch,
-                                    "pick_scatter": pn.widgets.RadioButtonGroup,
-                                    "pick_TS_color_variable": pn.widgets.AutocompleteInput,
-                                },
-                            ),
-                        ),
-                        (
-                            "more",
-                            pn.Param(
-                                self,
-                                parameters=[
-                                    "pick_mld",
-                                    "pick_high_resolution",
-                                    "pick_show_decoration",
-                                ],
-                            ),
-                        ),
-                        (
-                            "Adjust colorbars",
-                            pn.Column(
-                                pn.Param(
-                                    self,
-                                    parameters=["pick_autorange"]
-                                    + [
-                                        f"pick_cbar_range_{variable}"
-                                        for variable in lod.variables_selectable
-                                    ],
-                                    widgets=colorbar_widgets_dict,
-                                    show_name=False,
-                                ),
-                                "upper and lower boundaries can be overwritten manually.",
-                            ),
-                        ),
-                    ],
-                ),
+            pn.Row(
+                # row with controls, trajectory plot and TS plot
+                controls_accordion,
                 pn.Spacer(width=50),
                 contentcolumn,
             ),
@@ -1779,7 +1811,8 @@ def create_meta_instance(self):
 
 GDB = GliderDashboard()
 
-# theplot = GDB.create_dynmap()
+# thecontrols = GDB.create_dynmap()
+#
 thecontrols = GDB.create_app_instance()
 
 
