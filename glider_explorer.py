@@ -27,7 +27,7 @@ import dictionaries
 import load_once_data as lod
 import utils
 
-pn.config.reconnect = True
+# pn.config.reconnect = True
 pn.config.notifications = True
 
 
@@ -881,23 +881,30 @@ class GliderDashboard(param.Parameterized):
 
             if self.pick_scatter_bool:
                 if self.data_in_view is not None:
-                    diffx = (
-                        self.stats.loc["99%"][self.pick_scatter_x]
-                        - self.stats.loc["5%"][self.pick_scatter_x]
-                    )
+                    if type(self.stats.loc["99%"][self.pick_scatter_x]) is float:
+                        diffx = (
+                            self.stats.loc["99%"][self.pick_scatter_x]
+                            - self.stats.loc["5%"][self.pick_scatter_x]
+                        )
 
-                    xlim = (
-                        self.stats.loc["5%"][self.pick_scatter_x] - 0.1 * diffx,
-                        self.stats.loc["99%"][self.pick_scatter_x] + 0.1 * diffx,
-                    )
-                    diffy = (
-                        self.stats.loc["99%"][self.pick_scatter_y]
-                        - self.stats.loc["5%"][self.pick_scatter_y]
-                    )
-                    ylim = (
-                        self.stats.loc["1%"][self.pick_scatter_y] - 0.1 * diffy,
-                        self.stats.loc["99%"][self.pick_scatter_y] + 0.1 * diffy,
-                    )
+                        xlim = (
+                            self.stats.loc["5%"][self.pick_scatter_x] - 0.1 * diffx,
+                            self.stats.loc["99%"][self.pick_scatter_x] + 0.1 * diffx,
+                        )
+                    else:
+                        # for example time variable
+                        xlim = (None, None)
+                    if type(self.stats.loc["99%"][self.pick_scatter_x]) is float:
+                        diffy = (
+                            self.stats.loc["99%"][self.pick_scatter_y]
+                            - self.stats.loc["5%"][self.pick_scatter_y]
+                        )
+                        ylim = (
+                            self.stats.loc["1%"][self.pick_scatter_y] - 0.1 * diffy,
+                            self.stats.loc["99%"][self.pick_scatter_y] + 0.1 * diffy,
+                        )
+                    else:
+                        ylim = (None, None)
                 else:
                     xlim = ylim = (None, None)
                 if self.pick_TS_color_variable:
@@ -958,9 +965,9 @@ class GliderDashboard(param.Parameterized):
         # time=(self.startX, self.endX), depth=(self.startY, self.endY)
         # )
         # ToDo: Test if this actually helps the garbage collector
-        self.stats = None
-        self.data_in_view = None
-        self.data_in_view_small = None
+        # self.stats = None
+        # self.data_in_view = None
+        # self.data_in_view_small = None
 
         return pn.Column(contourplots.opts(height=cheight).cols(ncols))
 
