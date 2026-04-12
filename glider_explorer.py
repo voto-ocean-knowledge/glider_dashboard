@@ -343,12 +343,15 @@ class GliderDashboard(param.Parameterized):
         variables = set(variables)
         variables.add("temperature")  # inplace operations
         variables.add("salinity")
-        kdims = ["time", "depth"]
-        data, kdims = utils.unify_key_names(data, kdims)
+        kdims = set(["time", "depth"])
+        for variable in variables.intersection(kdims):
+            data = data.with_columns(pl.col(variable).alias(variable + " "))
+            variables.remove(variable)
+            variables.add(variable + " ")
 
         raster = hv.Points(
             data=data,
-            kdims=kdims,  # [kdim + " " for kdim in kdims],  # ["time", "depth"],
+            kdims=list(kdims),
             vdims=list(variables),
             # temp and salinity need to always be present for TS lasso to work, set for unique elements
         )
@@ -627,7 +630,7 @@ class GliderDashboard(param.Parameterized):
                 self.param.pick_activate_scatter_link.precedence = 1
                 self.param.pick_TS_color_variable.precedence = 1
             elif self.pick_scatter == "profiles":
-                self.pick_scatter_y = "pressure"
+                self.pick_scatter_y = "depth"
                 self.pick_scatter_x = "temperature"
                 self.param.pick_scatter_x.precedence = -10
                 self.param.pick_scatter_y.precedence = -10
@@ -1263,15 +1266,20 @@ class GliderDashboard(param.Parameterized):
                 )
                 nanosecond_iterator += 1
 
-        # This should only be a temporay hack. I don't want all that data to go into my TS plots.
         dsconc = utils.voto_concat_datasets2(varlist)
-        # dsconc = dsconc.with_columns(pl.col("depth")).sort("time")
+        dsconc = dsconc.with_columns(pl.col("depth")).sort("time")
 
         dsconc_small = utils.voto_concat_datasets2(varlist_small)
-        # dsconc_small = dsconc_small.with_columns(pl.col("depth")).sort("time")
+        dsconc_small = dsconc_small.with_columns(pl.col("depth")).sort("time")
+
+        kdims = ["time", "depth", self.pick_scatter_x, self.pick_scatter_y]
+        # for kdim in kdims:
+        #    dsconc = dsconc.with_columns(pl.col(kdim).alias(kdim + " "))
+        # kdims = [kdim + " " for kdim in kdims]
 
         self.data_in_view = dsconc
         self.data_in_view_small = dsconc_small
+
         """ WILL I NEED THIS FOR MLD COMPUTATION? """
         # if self.startX is not None:
         """
@@ -1310,23 +1318,28 @@ class GliderDashboard(param.Parameterized):
         return mplt
 
     def get_xsection_TS(self, x_range, y_range):
-        kdims = [self.pick_scatter_x, self.pick_scatter_y]
-        data, kdims = utils.unify_key_names(self.data_in_view, kdims)
-        vdims = ["depth", "time"]
-        if self.pick_TS_color_variable:
-            vdims.append(self.pick_TS_color_variable)
-        mplt = hv.Points(
-            data=data.filter(
-                (pl.col("time") > self.startX)
-                & (pl.col("time") < self.endX)
-                & (pl.col("depth") > self.startY)
-                & (pl.col("depth") < self.endY)
-            ),
-            kdims=kdims,
-            vdims=vdims,
-            # temp and salinity need to always be present for TS lasso to work, set for unique elements
+        kdims = set(
+            [
+                self.pick_scatter_x,
+                self.pick_scatter_y,
+            ]
+        )
+        data = self.data_in_view.filter(
+            (pl.col("time") > self.startX)
+            & (pl.col("time") < self.endX)
+            & (pl.col("depth") > self.startY)
+            & (pl.col("depth") < self.endY)
         )
 
+        if self.pick_TS_color_variable:
+            vdims = set([self.pick_TS_color_variable])
+            mplt = hv.Points(
+                data=data,
+                kdims=list(kdims),
+                vdims=list(vdims),
+            )
+        else:
+            mplt = hv.Points(data=data, kdims=list(kdims))
         return mplt
 
     def get_xsection_profiles(self, x_range, y_range):

@@ -357,11 +357,3 @@ def add_dive_column(ds):
         .otherwise(pl.col("profile_num") + 0.5)
     )
     return ds
-
-
-def unify_key_names(data, kdims):
-    # workaround for duplicate variables bug Github #26
-    for kdim in kdims:
-        data = data.with_columns(pl.col(kdim).alias(kdim + " "))
-    kdims = [kdim + " " for kdim in kdims]
-    return data, kdims
