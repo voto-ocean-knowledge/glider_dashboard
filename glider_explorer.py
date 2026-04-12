@@ -343,9 +343,12 @@ class GliderDashboard(param.Parameterized):
         variables = set(variables)
         variables.add("temperature")  # inplace operations
         variables.add("salinity")
+        kdims = ["time", "depth"]
+        data, kdims = utils.unify_key_names(data, kdims)
+
         raster = hv.Points(
             data=data,
-            kdims=["time", "depth"],
+            kdims=kdims,  # [kdim + " " for kdim in kdims],  # ["time", "depth"],
             vdims=list(variables),
             # temp and salinity need to always be present for TS lasso to work, set for unique elements
         )
@@ -1262,10 +1265,10 @@ class GliderDashboard(param.Parameterized):
 
         # This should only be a temporay hack. I don't want all that data to go into my TS plots.
         dsconc = utils.voto_concat_datasets2(varlist)
-        dsconc = dsconc.with_columns(pl.col("depth")).sort("time")
+        # dsconc = dsconc.with_columns(pl.col("depth")).sort("time")
 
         dsconc_small = utils.voto_concat_datasets2(varlist_small)
-        dsconc_small = dsconc_small.with_columns(pl.col("depth")).sort("time")
+        # dsconc_small = dsconc_small.with_columns(pl.col("depth")).sort("time")
 
         self.data_in_view = dsconc
         self.data_in_view_small = dsconc_small
@@ -1307,17 +1310,19 @@ class GliderDashboard(param.Parameterized):
         return mplt
 
     def get_xsection_TS(self, x_range, y_range):
+        kdims = [self.pick_scatter_x, self.pick_scatter_y]
+        data, kdims = utils.unify_key_names(self.data_in_view, kdims)
         vdims = ["depth", "time"]
         if self.pick_TS_color_variable:
             vdims.append(self.pick_TS_color_variable)
         mplt = hv.Points(
-            data=self.data_in_view.filter(
+            data=data.filter(
                 (pl.col("time") > self.startX)
                 & (pl.col("time") < self.endX)
                 & (pl.col("depth") > self.startY)
                 & (pl.col("depth") < self.endY)
             ),
-            kdims=[self.pick_scatter_x, self.pick_scatter_y],
+            kdims=kdims,
             vdims=vdims,
             # temp and salinity need to always be present for TS lasso to work, set for unique elements
         )
