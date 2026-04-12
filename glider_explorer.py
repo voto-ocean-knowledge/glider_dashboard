@@ -881,7 +881,7 @@ class GliderDashboard(param.Parameterized):
 
             if self.pick_scatter_bool:
                 if self.data_in_view is not None:
-                    if type(self.stats.loc["99%"][self.pick_scatter_x]) is float:
+                    if isinstance(self.stats.loc["99%"][self.pick_scatter_x], float):
                         diffx = (
                             self.stats.loc["99%"][self.pick_scatter_x]
                             - self.stats.loc["5%"][self.pick_scatter_x]
@@ -894,7 +894,7 @@ class GliderDashboard(param.Parameterized):
                     else:
                         # for example time variable
                         xlim = (None, None)
-                    if type(self.stats.loc["99%"][self.pick_scatter_x]) is float:
+                    if isinstance(self.stats.loc["99%"][self.pick_scatter_x], float):
                         diffy = (
                             self.stats.loc["99%"][self.pick_scatter_y]
                             - self.stats.loc["5%"][self.pick_scatter_y]
