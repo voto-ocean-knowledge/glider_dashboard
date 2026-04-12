@@ -133,6 +133,13 @@ class GliderDashboard(param.Parameterized):
     # show all the basins and all the datasets. I use the nrt data
     # from the metadatatables as keys, so I skip the 'delayed' sets
     # with the lambda function.
+    pick_institution = param.Selector(
+        # default="Bornholm Basin",
+        objects=list(lod.fDs["institution"].unique()),
+        label="Institution",
+        precedence=1,
+    )
+
     pick_basin = param.Selector(
         default="Bornholm Basin",
         objects=dictionaries.SAMBA_observatories,
@@ -543,6 +550,7 @@ class GliderDashboard(param.Parameterized):
         "pick_dsids",
         "pick_toggle",
         "pick_basin",
+        "pick_institution",
         watch=True,
     )
     def update_data(self):
@@ -582,6 +590,7 @@ class GliderDashboard(param.Parameterized):
         "pick_mld",
         # "pick_mean",
         "pick_basin",
+        "pick_institution",
         "pick_dsids",
         "pick_toggle",
         "pick_scatter",
@@ -594,7 +603,7 @@ class GliderDashboard(param.Parameterized):
         "pick_high_resolution",
         # "pick_profiles",
         "pick_display_threshold",
-        "pick_show_decoration",  #'pick_startX', 'pick_endX',
+        "pick_show_narwhals.exceptions.DuplicateErrornarwhals.exceptions.DuplicateErrordecoration",  #'pick_startX', 'pick_endX',
         *list(lod.cbar_range_sliders.keys()),  # noqa
         "pick_autorange",
         "pick_TS_color_variable",
@@ -1052,22 +1061,9 @@ class GliderDashboard(param.Parameterized):
 
         # print(fD_inview)
         # mydslist = [name for name in all_dataset_names if '_small' not in name]
-
-        if self.pick_toggle == "SAMBA obs.":
-            # first case, , user selected an aggregation, e.g. 'Bornholm Basin'
-            #
-            fD_inview = fD_inview[
-                fD_inview["institution"] == "Voice of the Ocean Foundation"
-            ]
-            meta = lod.metadata.loc[
-                [name for name in fD_inview.index if "delayed" not in name]
-            ]
-            meta = meta[meta["basin"] == self.pick_basin]
-            meta = meta[meta["project"] == "SAMBA"]
-            meta = utils.drop_overlaps_fast(meta)
-
-        else:
-            meta = lod.allDatasets.loc[self.pick_dsids]
+        fD_inview = fD_inview[fD_inview["institution"] == self.pick_institution]
+        # if self.pick_dsids:
+        # meta = lod.allDatasets.loc[self.pick_dsids]
 
         # print(f'len of meta is {len(meta)} in load_viewport_datasets')
         if (x1 - x0) > np.timedelta64(720, "D"):
@@ -1094,7 +1090,7 @@ class GliderDashboard(param.Parameterized):
             plt_props["zoomed_out"] = False
             plt_props["dynfontsize"] = 10
             plt_props["subsample_freq"] = 1
-        return lod.allDatasets.loc[meta.index], plt_props
+        return lod.allDatasets.loc[fD_inview.index], plt_props
 
     def get_xsection_mld(self, x_range, y_range):
         # print("DATA IN VIEW:", self.data_in_view.collect())
@@ -1517,6 +1513,7 @@ class GliderDashboard(param.Parameterized):
         if pn.state.location:
             other_cntrls = {
                 "pick_basin": "pick_basin",
+                "pick_institution": "pick_institution",
                 "pick_GDAC": "pick_GDAC",
                 "pick_dsids": "pick_dsids",
                 "pick_toggle": "pick_toggle",
@@ -1602,7 +1599,12 @@ class GliderDashboard(param.Parameterized):
                     "Choose dataset(s)",
                     pn.Param(
                         self,
-                        parameters=["pick_toggle", "pick_basin", "pick_dsids"],
+                        parameters=[
+                            "pick_toggle",
+                            "pick_basin",
+                            "pick_dsids",
+                            "pick_institution",
+                        ],
                         widgets={
                             "pick_toggle": {
                                 "type": pn.widgets.RadioButtonGroup,
