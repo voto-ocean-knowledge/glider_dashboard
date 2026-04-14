@@ -343,8 +343,8 @@ class GliderDashboard(param.Parameterized):
         variables = set(variables)
         variables.add("temperature")  # inplace operations
         variables.add("salinity")
-        kdims = set(["time", "depth"])
-        for variable in variables.intersection(kdims):
+        kdims = ["time", "depth"]
+        for variable in variables.intersection(set(kdims)):
             data = data.with_columns(pl.col(variable).alias(variable + " "))
             variables.remove(variable)
             variables.add(variable + " ")
@@ -1318,12 +1318,11 @@ class GliderDashboard(param.Parameterized):
         return mplt
 
     def get_xsection_TS(self, x_range, y_range):
-        kdims = set(
-            [
-                self.pick_scatter_x,
-                self.pick_scatter_y,
-            ]
-        )
+        kdims = [
+            self.pick_scatter_x,
+            self.pick_scatter_y,
+        ]
+
         data = self.data_in_view.filter(
             (pl.col("time") > self.startX)
             & (pl.col("time") < self.endX)
@@ -1332,14 +1331,14 @@ class GliderDashboard(param.Parameterized):
         )
 
         if self.pick_TS_color_variable:
-            vdims = set([self.pick_TS_color_variable])
+            vdims = self.pick_TS_color_variable  # set([self.pick_TS_color_variable])
             mplt = hv.Points(
                 data=data,
-                kdims=list(kdims),
-                vdims=list(vdims),
+                kdims=kdims,
+                vdims=vdims,
             )
         else:
-            mplt = hv.Points(data=data, kdims=list(kdims))
+            mplt = hv.Points(data=data, kdims=kdims)
         return mplt
 
     def get_xsection_profiles(self, x_range, y_range):
@@ -1498,7 +1497,7 @@ class GliderDashboard(param.Parameterized):
         ).group_by("profile_num")
 
         mld = groups.map_groups(
-            lambda group_df: mld_profile(group_df, "temperature", 0.3, 5, False),
+            lambda group_df: lod.mld_profile(group_df, "temperature", 0.3, 5, False),
             schema=pl.Schema(
                 {
                     "mld": pl.Float32,
