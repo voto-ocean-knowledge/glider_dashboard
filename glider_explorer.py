@@ -309,12 +309,12 @@ class GliderDashboard(param.Parameterized):
     def update_markdown(self, x_range, y_range):
         metadata = lod.metadata
 
-        if x_range == (None, None): #   Init to definition in the data
+        if x_range == (None, None):  #   Init to definition in the data
             time_start = self.data_in_view.select("time").first().collect()[0, 0]
             time_end = self.data_in_view.select("time").last().collect()[0, 0]
         else:
-            time_start = x_range[0].astype('datetime64[us]').astype('O')
-            time_end = x_range[1].astype('datetime64[us]').astype('O')
+            time_start = x_range[0].astype("datetime64[us]").astype("O")
+            time_end = x_range[1].astype("datetime64[us]").astype("O")
         duration_d = np.round((time_end - time_start) / np.timedelta64(1, "D"), 1)
         n_prof = int(
             self.data_in_view.select("profile_num").last().collect()[0, 0]
