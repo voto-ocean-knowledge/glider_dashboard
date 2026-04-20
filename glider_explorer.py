@@ -307,9 +307,19 @@ class GliderDashboard(param.Parameterized):
     endY = None
 
     def update_markdown(self, x_range, y_range):
+        metadata = lod.metadata
+        time_start = self.data_in_view.select("time").first().collect()[0, 0]
+        time_end = self.data_in_view.select("time").last().collect()[0, 0]
+        duration_d = (time_end - time_start).days
+        n_prof = int(
+            self.data_in_view.select("profile_num").last().collect()[0, 0]
+            - self.data_in_view.select("profile_num").first().collect()[0, 0]
+        )
+        max_d = self.data_in_view.select("depth").max().collect()[0, 0]
+
         p1 = """\
-             # About
-             Ocean """
+# About
+Ocean """
         for variable in self.pick_variables:
             description = (
                 f"{variable} in [{dictionaries.units_dict.get(variable, '')}], "
@@ -320,17 +330,112 @@ class GliderDashboard(param.Parameterized):
         else:  # self.pick_toggle == "SAMBA obs.":
             p2 = f"""for the region {self.pick_basin} """
         # try:
-        p3 = f"""from {self.data_in_view.select("time").first().collect()[0, 0]} to {self.data_in_view.select("time").last().collect()[0, 0]}. """
+        p3 = f"""from {time_start} to {time_end}. """
         # except:
         #    import pdb
         #    pdb.set_trace()
-        p4 = f"""Number of profiles {
-            self.data_in_view.select("profile_num").last().collect()[0, 0]
-            - self.data_in_view.select("profile_num").first().collect()[0, 0]
-        } """
+        p4 = f"""Number of profiles {n_prof}."""
 
-        self.markdown.object = p1 + p2 + p3 + p4  # +r"$$\frac{1}{n}$$"
-        return p1 + p2 + p3 + p4
+        #   Table 1: Basic summary of the view.
+        table1 = f"""
+<b>Data Summary</b>
+
+| Metric                | Value                     |
+|-----------------------|---------------------------|
+| Range Start           | {time_start.strftime("%Y-%m-%d %H:%M:%S")} |
+| Range End             | {time_end.strftime("%Y-%m-%d %H:%M:%S")}   |
+| Duration (Days)       | {duration_d}              |
+| Number of Profiles    | {n_prof}                  |
+| Maximum Depth (m)     | {max_d:.2f}               |
+"""
+
+        #   Table 2: Statistics for the picked variables in "Contour plot options".
+        def var_row(variable):
+            """For a specified variable, create a table row with basic stats"""
+            try:
+                min_val = self.data_in_view.select(variable).min().collect()[0, 0]
+                max_val = self.data_in_view.select(variable).max().collect()[0, 0]
+                mean_val = self.data_in_view.select(variable).mean().collect()[0, 0]
+                stdev_val = self.data_in_view.select(variable).std().collect()[0, 0]
+                return f"| {variable} | {min_val:.2f} / {max_val:.2f} / {mean_val:.2f} / {stdev_val:.2f} |"
+            except Exception as e:
+                print(f"Error calculating stats for {variable}: {e}")
+                return f"| {variable} | N/A |"
+
+        table_var_rows = []
+        for variable in self.pick_variables:
+            table_var_rows.append(var_row(variable))
+            if str(variable + "_qc") in self.data_in_view.collect_schema():
+                table_var_rows.append(var_row(variable + "_qc"))
+        table_var_to_add = "\n".join(table_var_rows)
+
+        table2 = f"""
+<b>Picked Variable Statistics</b>
+
+| Variable         | Min / Max / Mean / Stdev  |
+|------------------|---------------------------|
+{table_var_to_add}
+"""
+
+        #   Table 3: Pull the metadata for datasetIDs within the current time period.
+        current_meta = metadata[
+            (metadata["time_coverage_start (UTC)"] <= time_end)
+            & (metadata["time_coverage_end (UTC)"] >= time_start)
+        ]
+
+        meta_rows = ""
+        for (
+            idx,
+            row,
+        ) in current_meta.iterrows():
+            #   Create nested tables, summary formatting makes Parameters collapsible
+            params = "".join(
+                f"<tr><td>{col}</td><td>{row[col]}</td></tr>" for col in row.index
+            )
+            meta_rows += f"""
+<tr>
+<td>{idx}</td>
+<td>
+    <details>
+    <summary>Show parameters</summary>
+    <table>
+        <tr><th>Parameter</th><th>Value</th></tr>
+        {params}
+    </table>
+    </details>
+</td>
+</tr>
+"""
+
+        table3 = f"""
+<b>Datasets in Current Temporal View</b>
+
+<table>
+  <tr><th>DatasetID</th><th>Parameters</th></tr>
+  {meta_rows}
+</table>
+"""
+
+        tables_side_by_side = f"""
+<div style="display: flex; gap: 20px;">
+<div style="flex: 1;">
+{table1}
+</div>
+<div style="flex: 1;">
+{table2}
+</div>
+<div style="flex: 1;">
+{table3}
+</div>
+</div>
+"""
+        self.markdown.object = (
+            p1 + p2 + p3 + p4 + tables_side_by_side
+        )  # +r"$$\frac{1}{n}$$"
+        return p1 + p2 + p3 + p4 + tables_side_by_side
+        #   Max/min/mean values of chosen variables
+        #   List different missions, each collapsible, with list of sensors from metadata
+        #   Data quality flags for chosen variables? (add a link to QC sheets and scripts)
 
     # empty initialization for use later
     markdown = pn.pane.Markdown("")
@@ -793,6 +898,7 @@ class GliderDashboard(param.Parameterized):
                     "crosshair",  # show where the mouse is on axis
                     "box_zoom",  # zoom on selection along x
                     "undo",  # undo action
+                    "reset",  # reset view
                     "hover",
                     "tap",
                     "save",
