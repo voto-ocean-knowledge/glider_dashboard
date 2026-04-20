@@ -70,7 +70,7 @@ pn.extension(
     exception_handler=exception_handler,
     notifications=True,
     nthreads=0,
-    defer_load=True,
+    # defer_load=True,
 )
 
 text_opts = hv.opts.Text(text_align="left", text_color="black", fontsize=10)
@@ -308,9 +308,14 @@ class GliderDashboard(param.Parameterized):
 
     def update_markdown(self, x_range, y_range):
         metadata = lod.metadata
-        time_start = self.data_in_view.select("time").first().collect()[0, 0]
-        time_end = self.data_in_view.select("time").last().collect()[0, 0]
-        duration_d = (time_end - time_start).days
+
+        if x_range == (None, None): #   Init to definition in the data
+            time_start = self.data_in_view.select("time").first().collect()[0, 0]
+            time_end = self.data_in_view.select("time").last().collect()[0, 0]
+        else:
+            time_start = x_range[0].astype('datetime64[us]').astype('O')
+            time_end = x_range[1].astype('datetime64[us]').astype('O')
+        duration_d = np.round((time_end - time_start) / np.timedelta64(1, "D"), 1)
         n_prof = int(
             self.data_in_view.select("profile_num").last().collect()[0, 0]
             - self.data_in_view.select("profile_num").first().collect()[0, 0]
@@ -429,6 +434,7 @@ Ocean """
 </div>
 </div>
 """
+        # breakpoint()
         self.markdown.object = (
             p1 + p2 + p3 + p4 + tables_side_by_side
         )  # +r"$$\frac{1}{n}$$"
