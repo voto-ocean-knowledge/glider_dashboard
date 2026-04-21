@@ -23,18 +23,19 @@ def test_import():
 
 def test_dataset_is_loaded():
     # data is loaded
-    assert len(gdb.metadata) > 0
-    print(gdb.metadata)
+    assert len(gdb.lod.metadata) > 0
+    print(gdb.lod.metadata)
 
 
 def test_filter_metadata():
     gdb.utils.year = 2024
     metadata = gdb.utils.filter_metadata()
-    print(len(gdb.metadata))
+    print(len(gdb.lod.metadata))
     print(len(metadata))
 
 
-def test_salinity():
+def test_salinity(tmp_path):
+    # breakpoint()
     GDB = gdb.GliderDashboard()
     # GDB.startX = np.datetime64('2024-03-01')
     # GDB.endX = np.datetime64('2024-05-01')
@@ -48,12 +49,12 @@ def test_salinity():
     t1 = time.perf_counter()
     dyn = GDB.create_dynmap()  # .opts(width=500, height=500)
     # myapp = pn.panel(dyn)
-    dyn.save(join(outpath, "salinity.png"))
+    dyn.save(join(tmp_path, "salinity.png"))
     t2 = time.perf_counter()
     print("creating the first serve took", t2 - t1)
 
 
-def test_temperature():
+def test_temperature(tmp_path):
     GDB = gdb.GliderDashboard()
     # GDB.startX = np.datetime64('2024-03-01')
     # GDB.endX = np.datetime64('2024-05-01')
@@ -65,7 +66,7 @@ def test_temperature():
     t1 = time.perf_counter()
     GDB.pick_variable = "temperature"
     dyn = GDB.create_dynmap()
-    dyn.save(join(outpath, "temperature.png"))
+    dyn.save(join(tmp_path, "temperature.png"))
     t2 = time.perf_counter()
     print("creating the second serve took", t2 - t1)
     t = timeit.Timer(
@@ -89,7 +90,7 @@ def test_temperature():
     GDB.pick_scatter_y = "pressure"
     dyn = GDB.create_dynmap()  # .opts(width=500, height=500)
     myapp = pn.panel(dyn)
-    dyn.save(join(outpath, "TS.png"))
+    dyn.save(join(tmp_path, "TS.png"))
     GDB.pick_TS = False
 
     # activate profile plots
@@ -110,7 +111,7 @@ def test_temperature():
     GDB.cnorm = "eq_hist"
     dyn = GDB.create_dynmap()  # .opts(width=500, height=500)
     myapp = pn.panel(dyn)
-    dyn.save(join(outpath, "eq_hist.png"))
+    dyn.save(join(tmp_path, "eq_hist.png"))
     GDB.pick_cnorm = "linear"
 
     assert 1 == 1
