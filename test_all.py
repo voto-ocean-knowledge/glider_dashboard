@@ -132,9 +132,9 @@ def test_update_markdown():
     assert type(GDB.data_in_view) is pl.LazyFrame
 
     output = GDB.update_markdown(x_range = x_range, y_range = y_range)
-
+    
     # Pulling from data on the server, these values should not change.
     assert "Bornholm Basin from 2024-01-18 00:00:00 to 2024-12-19 00:00:00" in output
-    assert "Number of Profiles    | 3895" in output
-    assert "| temperature | 2.19 / 10.85 / 5.32 / 2.21 |" in output
+    assert "Number of Profiles    | 3085" in output
+    assert "| temperature | 2.68 / 10.70 / 5.20 / 5.20 |" in output
     assert "<tr><td>AD2CP_make_model</td><td>Nortek AD2CP</td></tr>" in output

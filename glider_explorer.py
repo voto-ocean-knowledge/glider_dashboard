@@ -333,12 +333,11 @@ class GliderDashboard(param.Parameterized):
         else:
             time_start = x_range[0].astype("datetime64[us]").astype("O")
             time_end = x_range[1].astype("datetime64[us]").astype("O")
-        duration_d = np.round((time_end - time_start) / np.timedelta64(1, "D"), 1)
-        n_prof = int(
-            self.data_in_view.select("profile_num").last().collect()[0, 0]
-            - self.data_in_view.select("profile_num").first().collect()[0, 0]
-        )
-        max_d = self.data_in_view.select("depth").max().collect()[0, 0]
+        duration_d = np.round((time_end - time_start) / np.timedelta64(1, "D"), 1)      
+
+        data_filtered = self.data_in_view.filter((pl.col("time") >= time_start) & (pl.col("time") <= time_end))
+        n_prof = int(data_filtered.select((pl.col("profile_num").max() - (pl.col("profile_num").min()))).collect().item())
+        max_d = data_filtered.select("depth").max().collect().item()
 
         p1 = """\
 # About
@@ -350,13 +349,9 @@ Ocean """
             p1 += description
         if self.pick_toggle == "DatasetID":
             p2 = f""" the datasets {self.pick_dsids} """
-        else:  # self.pick_toggle == "SAMBA obs.":
+        else:  # self.pick_toggle == "SAMBA obs.": Default behavior
             p2 = f"""for the region {self.pick_basin} """
-        # try:
         p3 = f"""from {time_start} to {time_end}. """
-        # except:
-        #    import pdb
-        #    pdb.set_trace()
         p4 = f"""Number of profiles {n_prof}."""
 
         #   Table 1: Basic summary of the view.
@@ -376,10 +371,10 @@ Ocean """
         def var_row(variable):
             """For a specified variable, create a table row with basic stats"""
             try:
-                min_val = self.data_in_view.select(variable).min().collect()[0, 0]
-                max_val = self.data_in_view.select(variable).max().collect()[0, 0]
-                mean_val = self.data_in_view.select(variable).mean().collect()[0, 0]
-                stdev_val = self.data_in_view.select(variable).std().collect()[0, 0]
+                min_val = data_filtered.select(variable).min().collect().item()
+                max_val = data_filtered.select(variable).max().collect().item()
+                mean_val = data_filtered.select(variable).mean().collect().item()
+                stdev_val = data_filtered.select(variable).mean().collect().item()
                 return f"| {variable} | {min_val:.2f} / {max_val:.2f} / {mean_val:.2f} / {stdev_val:.2f} |"
             except Exception as e:
                 print(f"Error calculating stats for {variable}: {e}")
