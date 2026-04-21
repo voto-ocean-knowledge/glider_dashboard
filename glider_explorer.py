@@ -306,7 +306,25 @@ class GliderDashboard(param.Parameterized):
     startY = None
     endY = None
 
-    def update_markdown(self, x_range, y_range):
+    def update_markdown(self, x_range: tuple, y_range: tuple) -> str:
+        """
+        Updates markdown information below the plots on the page based on the currently visible ranges of data.
+
+        y_range is typically `depth`.
+
+        Parameters
+        ----------
+        x_range : tuple of numpy.datetime64
+            The start[0] and end[1] of the X domain (time) currently visible data on the plot.
+        y_range : tuple of np.float64
+            The minimum[0] and maximum[1] of the Y domain currently visible on the plot.
+
+        Return
+        ------
+        all_markdown : str
+            String of updated markdown, including paragraph summaries of data within the view and tables
+            of statistics.
+        """
         metadata = lod.metadata
 
         if x_range == (None, None):  #   Init to definition in the data
@@ -434,11 +452,9 @@ Ocean """
 </div>
 </div>
 """
-        # breakpoint()
-        self.markdown.object = (
-            p1 + p2 + p3 + p4 + tables_side_by_side
-        )  # +r"$$\frac{1}{n}$$"
-        return p1 + p2 + p3 + p4 + tables_side_by_side
+        all_markdown = p1 + p2 + p3 + p4 + tables_side_by_side
+        self.markdown.object = all_markdown  # +r"$$\frac{1}{n}$$"
+        return all_markdown
         #   Max/min/mean values of chosen variables
         #   List different missions, each collapsible, with list of sensors from metadata
         #   Data quality flags for chosen variables? (add a link to QC sheets and scripts)
