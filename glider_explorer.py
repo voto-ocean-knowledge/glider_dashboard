@@ -540,9 +540,9 @@ class GliderDashboard(param.Parameterized):
             "output.parquet", embed=False, filename="dataframe.parquet", align="end"
         )
         # remove previously generate download links
-        for index, element in enumerate(mylayout):
+        for index, element in enumerate(self.mylayout):
             if type(element) == pn.widgets.misc.FileDownload:
-                mylayout.pop(index)
+                self.mylayout.pop(index)
         self.mylayout.append(self.file_download)
 
     @param.depends(
@@ -1680,6 +1680,7 @@ class GliderDashboard(param.Parameterized):
                             "pick_mld",
                             "pick_high_resolution",
                             "pick_show_decoration",
+                            "button",
                         ],
                     ),
                 ),
