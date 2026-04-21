@@ -70,7 +70,7 @@ pn.extension(
     exception_handler=exception_handler,
     notifications=True,
     nthreads=0,
-    # defer_load=True,
+    # defer_load=True, # forgets to import important modules. Not useful.
 )
 
 text_opts = hv.opts.Text(text_align="left", text_color="black", fontsize=10)
