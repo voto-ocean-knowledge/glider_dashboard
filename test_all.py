@@ -5,6 +5,7 @@ from os.path import join
 
 import numpy as np
 import panel as pn
+import polars as pl
 
 import glider_explorer as gdb
 
@@ -13,7 +14,7 @@ import glider_explorer as gdb
 # 2. Are datapoints still drawn if zoomed all the way in to a single day?
 # 3. Can the x_range be defined by (url-) parameters?
 # 4. Tipp: I could probably implement tests the same way I implement events.
-outpath = "./test_plots"
+# outpath = "./test_plots"
 
 
 def test_import():
@@ -115,3 +116,25 @@ def test_temperature(tmp_path):
     GDB.pick_cnorm = "linear"
 
     assert 1 == 1
+
+def test_update_markdown():
+    import utils
+    # breakpoint()
+    GDB = gdb.GliderDashboard()
+    x_range = (np.datetime64("2024-01-18"), np.datetime64("2024-12-19"))
+    y_range = (np.float64(0), np.float64(50.5))
+    assert "pick_toggle" in dir(GDB)
+    assert GDB.pick_toggle == "SAMBA obs."  #   Should default to SAMBA
+    assert GDB.pick_variables == ["temperature"]
+
+    #   To make data_on_view, we need to concat the LazyFrames in varlist (get_xsection_raster)
+    GDB.get_xsection_raster(x_range = x_range, y_range = y_range, x = None, y = None)
+    assert type(GDB.data_in_view) is pl.LazyFrame
+
+    output = GDB.update_markdown(x_range = x_range, y_range = y_range)
+
+    # Pulling from data on the server, these values should not change.
+    assert "Bornholm Basin from 2024-01-18 00:00:00 to 2024-12-19 00:00:00" in output
+    assert "Number of Profiles    | 3895" in output
+    assert "| temperature | 2.19 / 10.85 / 5.32 / 2.21 |" in output
+    assert "<tr><td>AD2CP_make_model</td><td>Nortek AD2CP</td></tr>" in output
