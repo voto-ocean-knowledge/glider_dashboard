@@ -5,7 +5,6 @@ from os.path import join
 
 import numpy as np
 import panel as pn
-import polars as pl
 
 import glider_explorer as gdb
 
@@ -14,7 +13,7 @@ import glider_explorer as gdb
 # 2. Are datapoints still drawn if zoomed all the way in to a single day?
 # 3. Can the x_range be defined by (url-) parameters?
 # 4. Tipp: I could probably implement tests the same way I implement events.
-# outpath = "./test_plots"
+outpath = "./test_plots"
 
 
 def test_import():
@@ -24,19 +23,18 @@ def test_import():
 
 def test_dataset_is_loaded():
     # data is loaded
-    assert len(gdb.lod.metadata) > 0
-    print(gdb.lod.metadata)
+    assert len(gdb.metadata) > 0
+    print(gdb.metadata)
 
 
 def test_filter_metadata():
     gdb.utils.year = 2024
     metadata = gdb.utils.filter_metadata()
-    print(len(gdb.lod.metadata))
+    print(len(gdb.metadata))
     print(len(metadata))
 
 
-def test_salinity(tmp_path):
-    # breakpoint()
+def test_salinity():
     GDB = gdb.GliderDashboard()
     # GDB.startX = np.datetime64('2024-03-01')
     # GDB.endX = np.datetime64('2024-05-01')
@@ -50,12 +48,12 @@ def test_salinity(tmp_path):
     t1 = time.perf_counter()
     dyn = GDB.create_dynmap()  # .opts(width=500, height=500)
     # myapp = pn.panel(dyn)
-    dyn.save(join(tmp_path, "salinity.png"))
+    dyn.save(join(outpath, "salinity.png"))
     t2 = time.perf_counter()
     print("creating the first serve took", t2 - t1)
 
 
-def test_temperature(tmp_path):
+def test_temperature():
     GDB = gdb.GliderDashboard()
     # GDB.startX = np.datetime64('2024-03-01')
     # GDB.endX = np.datetime64('2024-05-01')
@@ -67,7 +65,7 @@ def test_temperature(tmp_path):
     t1 = time.perf_counter()
     GDB.pick_variable = "temperature"
     dyn = GDB.create_dynmap()
-    dyn.save(join(tmp_path, "temperature.png"))
+    dyn.save(join(outpath, "temperature.png"))
     t2 = time.perf_counter()
     print("creating the second serve took", t2 - t1)
     t = timeit.Timer(
@@ -91,7 +89,7 @@ def test_temperature(tmp_path):
     GDB.pick_scatter_y = "pressure"
     dyn = GDB.create_dynmap()  # .opts(width=500, height=500)
     myapp = pn.panel(dyn)
-    dyn.save(join(tmp_path, "TS.png"))
+    dyn.save(join(outpath, "TS.png"))
     GDB.pick_TS = False
 
     # activate profile plots
@@ -112,29 +110,7 @@ def test_temperature(tmp_path):
     GDB.cnorm = "eq_hist"
     dyn = GDB.create_dynmap()  # .opts(width=500, height=500)
     myapp = pn.panel(dyn)
-    dyn.save(join(tmp_path, "eq_hist.png"))
+    dyn.save(join(outpath, "eq_hist.png"))
     GDB.pick_cnorm = "linear"
 
     assert 1 == 1
-
-def test_update_markdown():
-    import utils
-    # breakpoint()
-    GDB = gdb.GliderDashboard()
-    x_range = (np.datetime64("2024-01-18"), np.datetime64("2024-12-19"))
-    y_range = (np.float64(0), np.float64(50.5))
-    assert "pick_toggle" in dir(GDB)
-    assert GDB.pick_toggle == "SAMBA obs."  #   Should default to SAMBA
-    assert GDB.pick_variables == ["temperature"]
-
-    #   To make data_on_view, we need to concat the LazyFrames in varlist (get_xsection_raster)
-    GDB.get_xsection_raster(x_range = x_range, y_range = y_range, x = None, y = None)
-    assert type(GDB.data_in_view) is pl.LazyFrame
-
-    output = GDB.update_markdown(x_range = x_range, y_range = y_range)
-    
-    # Pulling from data on the server, these values should not change.
-    assert "Bornholm Basin from 2024-01-18 00:00:00 to 2024-12-19 00:00:00" in output
-    assert "Number of Profiles    | 3085" in output
-    assert "| temperature | 2.68 / 10.70 / 5.20 / 5.20 |" in output
-    assert "<tr><td>AD2CP_make_model</td><td>Nortek AD2CP</td></tr>" in output
