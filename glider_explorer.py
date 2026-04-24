@@ -306,42 +306,10 @@ class GliderDashboard(param.Parameterized):
     startY = None
     endY = None
 
-    def update_markdown(self, x_range: tuple, y_range: tuple) -> str:
-        """
-        Updates markdown information below the plots on the page based on the currently visible ranges of data.
-
-        y_range is typically `depth`.
-
-        Parameters
-        ----------
-        x_range : tuple of numpy.datetime64
-            The start[0] and end[1] of the X domain (time) currently visible data on the plot.
-        y_range : tuple of np.float64
-            The minimum[0] and maximum[1] of the Y domain currently visible on the plot.
-
-        Return
-        ------
-        all_markdown : str
-            String of updated markdown, including paragraph summaries of data within the view and tables
-            of statistics.
-        """
-        metadata = lod.metadata
-
-        if x_range == (None, None):  #   Init to definition in the data
-            time_start = self.data_in_view.select("time").first().collect()[0, 0]
-            time_end = self.data_in_view.select("time").last().collect()[0, 0]
-        else:
-            time_start = x_range[0].astype("datetime64[us]").astype("O")
-            time_end = x_range[1].astype("datetime64[us]").astype("O")
-        duration_d = np.round((time_end - time_start) / np.timedelta64(1, "D"), 1)      
-
-        data_filtered = self.data_in_view.filter((pl.col("time") >= time_start) & (pl.col("time") <= time_end))
-        n_prof = int(data_filtered.select((pl.col("profile_num").max() - (pl.col("profile_num").min()))).collect().item())
-        max_d = data_filtered.select("depth").max().collect().item()
-
+    def update_markdown(self, x_range, y_range):
         p1 = """\
-# About
-Ocean """
+             # About
+             Ocean """
         for variable in self.pick_variables:
             description = (
                 f"{variable} in [{dictionaries.units_dict.get(variable, '')}], "
@@ -349,110 +317,20 @@ Ocean """
             p1 += description
         if self.pick_toggle == "DatasetID":
             p2 = f""" the datasets {self.pick_dsids} """
-        else:  # self.pick_toggle == "SAMBA obs.": Default behavior
+        else:  # self.pick_toggle == "SAMBA obs.":
             p2 = f"""for the region {self.pick_basin} """
-        p3 = f"""from {time_start} to {time_end}. """
-        p4 = f"""Number of profiles {n_prof}."""
+        # try:
+        p3 = f"""from {self.data_in_view.select("time").first().collect()[0, 0]} to {self.data_in_view.select("time").last().collect()[0, 0]}. """
+        # except:
+        #    import pdb
+        #    pdb.set_trace()
+        p4 = f"""Number of profiles {
+            self.data_in_view.select("profile_num").last().collect()[0, 0]
+            - self.data_in_view.select("profile_num").first().collect()[0, 0]
+        } """
 
-        #   Table 1: Basic summary of the view.
-        table1 = f"""
-<b>Data Summary</b>
-
-| Metric                | Value                     |
-|-----------------------|---------------------------|
-| Range Start           | {time_start.strftime("%Y-%m-%d %H:%M:%S")} |
-| Range End             | {time_end.strftime("%Y-%m-%d %H:%M:%S")}   |
-| Duration (Days)       | {duration_d}              |
-| Number of Profiles    | {n_prof}                  |
-| Maximum Depth (m)     | {max_d:.2f}               |
-"""
-
-        #   Table 2: Statistics for the picked variables in "Contour plot options".
-        def var_row(variable):
-            """For a specified variable, create a table row with basic stats"""
-            try:
-                min_val = data_filtered.select(variable).min().collect().item()
-                max_val = data_filtered.select(variable).max().collect().item()
-                mean_val = data_filtered.select(variable).mean().collect().item()
-                stdev_val = data_filtered.select(variable).mean().collect().item()
-                return f"| {variable} | {min_val:.2f} / {max_val:.2f} / {mean_val:.2f} / {stdev_val:.2f} |"
-            except Exception as e:
-                print(f"Error calculating stats for {variable}: {e}")
-                return f"| {variable} | N/A |"
-
-        table_var_rows = []
-        for variable in self.pick_variables:
-            table_var_rows.append(var_row(variable))
-            if str(variable + "_qc") in self.data_in_view.collect_schema():
-                table_var_rows.append(var_row(variable + "_qc"))
-        table_var_to_add = "\n".join(table_var_rows)
-
-        table2 = f"""
-<b>Picked Variable Statistics</b>
-
-| Variable         | Min / Max / Mean / Stdev  |
-|------------------|---------------------------|
-{table_var_to_add}
-"""
-
-        #   Table 3: Pull the metadata for datasetIDs within the current time period.
-        current_meta = metadata[
-            (metadata["time_coverage_start (UTC)"] <= time_end)
-            & (metadata["time_coverage_end (UTC)"] >= time_start)
-        ]
-
-        meta_rows = ""
-        for (
-            idx,
-            row,
-        ) in current_meta.iterrows():
-            #   Create nested tables, summary formatting makes Parameters collapsible
-            params = "".join(
-                f"<tr><td>{col}</td><td>{row[col]}</td></tr>" for col in row.index
-            )
-            meta_rows += f"""
-<tr>
-<td>{idx}</td>
-<td>
-    <details>
-    <summary>Show parameters</summary>
-    <table>
-        <tr><th>Parameter</th><th>Value</th></tr>
-        {params}
-    </table>
-    </details>
-</td>
-</tr>
-"""
-
-        table3 = f"""
-<b>Datasets in Current Temporal View</b>
-
-<table>
-  <tr><th>DatasetID</th><th>Parameters</th></tr>
-  {meta_rows}
-</table>
-"""
-
-        tables_side_by_side = f"""
-<div style="display: flex; gap: 20px;">
-<div style="flex: 1;">
-{table1}
-</div>
-<div style="flex: 1;">
-{table2}
-</div>
-<div style="flex: 1;">
-{table3}
-</div>
-</div>
-"""
-        all_markdown = p1 + p2 + p3 + p4 + tables_side_by_side
-        self.markdown.object = all_markdown  # +r"$$\frac{1}{n}$$"
-        return all_markdown
-        #   Max/min/mean values of chosen variables
-        #   List different missions, each collapsible, with list of sensors from metadata
-        #   Data quality flags for chosen variables? (add a link to QC sheets and scripts)
+        self.markdown.object = p1 + p2 + p3 + p4  # +r"$$\frac{1}{n}$$"
+        return p1 + p2 + p3 + p4
 
     # empty initialization for use later
     markdown = pn.pane.Markdown("")
@@ -915,7 +793,6 @@ Ocean """
                     "crosshair",  # show where the mouse is on axis
                     "box_zoom",  # zoom on selection along x
                     "undo",  # undo action
-                    "reset",  # reset view
                     "hover",
                     "tap",
                     "save",
