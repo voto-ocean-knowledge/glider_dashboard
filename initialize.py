@@ -88,6 +88,7 @@ for dataset_id in all_dataset_ids:
 
 for dataset_id in all_dataset_ids:
     if not (dataset_id[0:7] == "delayed"):
+        # we do not have/provide VOTO nrt ADCP data
         continue
     if os.path.isfile(f"../voto_erddap_data_cache/{dataset_id}.parquet"):
         print(
