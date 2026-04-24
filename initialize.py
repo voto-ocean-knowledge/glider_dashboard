@@ -87,9 +87,9 @@ for dataset_id in all_dataset_ids:
                 print(f"no adcp data for {dataset_id}")
 
 for dataset_id in all_dataset_ids:
-    if not (dataset_id[0:7] == "delayed"):
-        # we do not have/provide VOTO nrt ADCP data
-        continue
+    # if not (dataset_id[0:7] == "delayed"):
+    #    # we do not have/provide VOTO nrt ADCP data
+    #    continue
     if os.path.isfile(f"../voto_erddap_data_cache/{dataset_id}.parquet"):
         print(
             f"combined {dataset_id} data/adcp file already exists, skip"
