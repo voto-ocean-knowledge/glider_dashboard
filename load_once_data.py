@@ -1,37 +1,10 @@
-import logging
-
+import numpy as np
 import pandas as pd
-import panel as pn
 import param
 import polars as pl
 import polars.selectors as cs
 
 import utils
-
-
-def exception_handler(ex):
-
-    logging.error("Error", exc_info=ex)
-    # import pdb
-
-    # pdb.set_trace()
-    # if (len(GliderDashboard.pick_dsids) == 0) and (
-    #    GliderDashboard.pick_toggle == "DatasetID"
-    # ):  #
-    if GliderDashboard.data_in_view is None:
-        pn.state.notifications.error(
-            "Please proceed by selecting one or more datasets to display",
-            duration=10000,
-        )
-    else:
-        pn.state.notifications.error(
-            "Please complete/change input parameters", duration=10000
-        )
-    # import pdb
-
-    # pdb.set_trace()
-    # pn.state.notifications.error(f"{ex}")
-
 
 all_metadata = utils.load_metadata_VOTO()
 

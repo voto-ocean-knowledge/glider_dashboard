@@ -1,3 +1,4 @@
+import pickle
 import pprint
 from ast import literal_eval
 
@@ -12,20 +13,30 @@ month = 2
 GDAC_data = False
 
 
-def load_ERDDAP_Datasets(erddap_url, dataset_id, format):
+def load_ERDDAP_Datasets(erddap_url, dataset_id, format, backup_name):
     server = erddap_url
     e = ERDDAP(
         server=server,
         protocol="tabledap",
         response=format,
     )
-    e.dataset_id = dataset_id
-    return e.to_pandas(index_col="datasetID", date_format="%f")
+    try:
+        # robust about network outage, enables local development without internet
+        e.dataset_id = dataset_id
+        df = e.to_pandas(index_col="datasetID", date_format="%f")
+        pickle.dump(df, open(f"{backup_name}.pkl", "wb"))
+    except:
+        print(f"WARNING: Could not update {backup_name} from erddap")
+        df = pickle.load(open(f"{backup_name}.pkl", "rb"))
+    return df
 
 
 def load_allDatasets_VOTO():
     allDatasetsVOTO = load_ERDDAP_Datasets(
-        "https://erddap.observations.voiceoftheocean.org/erddap", "allDatasets", "csv"
+        "https://erddap.observations.voiceoftheocean.org/erddap",
+        "allDatasets",
+        "csv",
+        "allDatasetsVOTO",
     )
     allDatasetsVOTO["minTime (UTC)"] = pd.to_datetime(allDatasetsVOTO["minTime (UTC)"])
     allDatasetsVOTO["maxTime (UTC)"] = pd.to_datetime(allDatasetsVOTO["maxTime (UTC)"])
@@ -37,8 +48,12 @@ def load_allDatasets_VOTO():
 def load_allDatasets_GDAC():
     # I believe I want to plot these datasets actually against precise_time and not against time (which really is profile averaged time)
     allDatasetsGDAC = load_ERDDAP_Datasets(
-        "https://gliders.ioos.us/erddap", "allDatasets", "csv"
+        "https://gliders.ioos.us/erddap",
+        "allDatasets",
+        "csv",
+        "allDatasetsGDAC",
     )
+
     allDatasetsGDAC[
         allDatasetsGDAC["cdm_data_type"] == "TrajectoryProfile"
     ]  # filter out allDatasets table and other non-glider datasets
@@ -63,6 +78,7 @@ def load_metadata_VOTO():
         "https://erddap.observations.voiceoftheocean.org/erddap",
         "meta_metadata_table",
         "csv",
+        "metadata",
     )
 
     def obj_to_string(x):

@@ -1,4 +1,5 @@
 import datetime
+import logging
 import time
 
 import cmocean
@@ -26,8 +27,33 @@ import dictionaries
 import load_once_data as lod
 import utils
 
-pn.config.reconnect = True
+# pn.config.reconnect = True
 pn.config.notifications = True
+
+
+def exception_handler(ex):
+
+    logging.error("Error", exc_info=ex)
+    # import pdb
+
+    # pdb.set_trace()
+    # if (len(GliderDashboard.pick_dsids) == 0) and (
+    #    GliderDashboard.pick_toggle == "DatasetID"
+    # ):  #
+    if GDB.data_in_view is None:
+        pn.state.notifications.error(
+            "Please proceed by selecting one or more datasets to display",
+            duration=10000,
+        )
+    else:
+        pn.state.notifications.error(
+            "Please complete/change input parameters", duration=10000
+        )
+    # import pdb
+
+    # pdb.set_trace()
+    # pn.state.notifications.error(f"{ex}")
+
 
 pn.extension(
     "plotly",
@@ -41,8 +67,10 @@ pn.extension(
     #    ":root {--design-primary-color:lightgrey; --design-primary-text-color:black}"
     # ],
     loading_indicator=True,
-    exception_handler=lod.exception_handler,
+    exception_handler=exception_handler,
     notifications=True,
+    nthreads=0,
+    # defer_load=True, # forgets to import important modules. Not useful.
 )
 
 text_opts = hv.opts.Text(text_align="left", text_color="black", fontsize=10)
@@ -278,16 +306,49 @@ class GliderDashboard(param.Parameterized):
     startY = None
     endY = None
 
-    def update_markdown(self, x_range, y_range):
+    def update_markdown(self, x_range: tuple, y_range: tuple) -> str:
+        """
+        Updates markdown information below the plots on the page based on the currently visible ranges of data.
+
+        y_range is typically `depth`.
+
+        Parameters
+        ----------
+        x_range : tuple of numpy.datetime64
+            The start[0] and end[1] of the X domain (time) currently visible data on the plot.
+        y_range : tuple of np.float64
+            The minimum[0] and maximum[1] of the Y domain currently visible on the plot.
+
+        Return
+        ------
+        all_markdown : str
+            String of updated markdown, including paragraph summaries of data within the view and tables
+            of statistics.
+        """
         metadata = lod.metadata
-        time_start = self.data_in_view.select("time").first().collect()[0, 0]
-        time_end = self.data_in_view.select("time").last().collect()[0, 0]
-        duration_d = (time_end - time_start).days
-        n_prof = int(
-            self.data_in_view.select("profile_num").last().collect()[0, 0]
-            - self.data_in_view.select("profile_num").first().collect()[0, 0]
+
+        if x_range == (None, None):  #   Init to definition in the data
+            time_start = self.data_in_view.select("time").first().collect()[0, 0]
+            time_end = self.data_in_view.select("time").last().collect()[0, 0]
+        else:
+            time_start = x_range[0].astype("datetime64[us]").astype("O")
+            time_end = x_range[1].astype("datetime64[us]").astype("O")
+        # duration_d = np.round((time_end - time_start) / np.timedelta64(1, "D"), 1)
+        duration_d = (
+            np.timedelta64(time_end - time_start) / np.timedelta64(1, "D")
+        ).astype(int)
+
+        data_filtered = self.data_in_view.filter(
+            (pl.col("time") >= time_start) & (pl.col("time") <= time_end)
         )
-        max_d = self.data_in_view.select("depth").max().collect()[0, 0]
+        n_prof = int(
+            data_filtered.select(
+                (pl.col("profile_num").max() - (pl.col("profile_num").min()))
+            )
+            .collect()
+            .item()
+        )
+        max_d = data_filtered.select("depth").max().collect().item()
 
         p1 = """\
 # About
@@ -299,13 +360,9 @@ Ocean """
             p1 += description
         if self.pick_toggle == "DatasetID":
             p2 = f""" the datasets {self.pick_dsids} """
-        else:  # self.pick_toggle == "SAMBA obs.":
+        else:  # self.pick_toggle == "SAMBA obs.": Default behavior
             p2 = f"""for the region {self.pick_basin} """
-        # try:
         p3 = f"""from {time_start} to {time_end}. """
-        # except:
-        #    import pdb
-        #    pdb.set_trace()
         p4 = f"""Number of profiles {n_prof}."""
 
         #   Table 1: Basic summary of the view.
@@ -325,10 +382,10 @@ Ocean """
         def var_row(variable):
             """For a specified variable, create a table row with basic stats"""
             try:
-                min_val = self.data_in_view.select(variable).min().collect()[0, 0]
-                max_val = self.data_in_view.select(variable).max().collect()[0, 0]
-                mean_val = self.data_in_view.select(variable).mean().collect()[0, 0]
-                stdev_val = self.data_in_view.select(variable).std().collect()[0, 0]
+                min_val = data_filtered.select(variable).min().collect().item()
+                max_val = data_filtered.select(variable).max().collect().item()
+                mean_val = data_filtered.select(variable).mean().collect().item()
+                stdev_val = data_filtered.select(variable).mean().collect().item()
                 return f"| {variable} | {min_val:.2f} / {max_val:.2f} / {mean_val:.2f} / {stdev_val:.2f} |"
             except Exception as e:
                 print(f"Error calculating stats for {variable}: {e}")
@@ -401,10 +458,9 @@ Ocean """
 </div>
 </div>
 """
-        self.markdown.object = (
-            p1 + p2 + p3 + p4 + tables_side_by_side
-        )  # +r"$$\frac{1}{n}$$"
-        return p1 + p2 + p3 + p4 + tables_side_by_side
+        all_markdown = p1 + p2 + p3 + p4 + tables_side_by_side
+        self.markdown.object = all_markdown  # +r"$$\frac{1}{n}$$"
+        return all_markdown
         #   Max/min/mean values of chosen variables
         #   List different missions, each collapsible, with list of sensors from metadata
         #   Data quality flags for chosen variables? (add a link to QC sheets and scripts)
@@ -420,9 +476,15 @@ Ocean """
         variables = set(variables)
         variables.add("temperature")  # inplace operations
         variables.add("salinity")
+        kdims = ["time", "depth"]
+        for variable in variables.intersection(set(kdims)):
+            data = data.with_columns(pl.col(variable).alias(variable + " "))
+            variables.remove(variable)
+            variables.add(variable + " ")
+
         raster = hv.Points(
             data=data,
-            kdims=["time", "depth"],
+            kdims=list(kdims),
             vdims=list(variables),
             # temp and salinity need to always be present for TS lasso to work, set for unique elements
         )
@@ -646,9 +708,10 @@ Ocean """
 
         # This should only be a temporay hack. I don't want all that data to go into my TS plots.
         # dsconc = utils.voto_concat_datasets2(varlist)
-        dsconc = pl.concat([data for data in varlist], how="diagonal_relaxed")
-        dsconc = dsconc.with_columns(pl.col("depth")).sort("time")
-        self.param["pick_variables"].objects = dsconc.collect_schema().names()
+        if varlist:
+            dsconc = pl.concat([data for data in varlist], how="diagonal_relaxed")
+            dsconc = dsconc.with_columns(pl.col("depth")).sort("time")
+            self.param["pick_variables"].objects = dsconc.collect_schema().names()
         # self.data_in_view = dsconc
 
     @param.depends(
@@ -700,7 +763,7 @@ Ocean """
                 self.param.pick_activate_scatter_link.precedence = 1
                 self.param.pick_TS_color_variable.precedence = 1
             elif self.pick_scatter == "profiles":
-                self.pick_scatter_y = "pressure"
+                self.pick_scatter_y = "depth"
                 self.pick_scatter_x = "temperature"
                 self.param.pick_scatter_x.precedence = -10
                 self.param.pick_scatter_y.precedence = -10
@@ -740,6 +803,17 @@ Ocean """
 
         pick_cnorm = "linear"
 
+        # print(
+        #    self.load_viewport_datasets(x_range=(self.startX, self.endX)),
+        #    not self.load_viewport_datasets(x_range=(self.startX, self.endX)),
+        # )
+        # import pdb
+
+        # pdb.set_trace()
+        if len(self.load_viewport_datasets(x_range=(self.startX, self.endX))[0]) == 0:
+            return pn.Column(
+                "# Please select a DatasetID. A list of possible options will be displayed after click into the DatasetID field."
+            )
         dmap_raster = hv.DynamicMap(
             self.get_xsection_raster,
             streams=[range_stream, tap_stream],
@@ -947,23 +1021,30 @@ Ocean """
 
             if self.pick_scatter_bool:
                 if self.data_in_view is not None:
-                    diffx = (
-                        self.stats.loc["99%"][self.pick_scatter_x]
-                        - self.stats.loc["5%"][self.pick_scatter_x]
-                    )
+                    if isinstance(self.stats.loc["99%"][self.pick_scatter_x], float):
+                        diffx = (
+                            self.stats.loc["99%"][self.pick_scatter_x]
+                            - self.stats.loc["5%"][self.pick_scatter_x]
+                        )
 
-                    xlim = (
-                        self.stats.loc["5%"][self.pick_scatter_x] - 0.1 * diffx,
-                        self.stats.loc["99%"][self.pick_scatter_x] + 0.1 * diffx,
-                    )
-                    diffy = (
-                        self.stats.loc["99%"][self.pick_scatter_y]
-                        - self.stats.loc["5%"][self.pick_scatter_y]
-                    )
-                    ylim = (
-                        self.stats.loc["1%"][self.pick_scatter_y] - 0.1 * diffy,
-                        self.stats.loc["99%"][self.pick_scatter_y] + 0.1 * diffy,
-                    )
+                        xlim = (
+                            self.stats.loc["5%"][self.pick_scatter_x] - 0.1 * diffx,
+                            self.stats.loc["99%"][self.pick_scatter_x] + 0.1 * diffx,
+                        )
+                    else:
+                        # for example time variable
+                        xlim = (None, None)
+                    if isinstance(self.stats.loc["99%"][self.pick_scatter_x], float):
+                        diffy = (
+                            self.stats.loc["99%"][self.pick_scatter_y]
+                            - self.stats.loc["5%"][self.pick_scatter_y]
+                        )
+                        ylim = (
+                            self.stats.loc["1%"][self.pick_scatter_y] - 0.1 * diffy,
+                            self.stats.loc["99%"][self.pick_scatter_y] + 0.1 * diffy,
+                        )
+                    else:
+                        ylim = (None, None)
                 else:
                     xlim = ylim = (None, None)
                 if self.pick_TS_color_variable:
@@ -1024,9 +1105,9 @@ Ocean """
         # time=(self.startX, self.endX), depth=(self.startY, self.endY)
         # )
         # ToDo: Test if this actually helps the garbage collector
-        self.stats = None
-        self.data_in_view = None
-        self.data_in_view_small = None
+        # self.stats = None
+        # self.data_in_view = None
+        # self.data_in_view_small = None
 
         return pn.Column(contourplots.opts(height=cheight).cols(ncols))
 
@@ -1319,15 +1400,20 @@ Ocean """
                 )
                 nanosecond_iterator += 1
 
-        # This should only be a temporay hack. I don't want all that data to go into my TS plots.
         dsconc = utils.voto_concat_datasets2(varlist)
         dsconc = dsconc.with_columns(pl.col("depth")).sort("time")
 
         dsconc_small = utils.voto_concat_datasets2(varlist_small)
         dsconc_small = dsconc_small.with_columns(pl.col("depth")).sort("time")
 
+        kdims = ["time", "depth", self.pick_scatter_x, self.pick_scatter_y]
+        # for kdim in kdims:
+        #    dsconc = dsconc.with_columns(pl.col(kdim).alias(kdim + " "))
+        # kdims = [kdim + " " for kdim in kdims]
+
         self.data_in_view = dsconc
         self.data_in_view_small = dsconc_small
+
         """ WILL I NEED THIS FOR MLD COMPUTATION? """
         # if self.startX is not None:
         """
@@ -1366,21 +1452,27 @@ Ocean """
         return mplt
 
     def get_xsection_TS(self, x_range, y_range):
-        vdims = ["depth", "time"]
-        if self.pick_TS_color_variable:
-            vdims.append(self.pick_TS_color_variable)
-        mplt = hv.Points(
-            data=self.data_in_view.filter(
-                (pl.col("time") > self.startX)
-                & (pl.col("time") < self.endX)
-                & (pl.col("depth") > self.startY)
-                & (pl.col("depth") < self.endY)
-            ),
-            kdims=[self.pick_scatter_x, self.pick_scatter_y],
-            vdims=vdims,
-            # temp and salinity need to always be present for TS lasso to work, set for unique elements
+        kdims = [
+            self.pick_scatter_x,
+            self.pick_scatter_y,
+        ]
+
+        data = self.data_in_view.filter(
+            (pl.col("time") > self.startX)
+            & (pl.col("time") < self.endX)
+            & (pl.col("depth") > self.startY)
+            & (pl.col("depth") < self.endY)
         )
 
+        if self.pick_TS_color_variable:
+            vdims = self.pick_TS_color_variable  # set([self.pick_TS_color_variable])
+            mplt = hv.Points(
+                data=data,
+                kdims=kdims,
+                vdims=vdims,
+            )
+        else:
+            mplt = hv.Points(data=data, kdims=kdims)
         return mplt
 
     def get_xsection_profiles(self, x_range, y_range):
@@ -1539,7 +1631,7 @@ Ocean """
         ).group_by("profile_num")
 
         mld = groups.map_groups(
-            lambda group_df: mld_profile(group_df, "temperature", 0.3, 5, False),
+            lambda group_df: lod.mld_profile(group_df, "temperature", 0.3, 5, False),
             schema=pl.Schema(
                 {
                     "mld": pl.Float32,
@@ -1660,91 +1752,95 @@ Ocean """
             colorbar_widgets_dict[f"pick_cbar_range_{variable}"] = (
                 pn.widgets.EditableRangeSlider
             )
+
+        controls_accordion = pn.Accordion(
+            # toggle=True, # allows only one card to be opened at a time
+            objects=[
+                (
+                    "Choose dataset(s)",
+                    pn.Param(
+                        self,
+                        parameters=["pick_toggle", "pick_basin", "pick_dsids"],
+                        widgets={
+                            "pick_toggle": {
+                                "type": pn.widgets.RadioButtonGroup,
+                                "button_type": "success",
+                            },
+                            "pick_dsids": pn.widgets.MultiChoice,
+                        },
+                    ),
+                ),
+                (
+                    "Contour plot options",
+                    pn.Param(
+                        self,
+                        parameters=[
+                            "pick_variables",
+                            "pick_cnorm",
+                            "pick_aggregation",
+                            "pick_contours",
+                        ],
+                        widgets={
+                            "pick_variables": pn.widgets.MultiChoice,
+                            "pick_cnorm": pn.widgets.RadioButtonGroup,
+                            "pick_aggregation": pn.widgets.RadioButtonGroup,
+                        },
+                    ),
+                ),
+                (
+                    "Linked (scatter-)plots",
+                    pn.Param(
+                        self,
+                        parameters=[
+                            "pick_scatter_bool",
+                            "pick_scatter",
+                            "pick_scatter_x",
+                            "pick_scatter_y",
+                            "pick_TS_color_variable",
+                            "pick_activate_scatter_link",
+                        ],
+                        widgets={
+                            "pick_scatter_bool": pn.widgets.Switch,
+                            "pick_scatter": pn.widgets.RadioButtonGroup,
+                            "pick_TS_color_variable": pn.widgets.AutocompleteInput,
+                        },
+                    ),
+                ),
+                (
+                    "more",
+                    pn.Param(
+                        self,
+                        parameters=[
+                            "pick_mld",
+                            "pick_high_resolution",
+                            "pick_show_decoration",
+                        ],
+                    ),
+                ),
+                (
+                    "Adjust colorbars",
+                    pn.Column(
+                        pn.Param(
+                            self,
+                            parameters=["pick_autorange"]
+                            + [
+                                f"pick_cbar_range_{variable}"
+                                for variable in lod.variables_selectable
+                            ],
+                            widgets=colorbar_widgets_dict,
+                            show_name=False,
+                        ),
+                        "upper and lower boundaries can be overwritten manually.",
+                    ),
+                ),
+            ],
+        )
+
         # print(colorbar_widgets_dict)
         layout = pn.Column(
-            pn.Row(  # row with controls, trajectory plot and TS plot
-                pn.Accordion(
-                    # toggle=True, # allows only one card to be opened at a time
-                    objects=[
-                        (
-                            "Choose dataset(s)",
-                            pn.Param(
-                                self,
-                                parameters=["pick_toggle", "pick_basin", "pick_dsids"],
-                                widgets={
-                                    "pick_toggle": {
-                                        "type": pn.widgets.RadioButtonGroup,
-                                        "button_type": "success",
-                                    },
-                                    "pick_dsids": pn.widgets.MultiChoice,
-                                },
-                            ),
-                        ),
-                        (
-                            "Contour plot options",
-                            pn.Param(
-                                self,
-                                parameters=[
-                                    "pick_variables",
-                                    "pick_cnorm",
-                                    "pick_aggregation",
-                                    "pick_contours",
-                                ],
-                                widgets={
-                                    "pick_variables": pn.widgets.MultiChoice,
-                                    "pick_cnorm": pn.widgets.RadioButtonGroup,
-                                    "pick_aggregation": pn.widgets.RadioButtonGroup,
-                                },
-                            ),
-                        ),
-                        (
-                            "Linked (scatter-)plots",
-                            pn.Param(
-                                self,
-                                parameters=[
-                                    "pick_scatter_bool",
-                                    "pick_scatter",
-                                    "pick_scatter_x",
-                                    "pick_scatter_y",
-                                    "pick_TS_color_variable",
-                                    "pick_activate_scatter_link",
-                                ],
-                                widgets={
-                                    "pick_scatter_bool": pn.widgets.Switch,
-                                    "pick_scatter": pn.widgets.RadioButtonGroup,
-                                    "pick_TS_color_variable": pn.widgets.AutocompleteInput,
-                                },
-                            ),
-                        ),
-                        (
-                            "more",
-                            pn.Param(
-                                self,
-                                parameters=[
-                                    "pick_mld",
-                                    "pick_high_resolution",
-                                    "pick_show_decoration",
-                                ],
-                            ),
-                        ),
-                        (
-                            "Adjust colorbars",
-                            pn.Column(
-                                pn.Param(
-                                    self,
-                                    parameters=["pick_autorange"]
-                                    + [
-                                        f"pick_cbar_range_{variable}"
-                                        for variable in lod.variables_selectable
-                                    ],
-                                    widgets=colorbar_widgets_dict,
-                                    show_name=False,
-                                ),
-                                "upper and lower boundaries can be overwritten manually.",
-                            ),
-                        ),
-                    ],
-                ),
+            pn.Row(
+                # row with controls, trajectory plot and TS plot
+                controls_accordion,
                 pn.Spacer(width=50),
                 contentcolumn,
             ),
@@ -1885,7 +1981,8 @@ def create_meta_instance(self):
 
 GDB = GliderDashboard()
 
-# theplot = GDB.create_dynmap()
+# thecontrols = GDB.create_dynmap()
+#
 thecontrols = GDB.create_app_instance()
 
 
