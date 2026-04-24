@@ -87,8 +87,8 @@ for dataset_id in all_dataset_ids:
                 print(f"no adcp data for {dataset_id}")
 
 for dataset_id in all_dataset_ids:
-    # if not (dataset_id[0:7] == "delayed"):
-    #    continue
+    if not (dataset_id[0:7] == "delayed"):
+        continue
     if os.path.isfile(f"../voto_erddap_data_cache/{dataset_id}.parquet"):
         print(
             f"combined {dataset_id} data/adcp file already exists, skip"
@@ -99,11 +99,13 @@ for dataset_id in all_dataset_ids:
     dsid = dataset_id.replace("delayed_", "")
     file_Path_adcp = f"../voto_erddap_data_cache/{dsid}_adcp_proc.nc"
 
-    ds = (
-        xarray.open_mfdataset(file_Path, drop_variables="ad2cp_time")
-        .drop_duplicates(dim="time")
-        .load()
-    )
+    ds = xarray.open_mfdataset(file_Path, drop_variables="ad2cp_time")
+    if "time" not in ds["depth"].dims:
+        # unfortunately some datasets come with "row" dimension from ERDDAP currently,
+        # instead of "time" how it is meant to be (?).
+        ds = ds.swap_dims({"row": "time"})
+
+    ds = ds.drop_duplicates(dim="time").load()
 
     try:
         ds2 = (
