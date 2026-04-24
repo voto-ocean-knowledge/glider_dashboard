@@ -333,10 +333,21 @@ class GliderDashboard(param.Parameterized):
         else:
             time_start = x_range[0].astype("datetime64[us]").astype("O")
             time_end = x_range[1].astype("datetime64[us]").astype("O")
-        duration_d = np.round((time_end - time_start) / np.timedelta64(1, "D"), 1)      
 
-        data_filtered = self.data_in_view.filter((pl.col("time") >= time_start) & (pl.col("time") <= time_end))
-        n_prof = int(data_filtered.select((pl.col("profile_num").max() - (pl.col("profile_num").min()))).collect().item())
+        duration_d = (
+            np.timedelta64(time_end - time_start) / np.timedelta64(1, "D")
+        ).astype(int)
+
+        data_filtered = self.data_in_view.filter(
+            (pl.col("time") >= time_start) & (pl.col("time") <= time_end)
+        )
+        n_prof = int(
+            data_filtered.select(
+                (pl.col("profile_num").max() - (pl.col("profile_num").min()))
+            )
+            .collect()
+            .item()
+        )
         max_d = data_filtered.select("depth").max().collect().item()
 
         p1 = """\
