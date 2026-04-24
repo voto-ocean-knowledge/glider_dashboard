@@ -30,6 +30,7 @@ cache_dir = pathlib.Path("../voto_erddap_data_cache")
 # import pdb
 # pdb.set_trace()
 print(all_dataset_ids)
+""""
 for dataset_id in all_dataset_ids:
     url = f"https://erddap.observations.voiceoftheocean.org/erddap/files/{dataset_id}/mission_timeseries.nc"
     file_Path = f"../voto_erddap_data_cache/{dataset_id}.nc"
@@ -38,6 +39,41 @@ for dataset_id in all_dataset_ids:
         # pass and look for ADCP file below
     else:
         urllib.request.urlretrieve(url, file_Path)
+    if dataset_id[0:7] == "delayed":
+        dsid = dataset_id.replace("delayed_", "")
+        url = f"https://erddap.observations.voiceoftheocean.org/erddap/files/gliderad2cp_files/{dsid}_adcp_proc.nc"
+        file_Path_adcp = f"../voto_erddap_data_cache/{dsid}_adcp_proc.nc"
+        if os.path.isfile(file_Path_adcp):
+            print(f"{file_Path_adcp} already exists, skip")
+        else:
+            try:
+                urllib.request.urlretrieve(url, file_Path_adcp)
+            except:
+                print(f"no adcp data for {dataset_id}")
+"""
+
+for dataset_id in all_dataset_ids:
+    # import pdb
+    # pdb.set_trace()
+
+    print("now downloading", dataset_id)
+    # planned: iterate over 5 day periods to help with annoying low specced ERDDAP servers
+    print(
+        allDatasetsVOTO.loc[dataset_id]["minTime (UTC)"],
+        allDatasetsVOTO.loc[dataset_id]["maxTime (UTC)"],
+    )
+    e = ERDDAP(
+        server="https://erddap.observations.voiceoftheocean.org/erddap/",
+        protocol="tabledap",
+        response="nc",
+    )
+    e.dataset_id = dataset_id
+    url = e.get_download_url()
+    filepath = f"../voto_erddap_data_cache/{dataset_id}.nc"
+    if os.path.isfile(filepath):
+        print("file already exists, skip and continue")
+        continue
+    urlretrieve(url, filepath)
     if dataset_id[0:7] == "delayed":
         dsid = dataset_id.replace("delayed_", "")
         url = f"https://erddap.observations.voiceoftheocean.org/erddap/files/gliderad2cp_files/{dsid}_adcp_proc.nc"
@@ -62,6 +98,7 @@ for dataset_id in all_dataset_ids:
     file_Path = f"../voto_erddap_data_cache/{dataset_id}.nc"
     dsid = dataset_id.replace("delayed_", "")
     file_Path_adcp = f"../voto_erddap_data_cache/{dsid}_adcp_proc.nc"
+
     ds = (
         xarray.open_mfdataset(file_Path, drop_variables="ad2cp_time")
         .drop_duplicates(dim="time")
