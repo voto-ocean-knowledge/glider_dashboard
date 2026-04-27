@@ -354,8 +354,8 @@ class GliderDashboard(param.Parameterized):
         max_d = data_filtered.select("depth").max().collect().item()
 
         p1 = """\
-             # About
-             Ocean """
+# About
+Ocean """
         for variable in self.pick_variables:
             description = (
                 f"{variable} in [{dictionaries.units_dict.get(variable, '')}], "
