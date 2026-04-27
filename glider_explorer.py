@@ -326,10 +326,13 @@ class GliderDashboard(param.Parameterized):
             of statistics.
         """
         metadata = lod.metadata
-
+        #   Three potential options for x_range - homogenize this to datetime.datetime
         if x_range == (None, None):  #   Init to definition in the data
-            time_start = self.data_in_view.select("time").first().collect()[0, 0]
-            time_end = self.data_in_view.select("time").last().collect()[0, 0]
+            time_start = self.data_in_view.select("time").first().collect().item()
+            time_end = self.data_in_view.select("time").last().collect().item()
+        elif list(map(type, x_range)) == [pd.Timestamp, pd.Timestamp]:
+            time_start = x_range[0].to_numpy().astype("O")
+            time_end = x_range[1].to_numpy().astype("O")
         else:
             time_start = x_range[0].astype("datetime64[us]").astype("O")
             time_end = x_range[1].astype("datetime64[us]").astype("O")
@@ -360,19 +363,22 @@ Ocean """
             p1 += description
         if self.pick_toggle == "DatasetID":
             p2 = f""" the datasets {self.pick_dsids} """
+            metadata = metadata.loc[self.pick_dsids]
         else:  # self.pick_toggle == "SAMBA obs.": Default behavior
             p2 = f"""for the region {self.pick_basin} """
+            metadata = metadata[metadata["basin"] == self.pick_basin]
         p3 = f"""from {time_start} to {time_end}. """
         p4 = f"""Number of profiles {n_prof}."""
 
         #   Table 1: Basic summary of the view.
+        #   .strftime("%Y-%m-%d %H:%M:%S")
         table1 = f"""
 <b>Data Summary</b>
 
 | Metric                | Value                     |
 |-----------------------|---------------------------|
-| Range Start           | {time_start.strftime("%Y-%m-%d %H:%M:%S")} |
-| Range End             | {time_end.strftime("%Y-%m-%d %H:%M:%S")}   |
+| Range Start           | {time_start} |
+| Range End             | {time_end}   |
 | Duration (Days)       | {duration_d}              |
 | Number of Profiles    | {n_prof}                  |
 | Maximum Depth (m)     | {max_d:.2f}               |
