@@ -354,8 +354,8 @@ class GliderDashboard(param.Parameterized):
         max_d = data_filtered.select("depth").max().collect().item()
 
         p1 = """\
-# About
-Ocean """
+             # About
+             Ocean """
         for variable in self.pick_variables:
             description = (
                 f"{variable} in [{dictionaries.units_dict.get(variable, '')}], "
@@ -679,9 +679,9 @@ Ocean """
             "output.parquet", embed=False, filename="dataframe.parquet", align="end"
         )
         # remove previously generate download links
-        for index, element in enumerate(mylayout):
+        for index, element in enumerate(self.mylayout):
             if type(element) == pn.widgets.misc.FileDownload:
-                mylayout.pop(index)
+                self.mylayout.pop(index)
         self.mylayout.append(self.file_download)
 
     @param.depends(
@@ -932,7 +932,6 @@ Ocean """
                     "crosshair",  # show where the mouse is on axis
                     "box_zoom",  # zoom on selection along x
                     "undo",  # undo action
-                    "reset",  # reset view
                     "hover",
                     "tap",
                     "save",
@@ -1820,6 +1819,7 @@ Ocean """
                             "pick_mld",
                             "pick_high_resolution",
                             "pick_show_decoration",
+                            "button",
                         ],
                     ),
                 ),

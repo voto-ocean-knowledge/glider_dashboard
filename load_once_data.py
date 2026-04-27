@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 import pandas as pd
 import param
@@ -58,13 +60,17 @@ for dsid in list(allDatasetsVOTO.index) + [
 ]:
     if dsid not in all_dataset_names:
         continue
-    dsdict[dsid] = pl.scan_parquet(f"../voto_erddap_data_cache/{dsid}.parquet")
+    dsdict[dsid] = pl.scan_parquet(
+        os.path.join(utils.cache_location, f"{dsid}.parquet")
+    )
 
 if utils.GDAC_data:
     for dsid in list(allDatasetsGDAC.index) + [
         id + "_small" for id in allDatasetsGDAC.index
     ]:
-        dsdict[dsid] = pl.scan_parquet(f"../voto_erddap_data_cache/{dsid}.parquet")
+        dsdict[dsid] = pl.scan_parquet(
+            os.path.join(utils.cache_location, f"{dsid}.parquet")
+        )
         dsdict[dsid] = (
             dsdict[dsid]
             .drop(cs.string())

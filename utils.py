@@ -9,8 +9,9 @@ from erddapy import ERDDAP
 project = "SAMBA"
 basin = "Bornholm Basin"
 year = 2024
-month = 2
+month = 5
 GDAC_data = False
+cache_location = "../voto_erddap_data_cache/"
 
 
 def load_ERDDAP_Datasets(erddap_url, dataset_id, format, backup_name):
@@ -169,7 +170,7 @@ def filter_metadata():
         (metadata["project"] == project)
         & (metadata["basin"] == basin)
         & (metadata["time_coverage_start (UTC)"].dt.year == year)
-        & (metadata["time_coverage_start (UTC)"].dt.month < month)
+        & (metadata["time_coverage_start (UTC)"].dt.month == month)
     ]
 
     # Terrible style here.

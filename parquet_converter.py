@@ -1,4 +1,5 @@
 import glob
+import os
 from pathlib import Path
 
 import polars as pl
@@ -6,7 +7,7 @@ import xarray as xr
 
 import utils
 
-nc_datasets = glob.glob("../voto_erddap_data_cache/*.nc")
+nc_datasets = glob.glob(os.path.join(utils.cache_location, "*.nc"))
 print("now converting all files to parquet, please wait...")
 # This for loop covers the VOTO datasets
 """
@@ -44,7 +45,7 @@ for file in nc_datasets:
 """
 
 if utils.GDAC_data:
-    netcdf_datasets = glob.glob("../voto_erddap_data_cache/*.nc")
+    netcdf_datasets = glob.glob(os.path.join(utils.cache_location, "*.nc"))
     for file in netcdf_datasets:
         if (
             Path(file.replace("nc", "parquet")).is_file()
@@ -71,7 +72,7 @@ if utils.GDAC_data:
             # if "nrt" not in file:
             #    df.sink_parquet(file.replace(".parquet", "_small.parquet"))
 
-    parquet_datasets = glob.glob("../voto_erddap_data_cache/*.parquet")
+    parquet_datasets = glob.glob(os.path.join(utils.cache_location, "*.parquet"))
     for file in parquet_datasets:
         if "small" in file:
             continue
