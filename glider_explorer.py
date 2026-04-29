@@ -398,6 +398,12 @@ Ocean """
                 return f"| {variable} | N/A |"
 
         table_var_rows = []
+        stats = df.select(
+            pl.max(self.pick_variables).name.prefix("max_"),
+            pl.min(self.pick_variables).name.prefix("min_"),
+            pl.mean(self.pick_variables).name.prefix("mean_"),
+            pl.std(self.pick_variables).name.prefix("std_"),
+        ).collect()
         for variable in self.pick_variables:
             table_var_rows.append(var_row(variable))
             if str(variable + "_qc") in self.data_in_view.collect_schema():
