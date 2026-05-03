@@ -325,104 +325,43 @@ class GliderDashboard(param.Parameterized):
             String of updated markdown, including paragraph summaries of data within the view and tables
             of statistics.
         """
-        metadata = lod.metadata
-        #   Three potential options for x_range - homogenize this to datetime.datetime
-        if x_range == (None, None):  #   Init to definition in the data
-            time_start = self.data_in_view.select("time").first().collect().item()
-            time_end = self.data_in_view.select("time").last().collect().item()
-        elif list(map(type, x_range)) == [pd.Timestamp, pd.Timestamp]:
-            time_start = x_range[0].to_numpy().astype("O")
-            time_end = x_range[1].to_numpy().astype("O")
-        else:
-            time_start = x_range[0].astype("datetime64[us]").astype("O")
-            time_end = x_range[1].astype("datetime64[us]").astype("O")
-        # duration_d = np.round((time_end - time_start) / np.timedelta64(1, "D"), 1)
-        duration_d = (
-            np.timedelta64(time_end - time_start) / np.timedelta64(1, "D")
-        ).astype(int)
 
-        data_filtered = self.data_in_view.filter(
-            (pl.col("time") >= time_start) & (pl.col("time") <= time_end)
+        dict_data_summary = {
+            "Range Start": self.stats.filter(pl.col("statistic") == "min")[
+                "time"
+            ].item(),
+            "Range End": self.stats.filter(pl.col("statistic") == "max")["time"].item(),
+            "Duration (Days)": (
+                self.stats.filter(pl.col("statistic") == "max")["time"].str.to_datetime(
+                    "%Y-%m-%d %H:%M:%S%.f"
+                )
+                - self.stats.filter(pl.col("statistic") == "min")[
+                    "time"
+                ].str.to_datetime("%Y-%m-%d %H:%M:%S%.f")
+            ).item(),
+            "Number of Profiles": (
+                self.stats.filter(pl.col("statistic") == "max")["profile_num"]
+                - self.stats.filter(pl.col("statistic") == "min")["profile_num"]
+            ).item(),
+            "Maximum Depth (m)": self.stats.filter(pl.col("statistic") == "max")[
+                "depth"
+            ].item(),
+        }
+        df_data_summary = pd.DataFrame.from_dict(
+            dict_data_summary, orient="index", columns=["Value"]
         )
-        n_prof = int(
-            data_filtered.select(
-                (pl.col("profile_num").max() - (pl.col("profile_num").min()))
-            )
-            .collect()
-            .item()
-        )
-        max_d = data_filtered.select("depth").max().collect().item()
 
-        p1 = """\
-# About
-Ocean """
-        for variable in self.pick_variables:
-            description = (
-                f"{variable} in [{dictionaries.units_dict.get(variable, '')}], "
-            )
-            p1 += description
-        if self.pick_toggle == "DatasetID":
-            p2 = f""" the datasets {self.pick_dsids} """
-            metadata = metadata.loc[self.pick_dsids]
-        else:  # self.pick_toggle == "SAMBA obs.": Default behavior
-            p2 = f"""for the region {self.pick_basin} """
-            metadata = metadata[metadata["basin"] == self.pick_basin]
-        p3 = f"""from {time_start} to {time_end}. """
-        p4 = f"""Number of profiles {n_prof}."""
+        pl.Config.set_tbl_hide_column_data_types(True)
+        pl.Config.set_tbl_hide_dataframe_shape(True)
+        table1 = f"""<b>Data Summary</b>
+        {df_data_summary.to_html()}"""
 
-        #   Table 1: Basic summary of the view.
-        #   .strftime("%Y-%m-%d %H:%M:%S")
-        table1 = f"""
-<b>Data Summary</b>
-
-| Metric                | Value                     |
-|-----------------------|---------------------------|
-| Range Start           | {time_start} |
-| Range End             | {time_end}   |
-| Duration (Days)       | {duration_d}              |
-| Number of Profiles    | {n_prof}                  |
-| Maximum Depth (m)     | {max_d:.2f}               |
-"""
-
-        #   Table 2: Statistics for the picked variables in "Contour plot options".
-        def var_row(variable):
-            """For a specified variable, create a table row with basic stats"""
-            try:
-                min_val = data_filtered.select(variable).min().collect().item()
-                max_val = data_filtered.select(variable).max().collect().item()
-                mean_val = data_filtered.select(variable).mean().collect().item()
-                stdev_val = data_filtered.select(variable).mean().collect().item()
-                return f"| {variable} | {min_val:.2f} / {max_val:.2f} / {mean_val:.2f} / {stdev_val:.2f} |"
-            except Exception as e:
-                print(f"Error calculating stats for {variable}: {e}")
-                return f"| {variable} | N/A |"
-
-        table_var_rows = []
-        stats = df.select(
-            pl.max(self.pick_variables).name.prefix("max_"),
-            pl.min(self.pick_variables).name.prefix("min_"),
-            pl.mean(self.pick_variables).name.prefix("mean_"),
-            pl.std(self.pick_variables).name.prefix("std_"),
-        ).collect()
-        for variable in self.pick_variables:
-            table_var_rows.append(var_row(variable))
-            if str(variable + "_qc") in self.data_in_view.collect_schema():
-                table_var_rows.append(var_row(variable + "_qc"))
-        table_var_to_add = "\n".join(table_var_rows)
-
-        table2 = f"""
-<b>Picked Variable Statistics</b>
-
-| Variable         | Min / Max / Mean / Stdev  |
-|------------------|---------------------------|
-{table_var_to_add}
-"""
-
-        #   Table 3: Pull the metadata for datasetIDs within the current time period.
-        current_meta = metadata[
-            (metadata["time_coverage_start (UTC)"] <= time_end)
-            & (metadata["time_coverage_end (UTC)"] >= time_start)
-        ]
+        # Table 2: Statistics for the picked variables in "Contour plot options".
+        table2 = f"""<b>Picked Variable Statistics</b>
+        {self.stats[["statistic"] + self.pick_variables]._repr_html_()}"""
+        # Table 3: Pull the metadata for datasetIDs within the current time period.
+        current_meta = lod.metadata.loc[self.visible_datasets]
+        # print(self.visible_datasets)
 
         meta_rows = ""
         for (
@@ -448,12 +387,9 @@ Ocean """
 </tr>
 """
 
-        table3 = f"""
-<b>Datasets in Current Temporal View</b>
-
-<table>
-  <tr><th>DatasetID</th><th>Parameters</th></tr>
-  {meta_rows}
+        table3 = f"""<b>Datasets in Current Temporal View</b>
+<table><tr><th>DatasetID</th><th>Parameters</th></tr>
+{meta_rows}
 </table>
 """
 
@@ -470,12 +406,12 @@ Ocean """
 </div>
 </div>
 """
-        all_markdown = p1 + p2 + p3 + p4 + tables_side_by_side
+        all_markdown = tables_side_by_side
         self.markdown.object = all_markdown  # +r"$$\frac{1}{n}$$"
         return all_markdown
-        #   Max/min/mean values of chosen variables
-        #   List different missions, each collapsible, with list of sensors from metadata
-        #   Data quality flags for chosen variables? (add a link to QC sheets and scripts)
+        # Max/min/mean values of chosen variables
+        # List different missions, each collapsible, with list of sensors from metadata
+        # Data quality flags for chosen variables? (add a link to QC sheets and scripts)
 
     # empty initialization for use later
     markdown = pn.pane.Markdown("")
@@ -600,8 +536,8 @@ Ocean """
                     self,
                     f"pick_cbar_range_{variable}",
                     (
-                        self.stats.loc["1%"][variable],
-                        self.stats.loc["99%"][variable],
+                        self.stats.filter(pl.col("statistic") == "1%")[variable],
+                        self.stats.filter(pl.col("statistic") == "99%")[variable],
                     ),
                 )
 
@@ -1032,27 +968,57 @@ Ocean """
 
             if self.pick_scatter_bool:
                 if self.data_in_view is not None:
-                    if isinstance(self.stats.loc["99%"][self.pick_scatter_x], float):
+                    if isinstance(
+                        self.stats.filter(pl.col("statistic") == "99%")[
+                            self.pick_scatter_x
+                        ],
+                        float,
+                    ):
                         diffx = (
-                            self.stats.loc["99%"][self.pick_scatter_x]
-                            - self.stats.loc["5%"][self.pick_scatter_x]
+                            self.stats.filter(pl.col("statistic") == "99%")[
+                                self.pick_scatter_x
+                            ]
+                            - self.stats.filter(pl.col("statistic") == "5%")[
+                                self.pick_scatter_x
+                            ]
                         )
 
                         xlim = (
-                            self.stats.loc["5%"][self.pick_scatter_x] - 0.1 * diffx,
-                            self.stats.loc["99%"][self.pick_scatter_x] + 0.1 * diffx,
+                            self.stats.filter(pl.col("statistic") == "5%")[
+                                self.pick_scatter_x
+                            ]
+                            - 0.1 * diffx,
+                            self.stats.filter(pl.col("statistic") == "99%")[
+                                self.pick_scatter_x
+                            ]
+                            + 0.1 * diffx,
                         )
                     else:
                         # for example time variable
                         xlim = (None, None)
-                    if isinstance(self.stats.loc["99%"][self.pick_scatter_x], float):
+                    if isinstance(
+                        self.stats.filter(pl.col("statistic") == "99%")[
+                            self.pick_scatter_x
+                        ],
+                        float,
+                    ):
                         diffy = (
-                            self.stats.loc["99%"][self.pick_scatter_y]
-                            - self.stats.loc["5%"][self.pick_scatter_y]
+                            self.stats.filter(pl.col("statistic") == "99%")[
+                                self.pick_scatter_y
+                            ]
+                            - self.stats.filter(pl.col("statistic") == "5%")[
+                                self.pick_scatter_y
+                            ]
                         )
                         ylim = (
-                            self.stats.loc["1%"][self.pick_scatter_y] - 0.1 * diffy,
-                            self.stats.loc["99%"][self.pick_scatter_y] + 0.1 * diffy,
+                            self.stats.filter(pl.col("statistic") == "1%")[
+                                self.pick_scatter_y
+                            ]
+                            - 0.1 * diffy,
+                            self.stats.filter(pl.col("statistic") == "99%")[
+                                self.pick_scatter_y
+                            ]
+                            + 0.1 * diffy,
                         )
                     else:
                         ylim = (None, None)
@@ -1060,8 +1026,12 @@ Ocean """
                     xlim = ylim = (None, None)
                 if self.pick_TS_color_variable:
                     clim = (
-                        self.stats.loc["5%"][self.pick_TS_color_variable],
-                        self.stats.loc["99%"][self.pick_TS_color_variable],
+                        self.stats.filter(pl.col("statistic") == "5%")[
+                            self.pick_TS_color_variable
+                        ],
+                        self.stats.filter(pl.col("statistic") == "99%")[
+                            self.pick_TS_color_variable
+                        ],
                     )
                 else:
                     clim = (None, None)
@@ -1252,6 +1222,7 @@ Ocean """
             plt_props["zoomed_out"] = False
             plt_props["dynfontsize"] = 10
             plt_props["subsample_freq"] = 1
+        self.visible_datasets = meta.index
         return lod.allDatasets.loc[meta.index], plt_props
 
     def get_xsection_mld(self, x_range, y_range):
@@ -1446,14 +1417,23 @@ Ocean """
             dsconc_small.select(pl.len()).collect().item(),
         )
         """
-        # THIS IS EXPENSIVE. I SHOULD CREATE STATS ONLY WHERE NEEDED; ESPECIALLY WITH .to_pandas()
+        # EXPENSIVE.
         self.stats = (
-            self.data_in_view_small.describe(  # .select(variables)  # .select(variables)  # .select(pl.col(self.pick_variables))
+            self.data_in_view_small.select(variables + ["time", "depth", "profile_num"])
+            .filter(
+                (pl.col("time") > self.startX)
+                & (pl.col("time") < self.endX)
+                & (pl.col("depth") > self.startY)
+                & (pl.col("depth") < self.endY)
+            )
+            .describe(  #   # .select(variables)  # .select(pl.col(self.pick_variables))
                 (0.01, 0.05, 0.99)
             )
-            .to_pandas()
-            .set_index("statistic")
         )
+        # .to_pandas()
+        # .set_index("statistic")
+        # import pdb
+        # pdb.set_trace()
         self.update_markdown(x_range, y_range)
         mplt = self.create_single_ds_plot_raster(
             data=self.data_in_view, variables=variables
@@ -1487,8 +1467,8 @@ Ocean """
         return mplt
 
     def get_xsection_profiles(self, x_range, y_range):
-        low = self.stats.loc["1%"][self.pick_variables[0]]
-        high = self.stats.loc["99%"][self.pick_variables[0]]
+        low = self.stats.filter(pl.col("statistic") == "1%")[self.pick_variables[0]]
+        high = self.stats.filter(pl.col("statistic") == "99%")[self.pick_variables[0]]
 
         mplt = hv.Points(
             data=self.data_in_view, kdims=[self.pick_variables[0], "depth"]
@@ -1502,12 +1482,12 @@ Ocean """
         # +/- 5 gives plently of space for the density line drawing, if user zoomes out.
 
         smin, smax = (
-            self.stats.loc["5%"]["salinity"] - 5,
-            self.stats.loc["99%"]["salinity"] + 5,
+            self.stats.filter(pl.col("statistic") == "5%")["salinity"] - 5,
+            self.stats.filter(pl.col("statistic") == "99%")["salinity"] + 5,
         )
         tmin, tmax = (
-            self.stats.loc["5%"]["temperature"] - 5,
-            self.stats.loc["99%"]["temperature"] + 5,
+            self.stats.filter(pl.col("statistic") == "5%")["temperature"] - 5,
+            self.stats.filter(pl.col("statistic") == "99%")["temperature"] + 5,
         )
 
         xdim = round((smax - smin) / 0.1 + 1, 0)
@@ -1535,13 +1515,13 @@ Ocean """
             show_legend=False,
             cmap="dimgray",
             xlim=(
-                self.stats.loc["5%"]["salinity"]
+                self.stats.filter(pl.col("statistic") == "5%")["salinity"]
                 - 1,  # 5% because we get 0PSU readings at surface.
-                self.stats.loc["99%"]["salinity"] + 1,
+                self.stats.filter(pl.col("statistic") == "99%")["salinity"] + 1,
             ),
             ylim=(
-                self.stats.loc["1%"]["temperature"] - 1,
-                self.stats.loc["99%"]["temperature"] + 1,
+                self.stats.filter(pl.col("statistic") == "1%")["temperature"] - 1,
+                self.stats.filter(pl.col("statistic") == "99%")["temperature"] + 1,
             ),
         )
         return dcont
@@ -1742,15 +1722,15 @@ Ocean """
                 widgets={
                     f"pick_cbar_range_{variable}": pn.widgets.EditableRangeSlider(
                         value=(
-                            self.stats.loc["1%"][variable],
-                            self.stats.loc["99%"][variable],
+                            self.stats.filter(pl.col("statistic") == "1%")[variable],
+                            self.stats.filter(pl.col("statistic") == "99%")[variable],
                             # dictionaries.ranges_dict.get(variable, (0, 10))[0],
                             # dictionaries.ranges_dict.get(variable, (0, 10))[1],
                         ),
-                        start=self.stats.loc["1%"][
+                        start=self.stats.filter(pl.col("statistic") == "1%")[
                             variable
                         ],  # dictionaries.ranges_dict.get(variable, (0, 10))[0],
-                        end=self.stats.loc["99%"][
+                        end=self.stats.filter(pl.col("statistic") == "99%")[
                             variable
                         ],  # dictionaries.ranges_dict.get(variable, (0, 10))[1],
                         # step=0.1,
