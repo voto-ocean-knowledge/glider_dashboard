@@ -306,31 +306,112 @@ class GliderDashboard(param.Parameterized):
     startY = None
     endY = None
 
-    def update_markdown(self, x_range, y_range):
-        p1 = """\
-             # About
-             Ocean """
-        for variable in self.pick_variables:
-            description = (
-                f"{variable} in [{dictionaries.units_dict.get(variable, '')}], "
-            )
-            p1 += description
-        if self.pick_toggle == "DatasetID":
-            p2 = f""" the datasets {self.pick_dsids} """
-        else:  # self.pick_toggle == "SAMBA obs.":
-            p2 = f"""for the region {self.pick_basin} """
-        # try:
-        p3 = f"""from {self.data_in_view.select("time").first().collect()[0, 0]} to {self.data_in_view.select("time").last().collect()[0, 0]}. """
-        # except:
-        #    import pdb
-        #    pdb.set_trace()
-        p4 = f"""Number of profiles {
-            self.data_in_view.select("profile_num").last().collect()[0, 0]
-            - self.data_in_view.select("profile_num").first().collect()[0, 0]
-        } """
+    def update_markdown(self, x_range: tuple, y_range: tuple) -> str:
+        """
+        Updates markdown information below the plots on the page based on the currently visible ranges of data.
 
-        self.markdown.object = p1 + p2 + p3 + p4  # +r"$$\frac{1}{n}$$"
-        return p1 + p2 + p3 + p4
+        y_range is typically `depth`.
+
+        Parameters
+        ----------
+        x_range : tuple of numpy.datetime64
+            The start[0] and end[1] of the X domain (time) currently visible data on the plot.
+        y_range : tuple of np.float64
+            The minimum[0] and maximum[1] of the Y domain currently visible on the plot.
+
+        Return
+        ------
+        all_markdown : str
+            String of updated markdown, including paragraph summaries of data within the view and tables
+            of statistics.
+        """
+
+        dict_data_summary = {
+            "Range Start": self.stats.filter(pl.col("statistic") == "min")[
+                "time"
+            ].item(),
+            "Range End": self.stats.filter(pl.col("statistic") == "max")["time"].item(),
+            "Duration (Days)": (
+                self.stats.filter(pl.col("statistic") == "max")["time"].str.to_datetime(
+                    "%Y-%m-%d %H:%M:%S%.f"
+                )
+                - self.stats.filter(pl.col("statistic") == "min")[
+                    "time"
+                ].str.to_datetime("%Y-%m-%d %H:%M:%S%.f")
+            ).item(),
+            "Number of Profiles": (
+                self.stats.filter(pl.col("statistic") == "max")["profile_num"]
+                - self.stats.filter(pl.col("statistic") == "min")["profile_num"]
+            ).item(),
+            "Maximum Depth (m)": self.stats.filter(pl.col("statistic") == "max")[
+                "depth"
+            ].item(),
+        }
+        df_data_summary = pd.DataFrame.from_dict(
+            dict_data_summary, orient="index", columns=["Value"]
+        )
+
+        pl.Config.set_tbl_hide_column_data_types(True)
+        pl.Config.set_tbl_hide_dataframe_shape(True)
+        table1 = f"""<b>Data Summary</b>
+        {df_data_summary.to_html()}"""
+
+        # Table 2: Statistics for the picked variables in "Contour plot options".
+        table2 = f"""<b>Picked Variable Statistics</b>
+        {self.stats[["statistic"] + self.pick_variables]._repr_html_()}"""
+        # Table 3: Pull the metadata for datasetIDs within the current time period.
+        current_meta = lod.metadata.loc[self.visible_datasets]
+        # print(self.visible_datasets)
+
+        meta_rows = ""
+        for (
+            idx,
+            row,
+        ) in current_meta.iterrows():
+            #   Create nested tables, summary formatting makes Parameters collapsible
+            params = "".join(
+                f"<tr><td>{col}</td><td>{row[col]}</td></tr>" for col in row.index
+            )
+            meta_rows += f"""
+<tr>
+<td>{idx}</td>
+<td>
+    <details>
+    <summary>Show parameters</summary>
+    <table>
+        <tr><th>Parameter</th><th>Value</th></tr>
+        {params}
+    </table>
+    </details>
+</td>
+</tr>
+"""
+
+        table3 = f"""<b>Datasets in Current Temporal View</b>
+<table><tr><th>DatasetID</th><th>Parameters</th></tr>
+{meta_rows}
+</table>
+"""
+
+        tables_side_by_side = f"""
+<div style="display: flex; gap: 20px;">
+<div style="flex: 1;">
+{table1}
+</div>
+<div style="flex: 1;">
+{table2}
+</div>
+<div style="flex: 1;">
+{table3}
+</div>
+</div>
+"""
+        all_markdown = tables_side_by_side
+        self.markdown.object = all_markdown  # +r"$$\frac{1}{n}$$"
+        return all_markdown
+        # Max/min/mean values of chosen variables
+        # List different missions, each collapsible, with list of sensors from metadata
+        # Data quality flags for chosen variables? (add a link to QC sheets and scripts)
 
     # empty initialization for use later
     markdown = pn.pane.Markdown("")
@@ -455,8 +536,8 @@ class GliderDashboard(param.Parameterized):
                     self,
                     f"pick_cbar_range_{variable}",
                     (
-                        self.stats.loc["1%"][variable],
-                        self.stats.loc["99%"][variable],
+                        self.stats.filter(pl.col("statistic") == "1%")[variable],
+                        self.stats.filter(pl.col("statistic") == "99%")[variable],
                     ),
                 )
 
@@ -887,27 +968,57 @@ class GliderDashboard(param.Parameterized):
 
             if self.pick_scatter_bool:
                 if self.data_in_view is not None:
-                    if isinstance(self.stats.loc["99%"][self.pick_scatter_x], float):
+                    if isinstance(
+                        self.stats.filter(pl.col("statistic") == "99%")[
+                            self.pick_scatter_x
+                        ],
+                        float,
+                    ):
                         diffx = (
-                            self.stats.loc["99%"][self.pick_scatter_x]
-                            - self.stats.loc["5%"][self.pick_scatter_x]
+                            self.stats.filter(pl.col("statistic") == "99%")[
+                                self.pick_scatter_x
+                            ]
+                            - self.stats.filter(pl.col("statistic") == "5%")[
+                                self.pick_scatter_x
+                            ]
                         )
 
                         xlim = (
-                            self.stats.loc["5%"][self.pick_scatter_x] - 0.1 * diffx,
-                            self.stats.loc["99%"][self.pick_scatter_x] + 0.1 * diffx,
+                            self.stats.filter(pl.col("statistic") == "5%")[
+                                self.pick_scatter_x
+                            ]
+                            - 0.1 * diffx,
+                            self.stats.filter(pl.col("statistic") == "99%")[
+                                self.pick_scatter_x
+                            ]
+                            + 0.1 * diffx,
                         )
                     else:
                         # for example time variable
                         xlim = (None, None)
-                    if isinstance(self.stats.loc["99%"][self.pick_scatter_x], float):
+                    if isinstance(
+                        self.stats.filter(pl.col("statistic") == "99%")[
+                            self.pick_scatter_x
+                        ],
+                        float,
+                    ):
                         diffy = (
-                            self.stats.loc["99%"][self.pick_scatter_y]
-                            - self.stats.loc["5%"][self.pick_scatter_y]
+                            self.stats.filter(pl.col("statistic") == "99%")[
+                                self.pick_scatter_y
+                            ]
+                            - self.stats.filter(pl.col("statistic") == "5%")[
+                                self.pick_scatter_y
+                            ]
                         )
                         ylim = (
-                            self.stats.loc["1%"][self.pick_scatter_y] - 0.1 * diffy,
-                            self.stats.loc["99%"][self.pick_scatter_y] + 0.1 * diffy,
+                            self.stats.filter(pl.col("statistic") == "1%")[
+                                self.pick_scatter_y
+                            ]
+                            - 0.1 * diffy,
+                            self.stats.filter(pl.col("statistic") == "99%")[
+                                self.pick_scatter_y
+                            ]
+                            + 0.1 * diffy,
                         )
                     else:
                         ylim = (None, None)
@@ -915,8 +1026,12 @@ class GliderDashboard(param.Parameterized):
                     xlim = ylim = (None, None)
                 if self.pick_TS_color_variable:
                     clim = (
-                        self.stats.loc["5%"][self.pick_TS_color_variable],
-                        self.stats.loc["99%"][self.pick_TS_color_variable],
+                        self.stats.filter(pl.col("statistic") == "5%")[
+                            self.pick_TS_color_variable
+                        ],
+                        self.stats.filter(pl.col("statistic") == "99%")[
+                            self.pick_TS_color_variable
+                        ],
                     )
                 else:
                     clim = (None, None)
@@ -1107,6 +1222,7 @@ class GliderDashboard(param.Parameterized):
             plt_props["zoomed_out"] = False
             plt_props["dynfontsize"] = 10
             plt_props["subsample_freq"] = 1
+        self.visible_datasets = meta.index
         return lod.allDatasets.loc[meta.index], plt_props
 
     def get_xsection_mld(self, x_range, y_range):
@@ -1301,14 +1417,23 @@ class GliderDashboard(param.Parameterized):
             dsconc_small.select(pl.len()).collect().item(),
         )
         """
-        # THIS IS EXPENSIVE. I SHOULD CREATE STATS ONLY WHERE NEEDED; ESPECIALLY WITH .to_pandas()
+        # EXPENSIVE.
         self.stats = (
-            self.data_in_view_small.describe(  # .select(variables)  # .select(variables)  # .select(pl.col(self.pick_variables))
+            self.data_in_view_small.select(variables + ["time", "depth", "profile_num"])
+            .filter(
+                (pl.col("time") > self.startX)
+                & (pl.col("time") < self.endX)
+                & (pl.col("depth") > self.startY)
+                & (pl.col("depth") < self.endY)
+            )
+            .describe(  #   # .select(variables)  # .select(pl.col(self.pick_variables))
                 (0.01, 0.05, 0.99)
             )
-            .to_pandas()
-            .set_index("statistic")
         )
+        # .to_pandas()
+        # .set_index("statistic")
+        # import pdb
+        # pdb.set_trace()
         self.update_markdown(x_range, y_range)
         mplt = self.create_single_ds_plot_raster(
             data=self.data_in_view, variables=variables
@@ -1342,8 +1467,8 @@ class GliderDashboard(param.Parameterized):
         return mplt
 
     def get_xsection_profiles(self, x_range, y_range):
-        low = self.stats.loc["1%"][self.pick_variables[0]]
-        high = self.stats.loc["99%"][self.pick_variables[0]]
+        low = self.stats.filter(pl.col("statistic") == "1%")[self.pick_variables[0]]
+        high = self.stats.filter(pl.col("statistic") == "99%")[self.pick_variables[0]]
 
         mplt = hv.Points(
             data=self.data_in_view, kdims=[self.pick_variables[0], "depth"]
@@ -1357,12 +1482,12 @@ class GliderDashboard(param.Parameterized):
         # +/- 5 gives plently of space for the density line drawing, if user zoomes out.
 
         smin, smax = (
-            self.stats.loc["5%"]["salinity"] - 5,
-            self.stats.loc["99%"]["salinity"] + 5,
+            self.stats.filter(pl.col("statistic") == "5%")["salinity"] - 5,
+            self.stats.filter(pl.col("statistic") == "99%")["salinity"] + 5,
         )
         tmin, tmax = (
-            self.stats.loc["5%"]["temperature"] - 5,
-            self.stats.loc["99%"]["temperature"] + 5,
+            self.stats.filter(pl.col("statistic") == "5%")["temperature"] - 5,
+            self.stats.filter(pl.col("statistic") == "99%")["temperature"] + 5,
         )
 
         xdim = round((smax - smin) / 0.1 + 1, 0)
@@ -1390,13 +1515,13 @@ class GliderDashboard(param.Parameterized):
             show_legend=False,
             cmap="dimgray",
             xlim=(
-                self.stats.loc["5%"]["salinity"]
+                self.stats.filter(pl.col("statistic") == "5%")["salinity"]
                 - 1,  # 5% because we get 0PSU readings at surface.
-                self.stats.loc["99%"]["salinity"] + 1,
+                self.stats.filter(pl.col("statistic") == "99%")["salinity"] + 1,
             ),
             ylim=(
-                self.stats.loc["1%"]["temperature"] - 1,
-                self.stats.loc["99%"]["temperature"] + 1,
+                self.stats.filter(pl.col("statistic") == "1%")["temperature"] - 1,
+                self.stats.filter(pl.col("statistic") == "99%")["temperature"] + 1,
             ),
         )
         return dcont
@@ -1597,15 +1722,15 @@ class GliderDashboard(param.Parameterized):
                 widgets={
                     f"pick_cbar_range_{variable}": pn.widgets.EditableRangeSlider(
                         value=(
-                            self.stats.loc["1%"][variable],
-                            self.stats.loc["99%"][variable],
+                            self.stats.filter(pl.col("statistic") == "1%")[variable],
+                            self.stats.filter(pl.col("statistic") == "99%")[variable],
                             # dictionaries.ranges_dict.get(variable, (0, 10))[0],
                             # dictionaries.ranges_dict.get(variable, (0, 10))[1],
                         ),
-                        start=self.stats.loc["1%"][
+                        start=self.stats.filter(pl.col("statistic") == "1%")[
                             variable
                         ],  # dictionaries.ranges_dict.get(variable, (0, 10))[0],
-                        end=self.stats.loc["99%"][
+                        end=self.stats.filter(pl.col("statistic") == "99%")[
                             variable
                         ],  # dictionaries.ranges_dict.get(variable, (0, 10))[1],
                         # step=0.1,

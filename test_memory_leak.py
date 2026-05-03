@@ -7,10 +7,10 @@ import psutil
 
 import glider_explorer as gdb
 
-outpath = "./test_plots"
+# outpath = "./test_plots"
 
 
-def test_salinity(iteration_number="not applicable"):
+def test_salinity(tmp_path, iteration_number="not applicable"):
     GDB = gdb.GliderDashboard()
     # GDB.startX = np.datetime64('2024-03-01')
     # GDB.endX = np.datetime64('2024-05-01')
@@ -23,7 +23,7 @@ def test_salinity(iteration_number="not applicable"):
     # create output for variable salinity
     dyn = GDB.create_dynmap()  # .opts(width=500, height=500)
     # myapp = pn.panel(dyn)
-    dyn.save(join(outpath, "salinity.png"))
+    dyn.save(join(tmp_path, "salinity.png"))
 
     process = psutil.Process(os.getpid())
     ram_used = process.memory_info().rss / (1024 * 1024)  # in MB
@@ -53,7 +53,7 @@ def test_salinity(iteration_number="not applicable"):
         print(dataframes)
 
 
-def test_memory_leak():
+def test_memory_leak(tmp_path):
     for i in range(0, 20):
-        test_salinity(i)
+        test_salinity(tmp_path, iteration_number=i)
     print(f"salinity function ran {i} times, please check for memory increase")
