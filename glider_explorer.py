@@ -359,33 +359,10 @@ class GliderDashboard(param.Parameterized):
         # Table 2: Statistics for the picked variables in "Contour plot options".
         table2 = f"""<b>Picked Variable Statistics</b>
         {self.stats[["statistic"] + self.pick_variables]._repr_html_()}"""
-        # Table 3: Pull the metadata for datasetIDs within the current time period.
-        current_meta = lod.metadata.loc[self.visible_datasets]
-        # print(self.visible_datasets)
-
+        # Table 3: Link the metadata for datasetIDs within the current time period.
         meta_rows = ""
-        for (
-            idx,
-            row,
-        ) in current_meta.iterrows():
-            #   Create nested tables, summary formatting makes Parameters collapsible
-            params = "".join(
-                f"<tr><td>{col}</td><td>{row[col]}</td></tr>" for col in row.index
-            )
-            meta_rows += f"""
-<tr>
-<td>{idx}</td>
-<td>
-    <details>
-    <summary>Show parameters</summary>
-    <table>
-        <tr><th>Parameter</th><th>Value</th></tr>
-        {params}
-    </table>
-    </details>
-</td>
-</tr>
-"""
+        for datasetid in self.visible_datasets:
+            meta_rows += f"""<tr><td>{datasetid}</td><td><a href="{(lod.allDatasets.loc[datasetid]["metadata"] + ".html")}">link to metadata</a></td></tr>"""
 
         table3 = f"""<b>Datasets in Current Temporal View</b>
 <table><tr><th>DatasetID</th><th>Parameters</th></tr>
