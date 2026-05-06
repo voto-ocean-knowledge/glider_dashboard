@@ -21,6 +21,7 @@ metadata = metadata.drop(
 metadata = metadata.sort_values(by="time_coverage_start (UTC)")
 
 allDatasetsVOTO = utils.load_allDatasets_VOTO()
+# allDatasetsGDAC = utils.load_allDatasets_GDAC()
 all_dataset_ids = utils.add_delayed_dataset_ids(metadata, allDatasetsVOTO)  # hacky
 
 ###### download actual data ##############################
@@ -161,7 +162,8 @@ for dataset_id in all_dataset_ids:
 
 if utils.GDAC_data:
     allDatasetsGDAC = utils.load_allDatasets_GDAC()
-    for dsid in allDatasetsGDAC.index:
+    for dsid in allDatasetsGDAC.index[1:]:
+        # skip first item because it is the "allDatasets aggregation table"
         print("now downloading", dsid)
         e = ERDDAP(
             server="https://gliders.ioos.us/erddap",
@@ -169,9 +171,32 @@ if utils.GDAC_data:
             response="nc",
         )
         e.dataset_id = dsid
+        tstart = allDatasetsGDAC.loc[dsid]["minTime (UTC)"]
+        tend = allDatasetsGDAC.loc[dsid]["maxTime (UTC)"]
+        ds_time_slices = []
+        counter = 0
         url = e.get_download_url()
+        print(url)
         filepath = os.path.join(utils.cache_location, f"{dsid}.nc")
         if os.path.isfile(filepath):
             print("file already exists, skip and continue")
             continue
-        urlretrieve(url, filepath)
+        while tstart < tend:
+            e.constraints = {
+                "time>=": tstart,
+                "time<=": tstart + np.timedelta64(5, "D"),
+            }
+            tstart = tstart + np.timedelta64(5, "D")
+            url = e.get_download_url()
+            print(url)
+            filepath_n = os.path.join(utils.cache_location, f"{dsid}_{counter}.nc")
+            urlretrieve(url, filepath_n)
+            counter += 1
+
+        def preprocess(ds):
+            return ds.swap_dims({"row": "time"})
+
+        ds = xarray.open_mfdataset(
+            os.path.join(utils.cache_location, f"{dsid}_*.nc"), preprocess=preprocess
+        )
+        ds.to_netcdf(filepath)
