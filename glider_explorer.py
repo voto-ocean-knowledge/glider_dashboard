@@ -361,7 +361,7 @@ class GliderDashboard(param.Parameterized):
     def update_display_threshold(self):
         try:
             # first run, when layout does not exist, this fails deliberately.
-            mylayout[0][0][0].visible = self.pick_show_ctrls
+            self.mylayout[0][0][0].visible = self.pick_show_ctrls
         except:
             pass
 
