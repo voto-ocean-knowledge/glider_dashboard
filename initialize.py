@@ -201,6 +201,6 @@ if utils.GDAC_data:
             os.path.join(utils.cache_location, f"{dsid}_*.nc"), preprocess=preprocess
         )
         ds.to_netcdf(filepath)
-        time.wait(
+        time.sleep(
             60
         )  # I assume the low-spec server needs a bit of time to recover from download
