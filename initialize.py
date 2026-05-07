@@ -184,8 +184,8 @@ if utils.GDAC_data:
             continue
         while tstart < tend:
             e.constraints = {
-                "time>=": tstart,
-                "time<=": tstart + np.timedelta64(5, "D"),
+                "time>": tstart,
+                "time<": tstart + np.timedelta64(5, "D"),
             }
             tstart = tstart + np.timedelta64(5, "D")
             url = e.get_download_url()
@@ -195,12 +195,12 @@ if utils.GDAC_data:
             counter += 1
 
         def preprocess(ds):
-            return ds.swap_dims({"row": "time"})
+            return ds.swap_dims({"row": "time"}).sortby("time")
 
         ds = xarray.open_mfdataset(
             os.path.join(utils.cache_location, f"{dsid}_*.nc"), preprocess=preprocess
         )
         ds.to_netcdf(filepath)
         time.sleep(
-            60
+            15
         )  # I assume the low-spec server needs a bit of time to recover from download
