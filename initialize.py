@@ -7,6 +7,7 @@ import numpy as np
 import polars as pl
 import xarray
 from erddapy import ERDDAP
+from retry import retry
 
 import utils
 
@@ -185,13 +186,18 @@ if utils.GDAC_data:
         while tstart < tend:
             e.constraints = {
                 "time>": tstart,
-                "time<": tstart + np.timedelta64(5, "D"),
+                "time<": tstart + np.timedelta64(10, "D"),
             }
-            tstart = tstart + np.timedelta64(5, "D")
+            tstart = tstart + np.timedelta64(10, "D")
             url = e.get_download_url()
             print(url)
             filepath_n = os.path.join(utils.cache_location, f"{dsid}_{counter}.nc")
-            urlretrieve(url, filepath_n)
+
+            @retry(Exception, tries=2, delay=300)
+            def retrieve(url, filepath_n):
+                urlretrieve(url, filepath_n)
+
+            retrieve(url, filepath_n)
             counter += 1
 
         def preprocess(ds):
