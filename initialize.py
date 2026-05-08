@@ -163,8 +163,14 @@ for dataset_id in all_dataset_ids:
 
 if utils.GDAC_data:
     allDatasetsGDAC = utils.load_allDatasets_GDAC()
-    for dsid in allDatasetsGDAC.index[1:]:
-        # skip first item because it is the "allDatasets aggregation table"
+    try:
+        allDatasetsGDAC.drop(
+            index="allDatasets"
+        )  # "allDatasets aggregation table on ERDDAP"
+    except:
+        pass
+    print(allDatasetsGDAC)
+    for dsid in allDatasetsGDAC.index:
         print("now downloading", dsid)
         e = ERDDAP(
             server="https://gliders.ioos.us/erddap",
@@ -172,6 +178,19 @@ if utils.GDAC_data:
             response="nc",
         )
         e.dataset_id = dsid
+        info_url = e.get_info_url(dataset_id=dsid, response="csv")
+        dsmeta = pl.read_csv(info_url)
+        # dsmeta.filter(pl.col('Row Type')=='variable')
+        number_of_variables = (
+            dsmeta.filter(pl.col("Row Type") == "variable")
+            .count()
+            .select("Variable Name")
+            .item()
+        )
+        if number_of_variables > 200:
+            print(f"unreasonable many variables:{number_of_variables}, skip")
+            continue
+
         tstart = allDatasetsGDAC.loc[dsid]["minTime (UTC)"]
         tend = allDatasetsGDAC.loc[dsid]["maxTime (UTC)"]
         ds_time_slices = []
@@ -182,7 +201,7 @@ if utils.GDAC_data:
         if os.path.isfile(filepath):
             print(f"file {filepath} already exists, skip and continue")
             continue
-        try: 
+        try:
             urlretrieve(url, filepath)
             print(f"direct download of {filepath} was sucessful")
             continue
