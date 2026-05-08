@@ -8,8 +8,8 @@ from erddapy import ERDDAP
 
 project = "SAMBA"
 basin = "Bornholm Basin"
-year = 2024
-month = 5
+year = 2026
+month = 4
 GDAC_data = False
 cache_location = "../voto_erddap_data_cache/"
 
@@ -62,7 +62,9 @@ def load_allDatasets_GDAC():
     allDatasetsGDAC["minTime (UTC)"] = pd.to_datetime(allDatasetsGDAC["minTime (UTC)"])
     allDatasetsGDAC["maxTime (UTC)"] = pd.to_datetime(allDatasetsGDAC["maxTime (UTC)"])
     allDatasetsGDAC = allDatasetsGDAC[allDatasetsGDAC["minTime (UTC)"].dt.year == year]
-    allDatasetsGDAC = allDatasetsGDAC[allDatasetsGDAC["minTime (UTC)"].dt.month < month]
+    allDatasetsGDAC = allDatasetsGDAC[
+        allDatasetsGDAC["minTime (UTC)"].dt.month == month
+    ]
     allDatasetsGDAC = allDatasetsGDAC.iloc[0:90]
     allDatasetsGDAC = allDatasetsGDAC[
         allDatasetsGDAC["institution"] != "C-PROOF"
