@@ -1,4 +1,5 @@
 import os.path
+import time
 import urllib.request
 from urllib.request import urlretrieve
 
@@ -21,6 +22,7 @@ metadata = metadata.drop(
 metadata = metadata.sort_values(by="time_coverage_start (UTC)")
 
 allDatasetsVOTO = utils.load_allDatasets_VOTO()
+# allDatasetsGDAC = utils.load_allDatasets_GDAC()
 all_dataset_ids = utils.add_delayed_dataset_ids(metadata, allDatasetsVOTO)  # hacky
 
 ###### download actual data ##############################
@@ -161,6 +163,13 @@ for dataset_id in all_dataset_ids:
 
 if utils.GDAC_data:
     allDatasetsGDAC = utils.load_allDatasets_GDAC()
+    try:
+        allDatasetsGDAC.drop(
+            index="allDatasets"
+        )  # "allDatasets aggregation table on ERDDAP"
+    except:
+        pass
+    print(allDatasetsGDAC)
     for dsid in allDatasetsGDAC.index:
         print("now downloading", dsid)
         e = ERDDAP(
@@ -169,9 +178,61 @@ if utils.GDAC_data:
             response="nc",
         )
         e.dataset_id = dsid
+        info_url = e.get_info_url(dataset_id=dsid, response="csv")
+        dsmeta = pl.read_csv(info_url)
+        # dsmeta.filter(pl.col('Row Type')=='variable')
+        number_of_variables = (
+            dsmeta.filter(pl.col("Row Type") == "variable")
+            .count()
+            .select("Variable Name")
+            .item()
+        )
+        if number_of_variables > 200:
+            print(f"unreasonable many variables:{number_of_variables}, skip")
+            continue
+
+        tstart = allDatasetsGDAC.loc[dsid]["minTime (UTC)"]
+        tend = allDatasetsGDAC.loc[dsid]["maxTime (UTC)"]
+        ds_time_slices = []
+        counter = 0
         url = e.get_download_url()
+        print(url)
         filepath = os.path.join(utils.cache_location, f"{dsid}.nc")
         if os.path.isfile(filepath):
-            print("file already exists, skip and continue")
+            print(f"file {filepath} already exists, skip and continue")
             continue
-        urlretrieve(url, filepath)
+        try:
+            urlretrieve(url, filepath)
+            print(f"direct download of {filepath} was sucessful")
+            continue
+        except:
+            print("full download failed, proceed with download in parts")
+        while tstart < tend:
+            e.constraints = {
+                "time>": tstart,
+                "time<": tstart + np.timedelta64(10, "D"),
+            }
+            tstart = tstart + np.timedelta64(10, "D")
+            url = e.get_download_url()
+            print(url)
+            filepath_n = os.path.join(utils.cache_location, f"{dsid}_{counter}.nc")
+            if os.path.isfile(filepath_n):
+                print(f"file {filepath_n} already exists, skip and continue")
+                continue
+
+            def retrieve(url, filepath_n):
+                urlretrieve(url, filepath_n)
+
+            retrieve(url, filepath_n)
+            counter += 1
+
+        def preprocess(ds):
+            return ds.swap_dims({"row": "time"}).sortby("time")
+
+        ds = xarray.open_mfdataset(
+            os.path.join(utils.cache_location, f"{dsid}_*.nc"), preprocess=preprocess
+        )
+        ds.to_netcdf(filepath)
+        time.sleep(
+            15
+        )  # I assume the low-spec server needs a bit of time to recover from download

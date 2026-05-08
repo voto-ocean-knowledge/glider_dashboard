@@ -419,7 +419,7 @@ class GliderDashboard(param.Parameterized):
     def update_display_threshold(self):
         try:
             # first run, when layout does not exist, this fails deliberately.
-            mylayout[0][0][0].visible = self.pick_show_ctrls
+            self.mylayout[0][0][0].visible = self.pick_show_ctrls
         except:
             pass
 
@@ -562,7 +562,7 @@ class GliderDashboard(param.Parameterized):
                 vdims="depth",
                 label=profilelabel,
             ).opts(
-                xlabel=f"{variable} [{dictionaries.units_dict.get(variable, '')}]",
+                xlabel=f"{str.capitalize(variable)} [{dictionaries.units_dict.get(variable, '')}]",
                 padding=0.1,
                 fontscale=2,
                 width=400,
@@ -865,7 +865,8 @@ class GliderDashboard(param.Parameterized):
                 # int(500/(len(self.pick_variables))),#250+int(250*2/len(self.pick_variables)), #500, 250,
                 cnorm=self.pick_cnorm,
                 bgcolor="dimgrey",
-                clabel=f"{variable}  [{dictionaries.units_dict.get(variable, '')}]",  # self.pick_variable,pick_TS_col
+                clabel=f"{str.capitalize(variable)}  [{dictionaries.units_dict.get(variable, '')}]",  # self.pick_variable,pick_TS_col
+                ylabel="Depth [m]",
                 clim_percentile=True if self.pick_autorange else False,
                 fontscale=2,
                 # framewise=True,
@@ -890,12 +891,13 @@ class GliderDashboard(param.Parameterized):
                     hooks=[lambda p, _: p.state.update(border_fill_alpha=0)],
                 )
             else:
-                cheight += 50
+                cheight += 40
                 plots_dict["dmap_rasterized"][variable] = spread(
                     rasters(variable),
                     px=1,
                     how="source",  # , shape="circle"
                 ).opts(
+                    labelled=["y"],
                     # ylim=(self.startY, self.endY),
                     # xlim=(self.startX, self.endX),
                     hooks=[lambda p, _: p.state.update(border_fill_alpha=0)],
