@@ -7,7 +7,6 @@ import numpy as np
 import polars as pl
 import xarray
 from erddapy import ERDDAP
-from retry import retry
 
 import utils
 
@@ -181,8 +180,14 @@ if utils.GDAC_data:
         print(url)
         filepath = os.path.join(utils.cache_location, f"{dsid}.nc")
         if os.path.isfile(filepath):
-            print("file already exists, skip and continue")
+            print(f"file {filepath} already exists, skip and continue")
             continue
+        try: 
+            urlretrieve(url, filepath)
+            print(f"direct download of {filepath} was sucessful")
+            continue
+        except:
+            print("full download failed, proceed with download in parts")
         while tstart < tend:
             e.constraints = {
                 "time>": tstart,
@@ -192,8 +197,10 @@ if utils.GDAC_data:
             url = e.get_download_url()
             print(url)
             filepath_n = os.path.join(utils.cache_location, f"{dsid}_{counter}.nc")
+            if os.path.isfile(filepath_n):
+                print(f"file {filepath_n} already exists, skip and continue")
+                continue
 
-            @retry(Exception, tries=2, delay=300)
             def retrieve(url, filepath_n):
                 urlretrieve(url, filepath_n)
 
