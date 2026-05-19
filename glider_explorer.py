@@ -950,7 +950,7 @@ class GliderDashboard(param.Parameterized):
                     if isinstance(
                         self.stats.filter(pl.col("statistic") == "99%")[
                             self.pick_scatter_x
-                        ],
+                        ].item(),
                         float,
                     ):
                         diffx = (
@@ -960,16 +960,16 @@ class GliderDashboard(param.Parameterized):
                             - self.stats.filter(pl.col("statistic") == "5%")[
                                 self.pick_scatter_x
                             ]
-                        )
+                        ).item()
 
                         xlim = (
                             self.stats.filter(pl.col("statistic") == "5%")[
                                 self.pick_scatter_x
-                            ]
+                            ].item()
                             - 0.1 * diffx,
                             self.stats.filter(pl.col("statistic") == "99%")[
                                 self.pick_scatter_x
-                            ]
+                            ].item()
                             + 0.1 * diffx,
                         )
                     else:
@@ -978,25 +978,25 @@ class GliderDashboard(param.Parameterized):
                     if isinstance(
                         self.stats.filter(pl.col("statistic") == "99%")[
                             self.pick_scatter_x
-                        ],
+                        ].item(),
                         float,
                     ):
                         diffy = (
                             self.stats.filter(pl.col("statistic") == "99%")[
                                 self.pick_scatter_y
-                            ]
+                            ].item()
                             - self.stats.filter(pl.col("statistic") == "5%")[
                                 self.pick_scatter_y
-                            ]
+                            ].item()
                         )
                         ylim = (
                             self.stats.filter(pl.col("statistic") == "1%")[
                                 self.pick_scatter_y
-                            ]
+                            ].item()
                             - 0.1 * diffy,
                             self.stats.filter(pl.col("statistic") == "99%")[
                                 self.pick_scatter_y
-                            ]
+                            ].item()
                             + 0.1 * diffy,
                         )
                     else:
@@ -1007,10 +1007,10 @@ class GliderDashboard(param.Parameterized):
                     clim = (
                         self.stats.filter(pl.col("statistic") == "5%")[
                             self.pick_TS_color_variable
-                        ],
+                        ].item(),
                         self.stats.filter(pl.col("statistic") == "99%")[
                             self.pick_TS_color_variable
-                        ],
+                        ].item(),
                     )
                 else:
                     clim = (None, None)
@@ -1397,17 +1397,13 @@ class GliderDashboard(param.Parameterized):
         )
         """
         # EXPENSIVE.
-        self.stats = (
-            self.data_in_view_small.select(variables + ["time", "depth", "profile_num"])
-            .filter(
-                (pl.col("time") > self.startX)
-                & (pl.col("time") < self.endX)
-                & (pl.col("depth") > self.startY)
-                & (pl.col("depth") < self.endY)
-            )
-            .describe(  #   # .select(variables)  # .select(pl.col(self.pick_variables))
-                (0.01, 0.05, 0.99)
-            )
+        self.stats = self.data_in_view_small.filter(  # .select(variables + ["time", "depth", "profile_num"])
+            (pl.col("time") > self.startX)
+            & (pl.col("time") < self.endX)
+            & (pl.col("depth") > self.startY)
+            & (pl.col("depth") < self.endY)
+        ).describe(  #   # .select(variables)  # .select(pl.col(self.pick_variables))
+            (0.01, 0.05, 0.99)
         )
         # .to_pandas()
         # .set_index("statistic")
@@ -1435,12 +1431,18 @@ class GliderDashboard(param.Parameterized):
         )
 
         if self.pick_TS_color_variable:
-            vdims = self.pick_TS_color_variable  # set([self.pick_TS_color_variable])
-            mplt = hv.Points(
-                data=data,
-                kdims=kdims,
-                vdims=vdims,
-            )
+            vdims = [self.pick_TS_color_variable]
+            # vdims = set(
+            #    kdims + [self.pick_TS_color_variable]
+            # )  # set([self.pick_TS_color_variable])
+            # for vdim in vdims.intersection(set(kdims)):
+            #    data = data.with_columns(pl.col(vdim).alias(vdim + " "))
+            #    vdims.remove(vdim)
+            #    vdims.add(vdim + " ")
+            # import pdb
+
+            # pdb.set_trace()
+            mplt = hv.Points(data=data, kdims=kdims, vdims=list(vdims))
         else:
             mplt = hv.Points(data=data, kdims=kdims)
         return mplt
