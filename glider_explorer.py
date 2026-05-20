@@ -636,7 +636,6 @@ class GliderDashboard(param.Parameterized):
         if varlist:
             dsconc = pl.concat([data for data in varlist], how="diagonal_relaxed")
             dsconc = dsconc.with_columns(pl.col("depth")).sort("time")
-            self.param["pick_variables"].objects = dsconc.collect_schema().names()
         # self.data_in_view = dsconc
 
     @param.depends(
@@ -1374,6 +1373,15 @@ class GliderDashboard(param.Parameterized):
 
         self.data_in_view = dsconc
         self.data_in_view_small = dsconc_small
+
+        variables_selectable = self.data_in_view.collect_schema().names()
+        print(variables_selectable)
+        self.param["pick_variables"].objects = variables_selectable
+        self.param["pick_scatter_x"].objects = variables_selectable
+        self.param["pick_scatter_y"].objects = variables_selectable
+        # self.param["pick_TS_color"] # boolean
+        self.param["pick_TS_color_variable"].objects = variables_selectable
+        self.param["pick_contours"].objects = [None] + variables_selectable
 
         """ WILL I NEED THIS FOR MLD COMPUTATION? """
         # if self.startX is not None:
