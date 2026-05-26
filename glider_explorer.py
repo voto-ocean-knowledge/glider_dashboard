@@ -1951,10 +1951,11 @@ def create_meta_instance(self):
                     "variables",
                 ]
             ],
-            frozen_columns=["DatasetID"],
+            frozen_columns=["datasetID"],
             header_filters=True,
             sizing_mode="stretch_both",
             page_size=20,
+            disabled=True,  # make cells non-editable
         )
     )
     return mylayout
