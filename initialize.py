@@ -178,6 +178,14 @@ if utils.GDAC_data:
             response="nc",
         )
         e.dataset_id = dsid
+        filepath = os.path.join(utils.cache_location, f"{dsid}.nc")
+        if os.path.isfile(filepath):
+            print(f"file {filepath} already exists, skip")
+            continue
+        else:
+            print(f"file {filepath} still needs downloading!!!!!!!!!!!!!!!!!!!!!")
+            # import pdb; pdb.set_trace();
+            # continue
         info_url = e.get_info_url(dataset_id=dsid, response="csv")
         dsmeta = pl.read_csv(info_url)
         # dsmeta.filter(pl.col('Row Type')=='variable')
@@ -207,32 +215,33 @@ if utils.GDAC_data:
             continue
         except:
             print("full download failed, proceed with download in parts")
-        while tstart < tend:
-            e.constraints = {
-                "time>": tstart,
-                "time<": tstart + np.timedelta64(10, "D"),
-            }
-            tstart = tstart + np.timedelta64(10, "D")
-            url = e.get_download_url()
-            print(url)
-            filepath_n = os.path.join(utils.cache_location, f"{dsid}_{counter}.nc")
-            if os.path.isfile(filepath_n):
-                print(f"file {filepath_n} already exists, skip and continue")
-                continue
+            while tstart < tend:
+                e.constraints = {
+                    "time>": tstart,
+                    "time<": tstart + np.timedelta64(10, "D"),
+                }
+                tstart = tstart + np.timedelta64(10, "D")
+                url = e.get_download_url()
+                print(url)
+                filepath_n = os.path.join(utils.cache_location, f"{dsid}_{counter}.nc")
+                if os.path.isfile(filepath_n):
+                    print(f"file {filepath_n} already exists, skip and continue")
+                    continue
 
-            def retrieve(url, filepath_n):
-                urlretrieve(url, filepath_n)
+                def retrieve(url, filepath_n):
+                    urlretrieve(url, filepath_n)
 
-            retrieve(url, filepath_n)
-            counter += 1
+                retrieve(url, filepath_n)
+                counter += 1
 
-        def preprocess(ds):
-            return ds.swap_dims({"row": "time"}).sortby("time")
+            def preprocess(ds):
+                return ds.swap_dims({"row": "time"}).sortby("time")
 
-        ds = xarray.open_mfdataset(
-            os.path.join(utils.cache_location, f"{dsid}_*.nc"), preprocess=preprocess
-        )
-        ds.to_netcdf(filepath)
-        time.sleep(
-            15
-        )  # I assume the low-spec server needs a bit of time to recover from download
+            ds = xarray.open_mfdataset(
+                os.path.join(utils.cache_location, f"{dsid}_*.nc"),
+                preprocess=preprocess,
+            )
+            ds.to_netcdf(filepath)
+            time.sleep(
+                1
+            )  # I assume the low-spec server needs a bit of time to recover from download
