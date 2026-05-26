@@ -306,6 +306,7 @@ class GliderDashboard(param.Parameterized):
     startY = None
     endY = None
 
+    @pn.cache(max_items=1, policy="FIFO")
     def update_markdown(self, x_range: tuple, y_range: tuple) -> str:
         """
         Updates markdown information below the plots on the page based on the currently visible ranges of data.
@@ -397,6 +398,7 @@ class GliderDashboard(param.Parameterized):
         self.startX, self.endX = x_range
         self.startY, self.endY = y_range
 
+    @pn.cache(max_items=1, policy="FIFO")
     def create_single_ds_plot_raster(self, data, variables):
         variables = set(variables)
         variables.add("temperature")  # inplace operations
@@ -415,6 +417,7 @@ class GliderDashboard(param.Parameterized):
         )
         return raster
 
+    @pn.cache(max_items=1, policy="FIFO")
     @param.depends("pick_show_ctrls", watch=True)
     def update_display_threshold(self):
         try:
@@ -438,6 +441,7 @@ class GliderDashboard(param.Parameterized):
             self.param.pick_dsids.precedence = -10
             self.param.pick_basin.precedence = 1
 
+    @pn.cache(max_items=1, policy="FIFO")
     @param.depends("button_inflow", watch=True)
     def execute_event(self):
         self.markdown.object = """\
@@ -464,6 +468,7 @@ class GliderDashboard(param.Parameterized):
 
         return  # self.dynmap*text_annotation
 
+    @pn.cache(max_items=1, policy="FIFO")
     @param.depends("pick_basin", "pick_dsids", "pick_toggle", watch=True)
     def change_basin(self):
         # bug: setting watch=True enables correct reset of (y-) coordinates, but leads to double initialization (slow)
@@ -502,6 +507,7 @@ class GliderDashboard(param.Parameterized):
         # self.startY = None
         # self.endY = 12
 
+    @pn.cache(max_items=1, policy="FIFO")
     @param.depends(
         "pick_autorange",
         watch=True,
@@ -518,6 +524,8 @@ class GliderDashboard(param.Parameterized):
                     ),
                 )
 
+    # @pn.cache(max_items=1, policy="FIFO")
+    @pn.cache(max_items=1, policy="FIFO")
     def location(self, x, y):
         # print(f"Click at {x}, {y}")
         if self.data_in_view is None:
@@ -581,6 +589,7 @@ class GliderDashboard(param.Parameterized):
             )
         self.mylayout[0][2] = pn.Row(hv.Layout(profile_plots))
 
+    @pn.cache(max_items=1, policy="FIFO")
     @param.depends(
         "button",
         watch=True,
@@ -603,6 +612,7 @@ class GliderDashboard(param.Parameterized):
                 self.mylayout.pop(index)
         self.mylayout.append(self.file_download)
 
+    @pn.cache(max_items=1, policy="FIFO")
     @param.depends(
         "pick_dsids",
         "pick_toggle",
@@ -638,6 +648,7 @@ class GliderDashboard(param.Parameterized):
             dsconc = dsconc.with_columns(pl.col("depth")).sort("time")
         # self.data_in_view = dsconc
 
+    @pn.cache(max_items=1, policy="FIFO")
     @param.depends(
         "pick_cnorm",
         "pick_variables",
@@ -666,7 +677,8 @@ class GliderDashboard(param.Parameterized):
     # @pn.io.profile("clustering", engine="snakeviz")
     def create_dynmap(self):
         # self.markdown.object = self.update_markdown()
-
+        self.data_in_view = None
+        self.data_in_view_small = None
         # self.startX = self.pick_startX
         # self.endX = self.pick_endX
         # self.startY, self.endY = (self.pick_startY, self.pick_endY)
@@ -741,6 +753,7 @@ class GliderDashboard(param.Parameterized):
         dmap_raster = hv.DynamicMap(
             self.get_xsection_raster,
             streams=[range_stream, tap_stream],
+            cache_size=1,
         )  # .opts(framewise=True)
 
         if self.pick_high_resolution:
@@ -752,7 +765,7 @@ class GliderDashboard(param.Parameterized):
             dmap_TS = hv.DynamicMap(
                 self.get_xsection_TS,
                 streams=[range_stream],
-                # cache_size=1,
+                cache_size=1,
             )
 
             if not self.pick_TS_color_variable:
@@ -789,12 +802,14 @@ class GliderDashboard(param.Parameterized):
         dmap_decorators = hv.DynamicMap(
             self.get_xsection,
             streams=[range_stream],  # cache_size=1
+            cache_size=1,
         )
         if self.pick_mld:
             # Important!!! Compute MLD only once and apply it to all plots!!!
             dmap_mld = hv.DynamicMap(
                 self.get_xsection_mld,
                 streams=[range_stream],  # cache_size=1
+                cache_size=1,
             )  # .opts(responsive=True)
 
         plots_dict = dict(dmap_rasterized=dict(), dmap_rasterized_contour=dict())
@@ -1070,6 +1085,7 @@ class GliderDashboard(param.Parameterized):
 
         return pn.Column(contourplots.opts(height=cheight).cols(ncols))
 
+    @pn.cache(max_items=1, policy="FIFO")
     def create_mean(self):
         self.startX = self.pick_startX
         self.endX = self.pick_endX
@@ -1083,12 +1099,14 @@ class GliderDashboard(param.Parameterized):
         dmap = hv.DynamicMap(
             self.get_xsection,
             streams=[range_stream],
+            cache_size=1,
             # cache_size=1,
         )
         dmap_mean = (
             hv.DynamicMap(
                 self.get_xsection_mean,
                 streams=[range_stream],  # cache_size=1
+                cache_size=1,
             ).opts(
                 # invert_yaxis=True, # Would like to activate this, but breaks the hover tool
                 # colorbar=True,
@@ -1110,6 +1128,7 @@ class GliderDashboard(param.Parameterized):
 
         return dmap_mean
 
+    # @pn.cache(max_items=1, policy="FIFO")
     def load_viewport_datasets(self, x_range):
         """
         Returns a pandas dataframe containing keys of the datasets that are in the current view.
@@ -1203,6 +1222,7 @@ class GliderDashboard(param.Parameterized):
         self.visible_datasets = meta.index
         return lod.allDatasets.loc[meta.index], plt_props
 
+    @pn.cache(max_items=1, policy="FIFO")
     def get_xsection_mld(self, x_range, y_range):
         # print("DATA IN VIEW:", self.data_in_view.collect())
         dfmld = (
@@ -1235,6 +1255,7 @@ class GliderDashboard(param.Parameterized):
 
         return mldscatter  # * mldscatter2
 
+    @pn.cache(max_items=1, policy="FIFO")
     def get_xsection_mean(self, x_range, y_range):
         # This method is not adapted for multiple variables (pick_variables) yet
         try:
@@ -1285,6 +1306,7 @@ class GliderDashboard(param.Parameterized):
 
         return meanline
 
+    # @pn.cache(max_items=1, policy="FIFO")
     def get_xsection_raster(self, x_range, y_range, x, y):
         (x0, x1) = x_range
         if (x0 is not None) and (x1 is not None):
@@ -1375,7 +1397,7 @@ class GliderDashboard(param.Parameterized):
         self.data_in_view_small = dsconc_small
 
         variables_selectable = self.data_in_view.collect_schema().names()
-        print(variables_selectable)
+        # print(variables_selectable)
         self.param["pick_variables"].objects = variables_selectable
         self.param["pick_scatter_x"].objects = variables_selectable
         self.param["pick_scatter_y"].objects = variables_selectable
@@ -1425,6 +1447,7 @@ class GliderDashboard(param.Parameterized):
 
         return mplt
 
+    @pn.cache(max_items=1, policy="FIFO")
     def get_xsection_TS(self, x_range, y_range):
         kdims = [
             self.pick_scatter_x,
@@ -1455,6 +1478,7 @@ class GliderDashboard(param.Parameterized):
             mplt = hv.Points(data=data, kdims=kdims)
         return mplt
 
+    @pn.cache(max_items=1, policy="FIFO")
     def get_xsection_profiles(self, x_range, y_range):
         low = self.stats.filter(pl.col("statistic") == "1%")[self.pick_variables[0]]
         high = self.stats.filter(pl.col("statistic") == "99%")[self.pick_variables[0]]
@@ -1466,6 +1490,7 @@ class GliderDashboard(param.Parameterized):
         )
         return mplt
 
+    @pn.cache(max_items=1, policy="FIFO")
     def get_density_contours(self, x_range, y_range):
         import gsw
         # +/- 5 gives plently of space for the density line drawing, if user zoomes out.
@@ -1526,6 +1551,7 @@ class GliderDashboard(param.Parameterized):
             element = hv.Spikes().opts(color="black", alpha=0.1)
         return element
 
+    @pn.cache(max_items=1, policy="FIFO")
     def get_xsection(self, x_range, y_range):
         """
         (x0, x1) = x_range
@@ -1582,6 +1608,7 @@ class GliderDashboard(param.Parameterized):
         else:
             return hv.Overlay()  # return self.create_None_element("Overlay")
 
+    @pn.cache(max_items=1, policy="FIFO")
     def mixed_layer_depth(self, variable, thresh=0.01, ref_depth=-10, verbose=True):
         """
         Calculates the MLD for ungridded glider array.
@@ -1622,6 +1649,7 @@ class GliderDashboard(param.Parameterized):
         return mld.collect()
 
     # @param.depends("pick_autorange")
+    @pn.cache(max_items=1, policy="FIFO")
     def create_app_instance(self):
 
         def create_column(hex_id=None):
@@ -1951,7 +1979,8 @@ def create_meta_instance(self):
                     "variables",
                 ]
             ],
-            frozen_columns=["DatasetID"],
+            disabled=True,  # makes table cells non-editable (static)
+            frozen_columns=["datasetID"],
             header_filters=True,
             sizing_mode="stretch_both",
             page_size=20,
