@@ -1,10 +1,12 @@
 import os.path
-import time
-import urllib.request
+import shutil
+
+# import urllib.request
 from urllib.request import urlretrieve
 
 import numpy as np
 import polars as pl
+import urllib3
 import xarray
 from erddapy import ERDDAP
 
@@ -209,39 +211,19 @@ if utils.GDAC_data:
         if os.path.isfile(filepath):
             print(f"file {filepath} already exists, skip and continue")
             continue
-        try:
-            urlretrieve(url, filepath)
-            print(f"direct download of {filepath} was sucessful")
-            continue
-        except:
-            print("full download failed, proceed with download in parts")
-            while tstart < tend:
-                e.constraints = {
-                    "time>": tstart,
-                    "time<": tstart + np.timedelta64(10, "D"),
-                }
-                tstart = tstart + np.timedelta64(10, "D")
-                url = e.get_download_url()
-                print(url)
-                filepath_n = os.path.join(utils.cache_location, f"{dsid}_{counter}.nc")
-                if os.path.isfile(filepath_n):
-                    print(f"file {filepath_n} already exists, skip and continue")
-                    continue
 
-                def retrieve(url, filepath_n):
-                    urlretrieve(url, filepath_n)
+        c = urllib3.PoolManager()
 
-                retrieve(url, filepath_n)
-                counter += 1
+        with (
+            c.request("GET", url, preload_content=False) as resp,
+            open(filepath, "wb") as out_file,
+        ):
+            shutil.copyfileobj(resp, out_file)
 
-            def preprocess(ds):
-                return ds.swap_dims({"row": "time"}).sortby("time")
+        resp.release_conn()  # not 100% sure this is required though
 
-            ds = xarray.open_mfdataset(
-                os.path.join(utils.cache_location, f"{dsid}_*.nc"),
-                preprocess=preprocess,
-            )
-            ds.to_netcdf(filepath)
-            time.sleep(
-                1
-            )  # I assume the low-spec server needs a bit of time to recover from download
+        # reso = urllib2.urlopen(url)
+        # with open(filepath, "wb") as f:
+        #    f.write(resp.read())
+        # urlretrieve(url, filepath)
+        print(f"direct download of {filepath} was sucessful")
