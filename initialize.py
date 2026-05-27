@@ -173,6 +173,12 @@ if utils.GDAC_data:
         pass
     print(allDatasetsGDAC)
     for dsid in allDatasetsGDAC.index:
+        filepath = os.path.join(utils.cache_location, f"{dsid}.nc")
+        if os.path.isfile(filepath):
+            print(f"file {filepath} already exists, skip")
+            continue
+        else:
+            print(f"file {filepath} still needs downloading!")
         print("now downloading", dsid)
         e = ERDDAP(
             server="https://gliders.ioos.us/erddap",
@@ -180,14 +186,9 @@ if utils.GDAC_data:
             response="nc",
         )
         e.dataset_id = dsid
-        filepath = os.path.join(utils.cache_location, f"{dsid}.nc")
-        if os.path.isfile(filepath):
-            print(f"file {filepath} already exists, skip")
-            continue
-        else:
-            print(f"file {filepath} still needs downloading!!!!!!!!!!!!!!!!!!!!!")
-            # import pdb; pdb.set_trace();
-            # continue
+
+        # import pdb; pdb.set_trace();
+        # continue
         info_url = e.get_info_url(dataset_id=dsid, response="csv")
         dsmeta = pl.read_csv(info_url)
         # dsmeta.filter(pl.col('Row Type')=='variable')
@@ -198,7 +199,7 @@ if utils.GDAC_data:
             .item()
         )
         if number_of_variables > 200:
-            print(f"unreasonable many variables:{number_of_variables}, skip")
+            print(f"unreasonable many variables in {dsid}:{number_of_variables}, skip")
             continue
 
         tstart = allDatasetsGDAC.loc[dsid]["minTime (UTC)"]
@@ -212,7 +213,9 @@ if utils.GDAC_data:
             print(f"file {filepath} already exists, skip and continue")
             continue
 
-        c = urllib3.PoolManager()
+        timeout = urllib3.Timeout(connect=120, read=300)
+        # http = urllib3.PoolManager(timeout=default_timeout)
+        c = urllib3.PoolManager(timeout=timeout)
 
         with (
             c.request("GET", url, preload_content=False) as resp,
