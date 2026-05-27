@@ -22,3 +22,4 @@ dependencies:
   - selenium
   - pytest
   - tabulate
+  - urllib3
