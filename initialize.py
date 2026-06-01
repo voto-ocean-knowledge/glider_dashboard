@@ -86,8 +86,8 @@ for dataset_id in all_dataset_ids:
         else:
             try:
                 urllib.request.urlretrieve(url, file_Path_adcp)
-            except:
-                print(f"no adcp data for {dataset_id}")
+            except Exception as e:
+                print(f"Error for {dataset_id}: {e}")
 
 for dataset_id in all_dataset_ids:
     # if not (dataset_id[0:7] == "delayed"):
@@ -101,7 +101,7 @@ for dataset_id in all_dataset_ids:
     print(f"combining {dataset_id} variables with adcp file")
     file_Path = os.path.join(utils.cache_location, f"{dataset_id}.nc")
     dsid = dataset_id.replace("delayed_", "")
-    file_Path_adcp = os.path.join(utils.cache_location, "{dsid}_adcp_proc.nc")
+    file_Path_adcp = os.path.join(utils.cache_location, f"{dsid}_adcp_proc.nc")
 
     ds = xarray.open_mfdataset(file_Path, drop_variables="ad2cp_time")
     # import pdb
@@ -112,8 +112,7 @@ for dataset_id in all_dataset_ids:
         ds = ds.swap_dims({"row": "time"})
 
     ds = ds.drop_duplicates(dim="time").load()
-
-    try:
+    if os.path.isfile(file_Path_adcp):
         ds2 = (
             xarray.open_mfdataset(file_Path_adcp)
             .set_index({"profile_index": "time"})
@@ -140,7 +139,7 @@ for dataset_id in all_dataset_ids:
                 ]
             ]
         )
-    except:
+    else:
         print(f"no adcp data for {dsid} found, skip combining")
         # continue
     # ds2.sortby('depth','profile_index').sel(profile_index=np.datetime64('2024-01-10'), method='nearest')#
