@@ -1374,8 +1374,23 @@ class GliderDashboard(param.Parameterized):
         self.data_in_view = dsconc
         self.data_in_view_small = dsconc_small
 
-        variables_selectable = self.data_in_view.collect_schema().names()
-        print(variables_selectable)
+        missing_elements = set(variables) - set(
+            self.data_in_view.collect_schema().names()
+        )
+        for element in missing_elements:
+            self.data_in_view = self.data_in_view.with_columns(
+                [pl.lit(np.nan).alias(element)]
+            )
+            self.data_in_view_small = self.data_in_view.with_columns(
+                [pl.lit(np.nan).alias(element)]
+            )
+            print("added", element)
+
+        variables_selectable = list(
+            set(self.data_in_view.collect_schema().names() + list(variables))
+        )
+
+        # print(variables_selectable)
         self.param["pick_variables"].objects = variables_selectable
         self.param["pick_scatter_x"].objects = variables_selectable
         self.param["pick_scatter_y"].objects = variables_selectable
