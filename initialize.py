@@ -106,8 +106,6 @@ for dataset_id in all_dataset_ids:
     file_Path_adcp = os.path.join(utils.cache_location, f"{dsid}_adcp_proc.nc")
 
     ds = xarray.open_mfdataset(file_Path, drop_variables="ad2cp_time")
-    # import pdb
-    # pdb.set_trace()
     if "time" not in ds["depth"].dims:
         # unfortunately some datasets come with "row" dimension from ERDDAP currently,
         # instead of "time" how it is meant to be (?).
@@ -162,6 +160,10 @@ for dataset_id in all_dataset_ids:
     )  # df.time.dt.date
     midpoints = [interval.mid for interval in ds.depth.values]
     ds["depth"] = midpoints
+    x = np.arange(len(ds.indexes["time"]))
+    y = np.arange(len(ds.indexes["depth"]))
+    xv, yv = np.meshgrid(x, y)
+    ds["profile_num"] = (["depth", "time"], xv)
     # ds["time"] = ds["time"].mean(dim=["depth"])
 
     df_small = pl.from_dataframe(

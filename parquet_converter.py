@@ -1,13 +1,11 @@
-import glob
 import os
 from pathlib import Path
 
-import polars as pl
 import xarray as xr
 
 import utils
 
-nc_datasets = glob.glob(os.path.join(utils.cache_location, "*.nc"))
+# nc_datasets = glob.glob(os.path.join(utils.cache_location, "*.nc"))
 print("now converting all files to parquet, please wait...")
 # This for loop covers the VOTO datasets
 """
@@ -45,24 +43,38 @@ for file in nc_datasets:
 """
 
 if utils.GDAC_data:
-    netcdf_datasets = glob.glob(os.path.join(utils.cache_location, "*.nc"))
-    for file in netcdf_datasets:
+    allDatasetsGDAC = utils.load_allDatasets_GDAC()
+    try:
+        allDatasetsGDAC.drop(
+            index="allDatasets"
+        )  # "allDatasets aggregation table on ERDDAP"
+    except:
+        pass
+    print(allDatasetsGDAC)
+    for dsid in allDatasetsGDAC.index:
+        # netcdf_datasets = glob.glob(os.path.join(utils.cache_location, "*.nc"))
+        # for file in netcdf_datasets:
         if (
-            Path(file.replace("nc", "parquet")).is_file()
-            and Path(file.replace(".nc", "_small.parquet")).is_file()
+            Path(os.path.join(utils.cache_location, f"{dsid}.parquet")).is_file()
+            and Path(
+                os.path.join(utils.cache_location, f"{dsid}_small.parquet")
+            ).is_file()
+            # Path(file.replace("nc", "parquet")).is_file()
+            # and Path(file.replace(".nc", "_small.parquet")).is_file()
         ):
-            print(f"{file.replace('nc', 'parquet')} already exists, skip")
+            print(f"{dsid}.parquet already exists, skip")
             continue
         # if "small" in file:
         #    continue
-        if "SEA" in file:
-            continue
-        if "SHW" in file:
-            continue
+        # if "SEA" in file:
+        #    continue
+        # if "SHW" in file:
+        #    continue
         # if Path(file.replace(".parquet", "_small.parquet")).is_file():
         #    print(f"{file} already has a small version, skip")
         #    continue
         else:
+            file = os.path.join(utils.cache_location, f"{dsid}.nc")
             print(f"creating parquet version of {file}")
             df = (
                 xr.open_dataset(file).to_pandas().sort_index()
@@ -72,6 +84,7 @@ if utils.GDAC_data:
             # if "nrt" not in file:
             #    df.sink_parquet(file.replace(".parquet", "_small.parquet"))
 
+"""
     parquet_datasets = glob.glob(os.path.join(utils.cache_location, "*.parquet"))
     for file in parquet_datasets:
         if "small" in file:
@@ -88,3 +101,4 @@ if utils.GDAC_data:
             df = pl.scan_parquet(file)
             if "nrt" not in file:
                 df.sink_parquet(file.replace(".parquet", "_small.parquet"))
+"""
