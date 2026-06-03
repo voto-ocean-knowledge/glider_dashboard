@@ -5,6 +5,7 @@ import shutil
 from urllib.request import urlretrieve
 
 import numpy as np
+import pandas as pd
 import polars as pl
 import urllib3
 import xarray
@@ -90,6 +91,7 @@ for dataset_id in all_dataset_ids:
                 print(f"Error for {dataset_id}: {e}")
 
 for dataset_id in all_dataset_ids:
+    # pdb.set_trace()
     # if not (dataset_id[0:7] == "delayed"):
     #    # we do not have/provide VOTO nrt ADCP data
     #    continue
@@ -147,20 +149,28 @@ for dataset_id in all_dataset_ids:
     df = ds.to_pandas().sort_index()
     if df.index.diff().mean() < np.timedelta64(600, "ms"):
         df = df.resample("1s").mean()
-    df = pl.from_dataframe(df.astype(np.float32))
-    df.write_parquet(os.path.join(utils.cache_location, f"{dataset_id}.parquet"))
-    df = df.filter(pl.col("profile_num") % 10 == 0)
-    df.write_parquet(
+    # First step: write full resolution dataset
+    df_full = pl.from_dataframe(df.astype(np.float32))
+    df_full.write_parquet(os.path.join(utils.cache_location, f"{dataset_id}.parquet"))
+    # Second step: Write reduced resolution data for statistics and zoomed out views
+    maxdepth = df["depth"].quantile(q=0.99)
+    df["depth"] = pd.cut(
+        x=df["depth"], bins=np.arange(0, maxdepth, 0.2), include_lowest=False
+    )
+    ds = (
+        df.groupby([df["depth"], pd.Grouper(freq="3h")]).mean().to_xarray()
+    )  # df.time.dt.date
+    midpoints = [interval.mid for interval in ds.depth.values]
+    ds["depth"] = midpoints
+    # ds["time"] = ds["time"].mean(dim=["depth"])
+
+    df_small = pl.from_dataframe(
+        ds.to_dataframe().reset_index("depth").astype(np.float32)
+    )
+    df_small.write_parquet(
         os.path.join(utils.cache_location, f"{dataset_id}_small.parquet")
-    )  # "file.replace(".nc", "_small.parquet").replace("_combined", ""))
+    )
 
-    # file.replace("nc", "parquet").replace("_combined", ""))
-    # ds.to_netcdf(f"../voto_erddap_data_cache/{dataset_id}_combined.nc", "w")
-
-# download_glider_dataset(
-#    all_dataset_ids,  # all_dataset_ids may not actually be all datasets
-#    # variables=variables,
-# )
 
 if utils.GDAC_data:
     allDatasetsGDAC = utils.load_allDatasets_GDAC()

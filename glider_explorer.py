@@ -1334,18 +1334,21 @@ class GliderDashboard(param.Parameterized):
 
         for dsid in metakeys:
             # This is delayed data if available
+            ds_small = lod.dsdict[dsid + "_small"]
+            varlist_small.append(ds_small)
             if plt_props["zoomed_out"] and (not self.pick_high_resolution):
-                ds = lod.dsdict[dsid + "_small"]
+                varlist.append(ds_small)
             else:
-                ds = lod.dsdict[dsid]  # + "_small"]
+                ds_full = lod.dsdict[dsid]
+                varlist.append(ds_full)
 
             # ds = ds.filter(pl.col("profile_num") % plt_props["subsample_freq"] == 0)
-            varlist.append(ds)
 
-        for dsid in meta.index:
-            # This is only the nrt data
-            ds = lod.dsdict[dsid]
-            varlist_small.append(ds)
+        # for dsid in meta.index:
+        #    # This is only the nrt data
+        #    ds = lod.dsdict[dsid]
+        #    varlist_small.append(ds)
+        print(varlist, varlist_small)
 
         if self.pick_scatter_bool:  # _bool:  # or self.pick_profiles:
             nanosecond_iterator = 1
@@ -1390,7 +1393,6 @@ class GliderDashboard(param.Parameterized):
             set(self.data_in_view.collect_schema().names() + list(variables))
         )
 
-        # print(variables_selectable)
         self.param["pick_variables"].objects = variables_selectable
         self.param["pick_scatter_x"].objects = variables_selectable
         self.param["pick_scatter_y"].objects = variables_selectable
