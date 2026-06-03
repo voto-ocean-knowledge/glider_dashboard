@@ -1400,7 +1400,10 @@ class GliderDashboard(param.Parameterized):
         self.param["pick_scatter_y"].objects = variables_selectable
         # self.param["pick_TS_color"] # boolean
         self.param["pick_TS_color_variable"].objects = variables_selectable
-        self.param["pick_contours"].objects = [None] + variables_selectable
+        self.param["pick_contours"].objects = [
+            None,
+            "same as above",
+        ] + variables_selectable
         """
         print(
             "The length of the datasets is:",
