@@ -513,8 +513,10 @@ class GliderDashboard(param.Parameterized):
                     self,
                     f"pick_cbar_range_{variable}",
                     (
-                        self.stats.filter(pl.col("statistic") == "1%")[variable],
-                        self.stats.filter(pl.col("statistic") == "99%")[variable],
+                        self.stats.filter(pl.col("statistic") == "1%")[variable].item(),
+                        self.stats.filter(pl.col("statistic") == "99%")[
+                            variable
+                        ].item(),
                     ),
                 )
 
@@ -1348,7 +1350,7 @@ class GliderDashboard(param.Parameterized):
         #    # This is only the nrt data
         #    ds = lod.dsdict[dsid]
         #    varlist_small.append(ds)
-        print(varlist, varlist_small)
+        # print(varlist, varlist_small)
 
         if self.pick_scatter_bool:  # _bool:  # or self.pick_profiles:
             nanosecond_iterator = 1
@@ -1399,22 +1401,7 @@ class GliderDashboard(param.Parameterized):
         # self.param["pick_TS_color"] # boolean
         self.param["pick_TS_color_variable"].objects = variables_selectable
         self.param["pick_contours"].objects = [None] + variables_selectable
-
-        """ WILL I NEED THIS FOR MLD COMPUTATION? """
-        # if self.startX is not None:
         """
-        self.data_in_view = dsconc.filter(
-            (pl.col("time") > self.startX) & (pl.col("time") < self.endX)
-            # & (pl.col("depth") > self.startY)
-            # & (pl.col("depth") < self.endY)
-        )  # .dropna(subset=['temperature', 'salinity'])
-        self.data_in_view_small = dsconc_small.filter(
-            (pl.col("time") > self.startX) & (pl.col("time") < self.endX)
-            # & (pl.col("depth") > self.startY)
-            # & (pl.col("depth") < self.endY)
-        )
-        # else:
-
         print(
             "The length of the datasets is:",
             dsconc.select(pl.len()).collect().item(),
@@ -1430,10 +1417,6 @@ class GliderDashboard(param.Parameterized):
         ).describe(  #   # .select(variables)  # .select(pl.col(self.pick_variables))
             (0.01, 0.05, 0.99)
         )
-        # .to_pandas()
-        # .set_index("statistic")
-        # import pdb
-        # pdb.set_trace()
         self.update_markdown(x_range, y_range)
         mplt = self.create_single_ds_plot_raster(
             data=self.data_in_view, variables=variables
@@ -1728,17 +1711,21 @@ class GliderDashboard(param.Parameterized):
                 widgets={
                     f"pick_cbar_range_{variable}": pn.widgets.EditableRangeSlider(
                         value=(
-                            self.stats.filter(pl.col("statistic") == "1%")[variable],
-                            self.stats.filter(pl.col("statistic") == "99%")[variable],
+                            self.stats.filter(pl.col("statistic") == "1%")[
+                                variable
+                            ].item(),
+                            self.stats.filter(pl.col("statistic") == "99%")[
+                                variable
+                            ].item(),
                             # dictionaries.ranges_dict.get(variable, (0, 10))[0],
                             # dictionaries.ranges_dict.get(variable, (0, 10))[1],
                         ),
                         start=self.stats.filter(pl.col("statistic") == "1%")[
                             variable
-                        ],  # dictionaries.ranges_dict.get(variable, (0, 10))[0],
+                        ].item(),  # dictionaries.ranges_dict.get(variable, (0, 10))[0],
                         end=self.stats.filter(pl.col("statistic") == "99%")[
                             variable
-                        ],  # dictionaries.ranges_dict.get(variable, (0, 10))[1],
+                        ].item(),  # dictionaries.ranges_dict.get(variable, (0, 10))[1],
                         # step=0.1,
                     )
                 },
