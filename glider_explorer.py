@@ -1394,7 +1394,7 @@ class GliderDashboard(param.Parameterized):
         variables_selectable = list(
             set(self.data_in_view.collect_schema().names() + list(variables))
         )
-
+        variables_selectable.sort()
         self.param["pick_variables"].objects = variables_selectable
         self.param["pick_scatter_x"].objects = variables_selectable
         self.param["pick_scatter_y"].objects = variables_selectable
@@ -1404,6 +1404,7 @@ class GliderDashboard(param.Parameterized):
             None,
             "same as above",
         ] + variables_selectable
+
         """
         print(
             "The length of the datasets is:",
