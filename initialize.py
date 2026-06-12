@@ -160,11 +160,15 @@ for dataset_id in all_dataset_ids:
     )  # df.time.dt.date
     midpoints = [interval.mid for interval in ds.depth.values]
     ds["depth"] = midpoints
-    x = np.arange(len(ds.indexes["time"]))
+    x = ds["profile_num"].mean(dim="depth").values
+    # alternative approach giving integer profile numbers outcommented below,
+    # would be underestimating the number of profiles because each time aggreagate (Grouper(freq)) will only count as one profile.
+    # this leads to faulty total number of profiles displayed in the statistics
+    # x = np.arange(len(ds.indexes["time"]))
     y = np.arange(len(ds.indexes["depth"]))
     xv, yv = np.meshgrid(x, y)
+
     ds["profile_num"] = (["depth", "time"], xv)
-    # ds["time"] = ds["time"].mean(dim=["depth"])
 
     df_small = pl.from_dataframe(
         ds.to_dataframe().reset_index("depth").astype(np.float32)
