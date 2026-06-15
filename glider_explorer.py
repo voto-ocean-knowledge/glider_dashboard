@@ -425,16 +425,18 @@ class GliderDashboard(param.Parameterized):
 
     @param.depends("pick_toggle", "pick_basin", watch=True)
     def update_datasource(self):
-        # toggles visibility
         if not self.pick_GDAC:
+            # only show VOTO datasets of pick_GDAC is set to False in utils
             self.param.pick_dsids.objects = set(
                 self.param.pick_dsids.objects
             ).intersection(set(lod.allDatasetsVOTO.index))
 
         if self.pick_toggle == "DatasetID":
+            # hide basin selector
             self.param.pick_basin.precedence = -10
             self.param.pick_dsids.precedence = 1
         else:
+            # hide datasetID selector
             self.param.pick_dsids.precedence = -10
             self.param.pick_basin.precedence = 1
 
@@ -466,41 +468,8 @@ class GliderDashboard(param.Parameterized):
 
     @param.depends("pick_basin", "pick_dsids", "pick_toggle", watch=True)
     def change_basin(self):
-        # bug: setting watch=True enables correct reset of (y-) coordinates, but leads to double initialization (slow)
-        # setting watch=False fixes initialization but does not keep y-coordinate.
-        if self.pick_toggle == "SAMBA obs.":
-            # first case, , user selected an aggregation, e.g. 'Bornholm Basin'
-            meta = lod.metadata[lod.metadata["basin"] == self.pick_basin]
-            meta = meta[meta["project"] == "SAMBA"]
-            meta = meta[meta["time_coverage_start (UTC)"] > np.datetime64("2021-01-01")]
-            meta = utils.drop_overlaps_fast(meta)
-            meta = lod.fDs.loc[meta.index]
-        else:
-            # second case, user selected dids
-            meta = lod.allDatasets.loc[self.pick_dsids]  # metadata.loc[self.pick_dsids]
-
-        # hacky way to differentiate if called via synclink or refreshed with UI buttons
-        if not len(meta):
-            # self.startX = pd.NaT  # None
-            # self.endX = pd.NaT  # None
-            # self.pick_startX = pd.NaT  # None
-            # self.pick_endX = pd.NaT  # None
-            return
-        incoming_link = not (isinstance(self.pick_startX, pd.Timestamp))
-        if not incoming_link:
-            mintime = meta["minTime (UTC)"].min()
-            maxtime = meta["maxTime (UTC)"].max()
-            self.startX, self.endX = None, None  # mintime, maxtime
-            self.startY, self.endY = None, None
-            # self.pick_startX, self.pick_endX = (mintime, maxtime)
-        else:
-            self.startX, self.endX = None, None  # mintime, maxtime
-            self.startY, self.endY = None, None
-            # pass
-            # self.pick_startX, self.pick_endX = (self.pick_startX, self.pick_endX)
-
-        # self.startY = None
-        # self.endY = 12
+        self.startX, self.endX = None, None
+        self.startY, self.endY = None, None
 
     @param.depends(
         "pick_autorange",
@@ -738,7 +707,7 @@ class GliderDashboard(param.Parameterized):
         # pdb.set_trace()
         if len(self.load_viewport_datasets(x_range=(self.startX, self.endX))[0]) == 0:
             return pn.Column(
-                "# Please select a DatasetID. A list of possible options will be displayed after click into the DatasetID field."
+                "# No data to show. Please select a DatasetID. A list of possible options will be displayed after click into the DatasetID field."
             )
         dmap_raster = hv.DynamicMap(
             self.get_xsection_raster,
@@ -1305,15 +1274,6 @@ class GliderDashboard(param.Parameterized):
             for element in meta.index
         ]
 
-        #################################################################
-        # This is currently hard to understand, but:                    #
-        # varlist are the datasets that are visualized, either the      #
-        # original .parquet files or the _small.parquet version if      #
-        # zoomed out                                                    #
-        # varlist_small are the nrt_*.parquet files, that are evaluated #
-        # to create statistics (quantiles for data ranges)              #
-        #################################################################
-
         if (self.pick_contours is not None) and (self.pick_contours != "same as above"):
             variables = self.pick_variables + [self.pick_contours]
         else:
@@ -1344,13 +1304,7 @@ class GliderDashboard(param.Parameterized):
                 ds_full = lod.dsdict[dsid]
                 varlist.append(ds_full)
 
-            # ds = ds.filter(pl.col("profile_num") % plt_props["subsample_freq"] == 0)
-
-        # for dsid in meta.index:
-        #    # This is only the nrt data
-        #    ds = lod.dsdict[dsid]
-        #    varlist_small.append(ds)
-        # print(varlist, varlist_small)
+        # ds = ds.filter(pl.col("profile_num") % plt_props["subsample_freq"] == 0)
 
         if self.pick_scatter_bool:  # _bool:  # or self.pick_profiles:
             nanosecond_iterator = 1
@@ -1377,7 +1331,9 @@ class GliderDashboard(param.Parameterized):
         # kdims = [kdim + " " for kdim in kdims]
 
         self.data_in_view = dsconc
-        self.data_in_view_small = dsconc_small
+        self.data_in_view_small = (
+            dsconc_small if plt_props["zoomed_out"] else self.data_in_view
+        )
 
         missing_elements = set(variables) - set(
             self.data_in_view.collect_schema().names()
@@ -1413,6 +1369,8 @@ class GliderDashboard(param.Parameterized):
         )
         """
         # EXPENSIVE.
+        # ToDO: Use full resolution data set for stats creating if zoomed in,
+        # To avoid misscounting of number of profiles and min/max values. Threshold one month?
         self.stats = self.data_in_view_small.filter(  # .select(variables + ["time", "depth", "profile_num"])
             (pl.col("time") > self.startX)
             & (pl.col("time") < self.endX)
@@ -2000,4 +1958,3 @@ def get_page_name():
 page_name = get_page_name()
 page_func = PAGES[page_name]
 page_func()
-# pn.serve(APP_ROUTES, title={'app1': 'Some title', 'app2': 'Some other title'}, port=14034)
