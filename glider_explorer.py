@@ -1369,14 +1369,14 @@ class GliderDashboard(param.Parameterized):
         )
         """
         # EXPENSIVE.
-        # ToDO: Use full resolution data set for stats creating if zoomed in,
-        # To avoid misscounting of number of profiles and min/max values. Threshold one month?
-        self.stats = self.data_in_view_small.filter(  # .select(variables + ["time", "depth", "profile_num"])
-            (pl.col("time") > self.startX)
-            & (pl.col("time") < self.endX)
-            & (pl.col("depth") > self.startY)
-            & (pl.col("depth") < self.endY)
-        ).describe(  #   # .select(variables)  # .select(pl.col(self.pick_variables))
+        if self.startX is not None:
+            self.data_in_view_small = self.data_in_view_small.filter(  # .select(variables + ["time", "depth", "profile_num"])
+                (pl.col("time") > self.startX)
+                & (pl.col("time") < self.endX)
+                & (pl.col("depth") > self.startY)
+                & (pl.col("depth") < self.endY)
+            )
+        self.stats = self.data_in_view_small.describe(  #   # .select(variables)  # .select(pl.col(self.pick_variables))
             (0.01, 0.05, 0.99)
         )
         self.update_markdown(x_range, y_range)
