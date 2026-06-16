@@ -103,23 +103,6 @@ class GliderDashboard(param.Parameterized):
         precedence=1,
     )
 
-    pick_scatter_x = param.Selector(
-        default="salinity",  # "salinity",
-        allow_None=False,
-        objects=lod.variables_selectable,
-        label="X-axis variable",
-        doc="Variable used to create colormesh",
-        precedence=-10,
-    )
-
-    pick_scatter_y = param.Selector(
-        default="temperature",  # "temperature",
-        allow_None=False,
-        objects=lod.variables_selectable,
-        label="Y-axis variable",
-        doc="Variable used to create colormesh",
-        precedence=-10,
-    )
     # show all the basins and all the datasets. I use the nrt data
     # from the metadatatables as keys, so I skip the 'delayed' sets
     # with the lambda function.
@@ -218,6 +201,24 @@ class GliderDashboard(param.Parameterized):
         ),
         doc="Type of scatter plot",
         label="scatterplot type",
+        precedence=-10,
+    )
+
+    pick_scatter_x = param.Selector(
+        default="salinity",  # "salinity",
+        allow_None=False,
+        objects=lod.variables_selectable,
+        label="X-axis variable",
+        doc="Variable used to create colormesh",
+        precedence=-10,
+    )
+
+    pick_scatter_y = param.Selector(
+        default="temperature",  # "temperature",
+        allow_None=False,
+        objects=lod.variables_selectable,
+        label="Y-axis variable",
+        doc="Variable used to create colormesh",
         precedence=-10,
     )
 
