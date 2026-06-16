@@ -487,7 +487,6 @@ class GliderDashboard(param.Parameterized):
                 styles=dict(background="red"),
             )
         )
-        self.lower_control.append(self.file_download)
 
     @param.depends(
         "pick_dsids",
