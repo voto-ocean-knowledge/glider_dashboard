@@ -34,12 +34,6 @@ pn.config.notifications = True
 def exception_handler(ex):
 
     logging.error("Error", exc_info=ex)
-    # import pdb
-
-    # pdb.set_trace()
-    # if (len(GliderDashboard.pick_dsids) == 0) and (
-    #    GliderDashboard.pick_toggle == "DatasetID"
-    # ):  #
     if GDB.data_in_view is None:
         pn.state.notifications.error(
             "Please proceed by selecting one or more datasets to display",
@@ -49,10 +43,6 @@ def exception_handler(ex):
         pn.state.notifications.error(
             "Please complete/change input parameters", duration=10000
         )
-    # import pdb
-
-    # pdb.set_trace()
-    # pn.state.notifications.error(f"{ex}")
 
 
 pn.extension(
@@ -257,13 +247,7 @@ class GliderDashboard(param.Parameterized):
         doc="enables linked brushing with box and lasso select",
         precedence=-10,
     )
-    button = param.Action(
-        lambda x: x.param.trigger("button"),
-        # default=False,
-        label="Create download link",
-        doc="Create download link",
-        precedence=1,
-    )
+
     pick_contours = param.Selector(
         default=None,
         objects=(
@@ -288,6 +272,11 @@ class GliderDashboard(param.Parameterized):
         label="Animation event",
         precedence=1,
     )
+    pick_show_metadata = param.Boolean(
+        default=False,
+        label="show metadata",
+        precedence=1,
+    )
     pick_show_ctrls = param.Boolean(
         default=True,
         label="show controls",
@@ -298,6 +287,13 @@ class GliderDashboard(param.Parameterized):
         label="Show mission name and start",
         precedence=1,
     )
+    pick_create_download = param.Action(
+        lambda x: x.param.trigger("pick_create_download"),
+        label="Create download link",
+        doc="Create download link",
+        precedence=1,
+    )
+
     data_in_view = None
     contour_processing = False
     annotations = []
@@ -305,92 +301,6 @@ class GliderDashboard(param.Parameterized):
     endX = None
     startY = None
     endY = None
-
-    def update_markdown(self, x_range: tuple, y_range: tuple) -> str:
-        """
-        Updates markdown information below the plots on the page based on the currently visible ranges of data.
-
-        y_range is typically `depth`.
-
-        Parameters
-        ----------
-        x_range : tuple of numpy.datetime64
-            The start[0] and end[1] of the X domain (time) currently visible data on the plot.
-        y_range : tuple of np.float64
-            The minimum[0] and maximum[1] of the Y domain currently visible on the plot.
-
-        Return
-        ------
-        all_markdown : str
-            String of updated markdown, including paragraph summaries of data within the view and tables
-            of statistics.
-        """
-
-        dict_data_summary = {
-            "Range Start": self.stats.filter(pl.col("statistic") == "min")[
-                "time"
-            ].item(),
-            "Range End": self.stats.filter(pl.col("statistic") == "max")["time"].item(),
-            "Duration (Days)": (
-                self.stats.filter(pl.col("statistic") == "max")["time"].str.to_datetime(
-                    "%Y-%m-%d %H:%M:%S%.f"
-                )
-                - self.stats.filter(pl.col("statistic") == "min")[
-                    "time"
-                ].str.to_datetime("%Y-%m-%d %H:%M:%S%.f")
-            ).item(),
-            "Number of Profiles": (
-                self.stats.filter(pl.col("statistic") == "max")["profile_num"]
-                - self.stats.filter(pl.col("statistic") == "min")["profile_num"]
-            ).item(),
-            "Maximum Depth (m)": self.stats.filter(pl.col("statistic") == "max")[
-                "depth"
-            ].item(),
-        }
-        df_data_summary = pd.DataFrame.from_dict(
-            dict_data_summary, orient="index", columns=["Value"]
-        )
-
-        pl.Config.set_tbl_hide_column_data_types(True)
-        pl.Config.set_tbl_hide_dataframe_shape(True)
-        table1 = f"""<b>Data Summary</b>
-        {df_data_summary.to_html()}"""
-
-        # Table 2: Statistics for the picked variables in "Contour plot options".
-        table2 = f"""<b>Picked Variable Statistics</b>
-        {self.stats[["statistic"] + self.pick_variables]._repr_html_()}"""
-        # Table 3: Link the metadata for datasetIDs within the current time period.
-        meta_rows = ""
-        for datasetid in self.visible_datasets:
-            meta_rows += f"""<tr><td>{datasetid}</td><td><a href="{(lod.allDatasets.loc[datasetid]["metadata"] + ".html")}">link to metadata</a></td></tr>"""
-
-        table3 = f"""<b>Datasets in Current Temporal View</b>
-<table><tr><th>DatasetID</th><th>Parameters</th></tr>
-{meta_rows}
-</table>
-"""
-
-        tables_side_by_side = f"""
-<div style="display: flex; gap: 20px;">
-<div style="flex: 1;">
-{table1}
-</div>
-<div style="flex: 1;">
-{table2}
-</div>
-<div style="flex: 1;">
-{table3}
-</div>
-</div>
-"""
-        all_markdown = tables_side_by_side
-        self.markdown.object = all_markdown  # +r"$$\frac{1}{n}$$"
-        return all_markdown
-        # Max/min/mean values of chosen variables
-        # List different missions, each collapsible, with list of sensors from metadata
-        # Data quality flags for chosen variables? (add a link to QC sheets and scripts)
-
-    # empty initialization for use later
     markdown = pn.pane.Markdown("")
 
     def keep_zoom(self, x_range, y_range):
@@ -553,7 +463,7 @@ class GliderDashboard(param.Parameterized):
         self.mylayout[0][2] = pn.Row(hv.Layout(profile_plots))
 
     @param.depends(
-        "button",
+        "pick_create_download",
         watch=True,
     )
     def create_download(self):
@@ -565,14 +475,19 @@ class GliderDashboard(param.Parameterized):
             "output.parquet"
         )
         # This implementation is not thread save, output is always output.parquet
-        self.file_download = pn.widgets.FileDownload(
-            "output.parquet", embed=False, filename="dataframe.parquet", align="end"
+        self.lower_control.append(
+            pn.Row(
+                "Download here:",
+                pn.widgets.FileDownload(
+                    "output.parquet",
+                    embed=False,
+                    filename="dataframe.parquet",
+                    align="end",
+                ),
+                styles=dict(background="red"),
+            )
         )
-        # remove previously generate download links
-        for index, element in enumerate(self.mylayout):
-            if type(element) == pn.widgets.misc.FileDownload:
-                self.mylayout.pop(index)
-        self.mylayout.append(self.file_download)
+        self.lower_control.append(self.file_download)
 
     @param.depends(
         "pick_dsids",
@@ -632,6 +547,7 @@ class GliderDashboard(param.Parameterized):
         *list(lod.cbar_range_sliders.keys()),  # noqa
         "pick_autorange",
         "pick_TS_color_variable",
+        # "pick_show_metadata",
         # watch=True,
     )  # outcommenting this means just depend on all, redraw always
     # @pn.io.profile("clustering", engine="snakeviz")
@@ -1031,15 +947,85 @@ class GliderDashboard(param.Parameterized):
             if self.pick_profiles
             else contourplots
         )
-        contourplots = contourplots  # .redim.range(
-        # time=(self.startX, self.endX), depth=(self.startY, self.endY)
-        # )
-        # ToDo: Test if this actually helps the garbage collector
-        # self.stats = None
-        # self.data_in_view = None
-        # self.data_in_view_small = None
-
+        contourplots = contourplots
         return pn.Column(contourplots.opts(height=cheight).cols(ncols))
+
+    @param.depends("pick_show_metadata", watch=True)
+    def update_markdown(self):
+        """
+        Updates markdown information below the plots on the page based on the currently visible ranges of data.
+
+        Return
+        ------
+        all_markdown : str
+            String of updated markdown, including paragraph summaries of data within the view and tables
+            of statistics.
+        """
+        if not self.pick_show_metadata:
+            self.markdown.object = ""
+            return self.markdown
+
+        dict_data_summary = {
+            "Range Start": self.stats.filter(pl.col("statistic") == "min")[
+                "time"
+            ].item(),
+            "Range End": self.stats.filter(pl.col("statistic") == "max")["time"].item(),
+            "Duration (Days)": (
+                self.stats.filter(pl.col("statistic") == "max")["time"].str.to_datetime(
+                    "%Y-%m-%d %H:%M:%S%.f"
+                )
+                - self.stats.filter(pl.col("statistic") == "min")[
+                    "time"
+                ].str.to_datetime("%Y-%m-%d %H:%M:%S%.f")
+            ).item(),
+            "Number of Profiles": (
+                self.stats.filter(pl.col("statistic") == "max")["profile_num"]
+                - self.stats.filter(pl.col("statistic") == "min")["profile_num"]
+            ).item(),
+            "Maximum Depth (m)": self.stats.filter(pl.col("statistic") == "max")[
+                "depth"
+            ].item(),
+        }
+
+        df_data_summary = pd.DataFrame.from_dict(
+            dict_data_summary, orient="index", columns=["Value"]
+        )
+
+        pl.Config.set_tbl_hide_column_data_types(True)
+        pl.Config.set_tbl_hide_dataframe_shape(True)
+        table1 = f"""<b>Data Summary</b>
+        {df_data_summary.to_html()}"""
+
+        # Table 2: Statistics for the picked variables in "Contour plot options".
+        table2 = f"""<b>Picked Variable Statistics</b>
+        {self.stats[["statistic"] + self.pick_variables]._repr_html_()}"""
+        # Table 3: Link the metadata for datasetIDs within the current time period.
+        meta_rows = ""
+        for datasetid in self.visible_datasets:
+            meta_rows += f"""<tr><td>{datasetid}</td><td><a href="{(lod.allDatasets.loc[datasetid]["metadata"] + ".html")}">link to metadata</a></td></tr>"""
+
+        table3 = f"""<b>Datasets in Current Temporal View</b>
+<table><tr><th>DatasetID</th><th>Parameters</th></tr>
+{meta_rows}
+</table>
+"""
+
+        tables_side_by_side = f"""
+<div style="display: flex; gap: 20px;">
+<div style="flex: 1;">
+{table1}
+</div>
+<div style="flex: 1;">
+{table2}
+</div>
+<div style="flex: 1;">
+{table3}
+</div>
+</div>
+"""
+        all_markdown = tables_side_by_side
+        self.markdown.object = all_markdown
+        return all_markdown
 
     def create_mean(self):
         self.startX = self.pick_startX
@@ -1145,32 +1131,6 @@ class GliderDashboard(param.Parameterized):
 
         else:
             meta = lod.allDatasets.loc[self.pick_dsids]
-
-        # print(f'len of meta is {len(meta)} in load_viewport_datasets')
-        if (x1 - x0) > np.timedelta64(720, "D"):
-            # activate sparse data mode to speed up reactivity
-            plt_props["zoomed_out"] = True
-            plt_props["dynfontsize"] = 4
-            plt_props["subsample_freq"] = 25
-        elif (x1 - x0) > np.timedelta64(360, "D"):
-            # activate sparse data mode to speed up reactivity
-            plt_props["zoomed_out"] = True
-            plt_props["dynfontsize"] = 4
-            plt_props["subsample_freq"] = 10  # 25  # 10
-        elif (x1 - x0) > np.timedelta64(180, "D"):
-            # activate sparse data mode to speed up reactivity
-            plt_props["zoomed_out"] = False
-            plt_props["dynfontsize"] = 4
-            plt_props["subsample_freq"] = 6
-        elif (x1 - x0) > np.timedelta64(90, "D"):
-            # activate sparse data mode to speed up reactivity
-            plt_props["zoomed_out"] = False
-            plt_props["dynfontsize"] = 4
-            plt_props["subsample_freq"] = 2
-        else:
-            plt_props["zoomed_out"] = False
-            plt_props["dynfontsize"] = 10
-            plt_props["subsample_freq"] = 1
         self.visible_datasets = meta.index
         return lod.allDatasets.loc[meta.index], plt_props
 
@@ -1263,6 +1223,10 @@ class GliderDashboard(param.Parameterized):
             # setters have to be in DynamicMap functions to work dynamically!)
             self.pick_startX = pd.to_datetime(x0)
             self.pick_endX = pd.to_datetime(x1)
+            timedelta = self.pick_endX - self.pick_startX
+        else:
+            # Value doesn't matter, only initialisation run
+            timedelta = np.timedelta64(10, "D")
 
         meta, plt_props = self.load_viewport_datasets(x_range)
         metakeys = [
@@ -1298,7 +1262,7 @@ class GliderDashboard(param.Parameterized):
             # This is delayed data if available
             ds_small = lod.dsdict[dsid + "_small"]
             varlist_small.append(ds_small)
-            if plt_props["zoomed_out"] and (not self.pick_high_resolution):
+            if timedelta > np.timedelta64(90, "D") and (not self.pick_high_resolution):
                 varlist.append(ds_small)
             else:
                 ds_full = lod.dsdict[dsid]
@@ -1332,7 +1296,7 @@ class GliderDashboard(param.Parameterized):
 
         self.data_in_view = dsconc
         self.data_in_view_small = (
-            dsconc_small if plt_props["zoomed_out"] else self.data_in_view
+            dsconc_small if len(metakeys) > 3 else self.data_in_view
         )
 
         missing_elements = set(variables) - set(
@@ -1379,10 +1343,13 @@ class GliderDashboard(param.Parameterized):
         self.stats = self.data_in_view_small.describe(  #   # .select(variables)  # .select(pl.col(self.pick_variables))
             (0.01, 0.05, 0.99)
         )
-        self.update_markdown(x_range, y_range)
+        if self.pick_show_metadata:
+            self.update_markdown()
         mplt = self.create_single_ds_plot_raster(
             data=self.data_in_view, variables=variables
         )
+        # defer_load=True,
+
         # print(self.startX, self.endX, self.startY, self.endY)
 
         return mplt
@@ -1646,6 +1613,7 @@ class GliderDashboard(param.Parameterized):
                 "pick_show_decoration": "pick_show_decoration",
                 "pick_autorange": "pick_autorange",
                 "pick_TS_color_variable": "pick_TS_color_variable",
+                "pick_show_metadata": "pick_show_metadata",
             }
             pn.state.location.sync(
                 self,
@@ -1653,14 +1621,24 @@ class GliderDashboard(param.Parameterized):
             )
 
         content = self.create_dynmap
+        self.lower_control = pn.Param(
+            self,
+            parameters=[
+                "pick_show_metadata",
+                "pick_show_ctrls",
+                "pick_show_decoration",
+                "pick_create_download",
+                # "pick_execute_download",
+            ],
+            show_name=False,
+            default_layout=pn.Row,
+        )
+        self.lower_control = pn.Row(self.lower_control)
+
         contentcolumn = pn.Column(
             pn.panel(content),  # , defer_load=True),
             # glider_dashboard.create_mean,
-            pn.Param(
-                self,
-                parameters=["pick_show_ctrls"],
-                show_name=False,
-            ),
+            self.lower_control,
             sizing_mode="stretch_width",
             # pn.Row( "# Add data aggregations (mean, max, std...)", button_cols),
         )
@@ -1759,8 +1737,8 @@ class GliderDashboard(param.Parameterized):
                         parameters=[
                             "pick_mld",
                             "pick_high_resolution",
-                            "pick_show_decoration",
-                            "button",
+                            # "pick_show_decoration",
+                            # "button",
                         ],
                     ),
                 ),
