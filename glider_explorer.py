@@ -490,41 +490,6 @@ class GliderDashboard(param.Parameterized):
         )
 
     @param.depends(
-        "pick_dsids",
-        "pick_toggle",
-        "pick_basin",
-        watch=True,
-    )
-    def update_data(self):
-        x_range = (self.startX, self.endX)
-        meta, plt_props = self.load_viewport_datasets(x_range)
-        metakeys = [
-            (
-                element.replace("nrt", "delayed")
-                if element.replace("nrt", "delayed") in lod.allDatasets.index
-                else element
-            )
-            for element in meta.index
-        ]
-        varlist = []
-        for dsid in metakeys:
-            # This is delayed data if available
-            if plt_props["zoomed_out"]:
-                ds = lod.dsdict[dsid + "_small"]
-            else:
-                ds = lod.dsdict[dsid]
-
-            # ds = ds.filter(pl.col("profile_num") % plt_props["subsample_freq"] == 0)
-            varlist.append(ds)
-
-        # This should only be a temporay hack. I don't want all that data to go into my TS plots.
-        # dsconc = utils.voto_concat_datasets2(varlist)
-        if varlist:
-            dsconc = pl.concat([data for data in varlist], how="diagonal_relaxed")
-            dsconc = dsconc.with_columns(pl.col("depth")).sort("time")
-        # self.data_in_view = dsconc
-
-    @param.depends(
         "pick_cnorm",
         "pick_variables",
         "pick_aggregation",
