@@ -575,8 +575,8 @@ class GliderDashboard(param.Parameterized):
                 self.param.pick_TS_color_variable.precedence = 1
             elif self.pick_scatter == "profiles":
                 self.pick_scatter_y = "depth"
-                self.pick_scatter_x = "temperature"
-                self.param.pick_scatter_x.precedence = -10
+                # self.pick_scatter_x = "temperature"
+                self.param.pick_scatter_x.precedence = 1
                 self.param.pick_scatter_y.precedence = -10
                 self.param.pick_TS_color_variable.precedence = 1
                 self.param.pick_activate_scatter_link = 1
