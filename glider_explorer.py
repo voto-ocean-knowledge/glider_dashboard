@@ -186,7 +186,7 @@ class GliderDashboard(param.Parameterized):
         precedence=1,
     )
     pick_startY = param.Number(default=None, label="startY", doc="startY", precedence=1)
-    pick_endY = param.Number(default=8, label="endY", doc="endY", precedence=1)
+    pick_endY = param.Number(default=None, label="endY", doc="endY", precedence=1)
     pick_contour_height = param.Number(
         default=None, label="contour_height", precedence=1
     )
@@ -783,7 +783,9 @@ class GliderDashboard(param.Parameterized):
             if self.pick_variables:
                 contourplots = hv.Layout(
                     [
-                        element.opts(xlim=(self.startX, self.endX))
+                        element.opts(
+                            xlim=(self.startX, self.endX), ylim=(self.startY, self.endY)
+                        )
                         for element in plots_dict["dmap_rasterized"].values()
                     ]
                 )
@@ -1193,11 +1195,14 @@ class GliderDashboard(param.Parameterized):
 
     def get_xsection_raster(self, x_range, y_range, x, y):
         (x0, x1) = x_range
+        (y0, y1) = y_range
         if (x0 is not None) and (x1 is not None):
             # user interacts with program via ui, the URL is dynamically updated to keep up to date
             # setters have to be in DynamicMap functions to work dynamically!)
             self.pick_startX = pd.to_datetime(x0)
             self.pick_endX = pd.to_datetime(x1)
+            self.pick_startY = y0
+            self.pick_endY = y1
             timedelta = self.pick_endX - self.pick_startX
         else:
             # Value doesn't matter, only initialisation run
@@ -1596,34 +1601,6 @@ class GliderDashboard(param.Parameterized):
             sizing_mode="stretch_width",
             # pn.Row( "# Add data aggregations (mean, max, std...)", button_cols),
         )
-
-        def create_cbar_cntrl(variable):
-            return pn.Param(
-                self,
-                parameters=[f"pick_cbar_range_{variable}"],
-                show_name=False,
-                widgets={
-                    f"pick_cbar_range_{variable}": pn.widgets.EditableRangeSlider(
-                        value=(
-                            self.stats.filter(pl.col("statistic") == "1%")[
-                                variable
-                            ].item(),
-                            self.stats.filter(pl.col("statistic") == "99%")[
-                                variable
-                            ].item(),
-                            # dictionaries.ranges_dict.get(variable, (0, 10))[0],
-                            # dictionaries.ranges_dict.get(variable, (0, 10))[1],
-                        ),
-                        start=self.stats.filter(pl.col("statistic") == "1%")[
-                            variable
-                        ].item(),  # dictionaries.ranges_dict.get(variable, (0, 10))[0],
-                        end=self.stats.filter(pl.col("statistic") == "99%")[
-                            variable
-                        ].item(),  # dictionaries.ranges_dict.get(variable, (0, 10))[1],
-                        # step=0.1,
-                    )
-                },
-            )
 
         colorbar_widgets_dict = {}
         for variable in lod.variables_selectable:
