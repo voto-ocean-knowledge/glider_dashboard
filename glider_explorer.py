@@ -852,19 +852,27 @@ class GliderDashboard(param.Parameterized):
                         )
                     else:
                         ylim = (None, None)
+                    if self.pick_TS_color_variable:
+                        if isinstance(
+                            self.stats.filter(pl.col("statistic") == "5%")[
+                                self.pick_TS_color_variable
+                            ].item(),
+                            float,
+                        ):
+                            clim = (
+                                self.stats.filter(pl.col("statistic") == "5%")[
+                                    self.pick_TS_color_variable
+                                ].item(),
+                                self.stats.filter(pl.col("statistic") == "99%")[
+                                    self.pick_TS_color_variable
+                                ].item(),
+                            )
+                    else:
+                        clim = (None, None)
+
                 else:
-                    xlim = ylim = (None, None)
-                if self.pick_TS_color_variable:
-                    clim = (
-                        self.stats.filter(pl.col("statistic") == "5%")[
-                            self.pick_TS_color_variable
-                        ].item(),
-                        self.stats.filter(pl.col("statistic") == "99%")[
-                            self.pick_TS_color_variable
-                        ].item(),
-                    )
-                else:
-                    clim = (None, None)
+                    xlim = ylim = clim = (None, None)
+
                 ncols += 1
                 if self.pick_activate_scatter_link:
                     dmapTSr = mpg_ls(
@@ -878,6 +886,8 @@ class GliderDashboard(param.Parameterized):
                     dmap_profilesr = mpg_ls(dmap_profilesr)  # mpg_ls(dmap_profilesr)
                 else:
                     dmap_profilesr = dmap_profilesr
+
+        # print(xlim, ylim, clim)
 
         # annotations are currently broken, fix here
         # for annotation in self.annotations:
@@ -1300,10 +1310,11 @@ class GliderDashboard(param.Parameterized):
         # EXPENSIVE.
         if self.startX is not None:
             self.data_in_view_small = self.data_in_view_small.filter(  # .select(variables + ["time", "depth", "profile_num"])
-                (pl.col("time") > self.startX)
-                & (pl.col("time") < self.endX)
-                & (pl.col("depth") > self.startY)
-                & (pl.col("depth") < self.endY)
+                (pl.col("time") > self.startX) & (pl.col("time") < self.endX)
+            )
+        if self.startY is not None:
+            self.data_in_view_small = self.data_in_view_small.filter(
+                (pl.col("depth") > self.startY) & (pl.col("depth") < self.endY)
             )
         self.stats = self.data_in_view_small.describe(  #   # .select(variables)  # .select(pl.col(self.pick_variables))
             (0.01, 0.05, 0.99)
@@ -1347,17 +1358,6 @@ class GliderDashboard(param.Parameterized):
             mplt = hv.Points(data=data, kdims=kdims, vdims=list(vdims))
         else:
             mplt = hv.Points(data=data, kdims=kdims)
-        return mplt
-
-    def get_xsection_profiles(self, x_range, y_range):
-        low = self.stats.filter(pl.col("statistic") == "1%")[self.pick_variables[0]]
-        high = self.stats.filter(pl.col("statistic") == "99%")[self.pick_variables[0]]
-
-        mplt = hv.Points(
-            data=self.data_in_view, kdims=[self.pick_variables[0], "depth"]
-        ).opts(
-            xlim=(low * 0.95, high * 1.05),
-        )
         return mplt
 
     def get_density_contours(self, x_range, y_range):
@@ -1408,17 +1408,6 @@ class GliderDashboard(param.Parameterized):
             ),
         )
         return dcont
-
-    def create_None_element(self, type):
-        # This is just a hack because I can't return None to dynamic maps
-        if type == "Overlay":
-            element = hv.Overlay(
-                hv.HLine(0).opts(color="black", alpha=0.1)
-                * hv.HLine(0).opts(color="black", alpha=0.1)
-            )
-        elif type == "Spikes":
-            element = hv.Spikes().opts(color="black", alpha=0.1)
-        return element
 
     def get_xsection(self, x_range, y_range):
         """
