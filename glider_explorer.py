@@ -302,7 +302,8 @@ class GliderDashboard(param.Parameterized):
     endX = None
     startY = None
     endY = None
-    markdown = pn.pane.Markdown("")
+
+    markdown = pn.pane.Markdown(lod.documentation_markdown)
 
     def keep_zoom(self, x_range, y_range):
         self.startX, self.endX = x_range
@@ -1626,7 +1627,7 @@ class GliderDashboard(param.Parameterized):
                     ),
                 ),
                 (
-                    "Contour plot options",
+                    "Section plot options",
                     pn.Param(
                         self,
                         parameters=[

@@ -166,3 +166,6 @@ cbar_range_sliders = {
     f"pick_cbar_range_{variable}": create_cbar_range(variable)
     for variable in variables_selectable
 }
+
+with open("getting_started.md") as f:
+    documentation_markdown = f.read()
