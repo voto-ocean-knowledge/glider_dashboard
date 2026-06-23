@@ -929,6 +929,7 @@ class GliderDashboard(param.Parameterized):
 
     @param.depends("pick_show_metadata", watch=True)
     def update_markdown(self):
+        # time.sleep(5)
         """
         Updates markdown information below the plots on the page based on the currently visible ranges of data.
 
@@ -979,10 +980,31 @@ class GliderDashboard(param.Parameterized):
         # Table 3: Link the metadata for datasetIDs within the current time period.
         meta_rows = ""
         for datasetid in self.visible_datasets:
-            meta_rows += f"""<tr><td>{datasetid}</td><td><a href="{(lod.allDatasets.loc[datasetid]["metadata"] + ".html")}">link to metadata</a></td></tr>"""
+            am = pl.read_csv(lod.allDatasets.loc[datasetid]["metadata"] + ".csv")
+            acknowledgement = (
+                am.filter(pl.col("Attribute Name") == "acknowledgement")
+                .select(pl.col("Value"))
+                .item()
+            )
+            institution = (
+                am.filter(pl.col("Attribute Name") == "institution")
+                .select(pl.col("Value"))
+                .item()
+            )
+            creator_url = (
+                am.filter(pl.col("Attribute Name") == "creator_url")
+                .select(pl.col("Value"))
+                .item()
+            )
+            meta_rows += f"""<tr><td>{datasetid}</td><td><a href="{(lod.allDatasets.loc[datasetid]["metadata"] + ".html")}">link to metadata</a></td><td><a href={creator_url}>{institution}</a></td><td>{acknowledgement}</td></tr>"""
+            # meta_rows +
+            # import pdb
+
+            # pdb.set_trace()
 
         table3 = f"""<b>Datasets in Current Temporal View</b>
-<table><tr><th>DatasetID</th><th>Parameters</th></tr>
+<table style="width:1000px">
+<tr><th>DatasetID</th><th>Metadata Link</th><th>Institution</th><th>Data acknowledgement</th></tr>
 {meta_rows}
 </table>
 """
@@ -1325,7 +1347,7 @@ class GliderDashboard(param.Parameterized):
             (0.01, 0.05, 0.99)
         )
         if self.pick_show_metadata:
-            self.update_markdown()
+            pn.panel(self.update_markdown, defer_load=True)
         mplt = self.create_single_ds_plot_raster(
             data=self.data_in_view, variables=variables
         )
