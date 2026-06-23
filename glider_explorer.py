@@ -106,11 +106,25 @@ class GliderDashboard(param.Parameterized):
     # show all the basins and all the datasets. I use the nrt data
     # from the metadatatables as keys, so I skip the 'delayed' sets
     # with the lambda function.
+    pick_institution = param.Selector(
+        # default="Bornholm Basin",
+        objects=["show all (no filtering)"] + list(lod.fDs["institution"].unique()),
+        label="Institution",
+        precedence=1 if utils.GDAC_data else -10,
+    )
+
+    pick_toggle = param.Selector(
+        objects=["DatasetID", "SAMBA obs."],
+        label="choose by SAMBA observatory or data ID",
+        precedence=-10 if utils.GDAC_data else 1,
+        default="DatasetID" if utils.GDAC_data else "SAMBA obs.",
+    )
+
     pick_basin = param.Selector(
         default="Bornholm Basin",
         objects=dictionaries.SAMBA_observatories,
         label="SAMBA observatory",
-        precedence=1,
+        precedence=-10 if utils.GDAC_data else 1,
     )
     alldslist = list(filter(lambda k: "nrt" in k, lod.dsdict.keys()))
     alldslist = [x for x in alldslist if "_small" not in x]
@@ -125,12 +139,7 @@ class GliderDashboard(param.Parameterized):
         default=[],
         objects=objectsdict,
         label="DatasetID",
-        precedence=-10,
-    )
-
-    pick_toggle = param.Selector(
-        objects=["SAMBA obs.", "DatasetID"],
-        label="choose by SAMBA observatory or data ID",
+        precedence=1 if utils.GDAC_data else -10,
     )
 
     pick_cnorm = param.Selector(
@@ -335,22 +344,38 @@ class GliderDashboard(param.Parameterized):
         except:
             pass
 
-    @param.depends("pick_toggle", "pick_basin", watch=True)
+    @param.depends("pick_toggle", "pick_basin", "pick_institution", watch=True)
     def update_datasource(self):
-        if not self.pick_GDAC:
-            # only show VOTO datasets of pick_GDAC is set to False in utils
-            self.param.pick_dsids.objects = set(
-                self.param.pick_dsids.objects
-            ).intersection(set(lod.allDatasetsVOTO.index))
-
-        if self.pick_toggle == "DatasetID":
-            # hide basin selector
-            self.param.pick_basin.precedence = -10
-            self.param.pick_dsids.precedence = 1
-        else:
-            # hide datasetID selector
+        if self.pick_toggle == "SAMBA obs.":
             self.param.pick_dsids.precedence = -10
             self.param.pick_basin.precedence = 1
+        elif self.pick_toggle == "DatasetID":
+            self.param.pick_dsids.precedence = 1
+            self.param.pick_basin.precedence = -10
+            self.param.pick_institution.precedence = 1 if utils.GDAC_data else -10
+            if self.pick_institution == "show all (no filtering)":
+                self.param.pick_dsids.objects = lod.fDs.index
+            else:
+                self.param.pick_dsids.objects = lod.fDs[
+                    lod.fDs["institution"] == self.pick_institution
+                ].index
+
+        # if not utils.GDAC_data:
+        #    # only show VOTO datasets of pick_GDAC is set to False in utils
+        #    self.param.pick_dsids.objects = set(
+        #        self.param.pick_dsids.objects
+        #    ).intersection(set(lod.allDatasetsVOTO.index))
+        # else:
+        #    self.pick_toggle = "DatasetID"
+        #    self.param.pick_dsids.precedence = 1
+        #    #self.param.pick_dsids.precedence = 1
+        #
+        #    if self.pick_institution == "show all (no filtering)":
+        #        self.param.pick_dsids.objects = lod.fDs.index
+        #    else:
+        #        self.param.pick_dsids.objects = lod.fDs[
+        #            lod.fDs["institution"] == self.pick_institution
+        #        ].index
 
     @param.depends("button_inflow", watch=True)
     def execute_event(self):
@@ -435,7 +460,10 @@ class GliderDashboard(param.Parameterized):
                 df = profile  # .collect()
                 profilelabel = (
                     "ascending"
-                    if (df["depth"].first() > df["depth"].last())
+                    if (
+                        df["depth"].drop_nulls().first()
+                        > df["depth"].drop_nulls().last()
+                    )
                     else "descending"
                 )
                 print("warning, unknown profile direction")
@@ -497,6 +525,7 @@ class GliderDashboard(param.Parameterized):
         "pick_mld",
         # "pick_mean",
         "pick_basin",
+        "pick_institution",
         "pick_dsids",
         "pick_toggle",
         "pick_scatter",
@@ -580,17 +609,16 @@ class GliderDashboard(param.Parameterized):
 
         pick_cnorm = "linear"
 
-        # print(
-        #    self.load_viewport_datasets(x_range=(self.startX, self.endX)),
-        #    not self.load_viewport_datasets(x_range=(self.startX, self.endX)),
-        # )
-        # import pdb
-
-        # pdb.set_trace()
         if len(self.load_viewport_datasets(x_range=(self.startX, self.endX))[0]) == 0:
+            self.lower_control.visible = False
             return pn.Column(
-                "# No data to show. Please select a DatasetID. A list of possible options will be displayed after click into the DatasetID field."
+                pn.pane.Markdown("""
+# No data loaded yet. Please select a DatasetID.
+
+## A list of possible options will be displayed after click into the DatasetID field. You can find the DatasetID field in the 'Choose dataset(s)' menu""")
             )
+        else:
+            self.lower_control.visible = True
         dmap_raster = hv.DynamicMap(
             self.get_xsection_raster,
             streams=[range_stream, tap_stream],
@@ -1112,7 +1140,7 @@ class GliderDashboard(param.Parameterized):
 
         # print(fD_inview)
         # mydslist = [name for name in all_dataset_names if '_small' not in name]
-
+        # fD_inview = fD_inview[fD_inview["institution"] == self.pick_institution]
         if self.pick_toggle == "SAMBA obs.":
             # first case, , user selected an aggregation, e.g. 'Bornholm Basin'
             #
@@ -1563,6 +1591,7 @@ class GliderDashboard(param.Parameterized):
         if pn.state.location:
             other_cntrls = {
                 "pick_basin": "pick_basin",
+                "pick_institution": "pick_institution",
                 "pick_GDAC": "pick_GDAC",
                 "pick_dsids": "pick_dsids",
                 "pick_toggle": "pick_toggle",
@@ -1629,13 +1658,19 @@ class GliderDashboard(param.Parameterized):
             )
 
         controls_accordion = pn.Accordion(
+            active=[0],  # opening first card by default
             # toggle=True, # allows only one card to be opened at a time
             objects=[
                 (
                     "Choose dataset(s)",
                     pn.Param(
                         self,
-                        parameters=["pick_toggle", "pick_basin", "pick_dsids"],
+                        parameters=[
+                            "pick_toggle",
+                            "pick_basin",
+                            "pick_dsids",
+                            "pick_institution",
+                        ],
                         widgets={
                             "pick_toggle": {
                                 "type": pn.widgets.RadioButtonGroup,

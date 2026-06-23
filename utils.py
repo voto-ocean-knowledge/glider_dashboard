@@ -10,7 +10,7 @@ project = "SAMBA"
 basin = "Bornholm Basin"
 year = 2026
 month = 4
-GDAC_data = False
+GDAC_data = True
 cache_location = "../voto_erddap_data_cache/"
 
 
@@ -69,6 +69,9 @@ def load_allDatasets_GDAC():
     allDatasetsGDAC = allDatasetsGDAC[
         allDatasetsGDAC["institution"] != "C-PROOF"
     ]  # THIS is just here because C-PROOF files currently don't download from GDAC
+    allDatasetsGDAC = allDatasetsGDAC[
+        allDatasetsGDAC["institution"] != "OOI Coastal & Global Scale Nodes (CGSN)"
+    ]
     # ]C-PROOF
     return allDatasetsGDAC
 
