@@ -302,7 +302,8 @@ class GliderDashboard(param.Parameterized):
     endX = None
     startY = None
     endY = None
-    markdown = pn.pane.Markdown("")
+
+    markdown = pn.pane.Markdown(lod.documentation_markdown, width=600, align="center")
 
     def keep_zoom(self, x_range, y_range):
         self.startX, self.endX = x_range
@@ -461,7 +462,7 @@ class GliderDashboard(param.Parameterized):
                     legend_position="bottom_right", show_legend=True
                 )
             )
-        self.mylayout[0][2] = pn.Row(hv.Layout(profile_plots))
+        self.profileplots_row.append(hv.Layout(profile_plots))
 
     @param.depends(
         "pick_create_download",
@@ -975,7 +976,10 @@ class GliderDashboard(param.Parameterized):
 
         # Table 2: Statistics for the picked variables in "Contour plot options".
         table2 = f"""<b>Picked Variable Statistics</b>
-        {self.stats[["statistic"] + self.pick_variables]._repr_html_()}"""
+        {self.stats[["statistic"] + self.pick_variables]._repr_html_()}""".replace(
+            "&quot;", ""
+        )
+
         # Table 3: Link the metadata for datasetIDs within the current time period.
         meta_rows = ""
         for datasetid in self.visible_datasets:
@@ -1642,7 +1646,7 @@ class GliderDashboard(param.Parameterized):
                     ),
                 ),
                 (
-                    "Contour plot options",
+                    "Section plot options",
                     pn.Param(
                         self,
                         parameters=[
@@ -1709,6 +1713,8 @@ class GliderDashboard(param.Parameterized):
         )
 
         # print(colorbar_widgets_dict)
+        self.profileplots_row = pn.Row()  # Important placeholder for dynamic profile plots, created in glider_dashboard.location
+
         layout = pn.Column(
             pn.Row(
                 # row with controls, trajectory plot and TS plot
@@ -1716,8 +1722,8 @@ class GliderDashboard(param.Parameterized):
                 pn.Spacer(width=50),
                 contentcolumn,
             ),
-            pn.Row(pn.Column(), self.markdown),
-            pn.Row(),  # Important placeholder for dynamic profile plots, created in glider_dashboard.location
+            self.profileplots_row,
+            self.markdown,
         )
         # print([f"pick_cbar_range_{variable}" for variable in self.pick_variables])
         # it is necessary to hide the controls as a very last option, because hidden controls cannot be accessed as variables
