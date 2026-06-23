@@ -605,9 +605,17 @@ class GliderDashboard(param.Parameterized):
 
         # pdb.set_trace()
         if len(self.load_viewport_datasets(x_range=(self.startX, self.endX))[0]) == 0:
+            # self.controls_accordion.active = [0]  # expand the "Select dataset(s) menu"
+            # self.param.pick_show_decoration.disabled = True
+            self.lower_control.visible = False
             return pn.Column(
-                "# No data to show. Please select a DatasetID. A list of possible options will be displayed after click into the DatasetID field."
+                pn.pane.Markdown("""
+# No data loaded yet. Please select a DatasetID.
+
+## A list of possible options will be displayed after click into the DatasetID field. You can find the DatasetID field in the 'Choose dataset(s)' menu""")
             )
+        else:
+            self.lower_control.visible = True
         dmap_raster = hv.DynamicMap(
             self.get_xsection_raster,
             streams=[range_stream, tap_stream],
@@ -1647,6 +1655,7 @@ class GliderDashboard(param.Parameterized):
             )
 
         controls_accordion = pn.Accordion(
+            active=[0],  # opening first card by default
             # toggle=True, # allows only one card to be opened at a time
             objects=[
                 (
