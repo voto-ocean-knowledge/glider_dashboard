@@ -979,10 +979,26 @@ class GliderDashboard(param.Parameterized):
         # Table 3: Link the metadata for datasetIDs within the current time period.
         meta_rows = ""
         for datasetid in self.visible_datasets:
-            meta_rows += f"""<tr><td>{datasetid}</td><td><a href="{(lod.allDatasets.loc[datasetid]["metadata"] + ".html")}">link to metadata</a></td></tr>"""
-
+            # meta_rows += f"""<tr><td>{datasetid}</td><td><a href="{(lod.allDatasets.loc[datasetid]["metadata"] + ".html")}">link to metadata</a></td></tr>"""
+            am = pl.read_csv(lod.allDatasets.loc[datasetid]["metadata"] + ".csv")
+            acknowledgement = (
+                am.filter(pl.col("Attribute Name") == "acknowledgement")
+                .select(pl.col("Value"))
+                .item()
+            )
+            institution = (
+                am.filter(pl.col("Attribute Name") == "institution")
+                .select(pl.col("Value"))
+                .item()
+            )
+            creator_url = (
+                am.filter(pl.col("Attribute Name") == "creator_url")
+                .select(pl.col("Value"))
+                .item()
+            )
+            meta_rows += f"""<tr><td>{datasetid}</td><td><a href="{(lod.allDatasets.loc[datasetid]["metadata"] + ".html")}">link to metadata</a></td><td><a href={creator_url}>{institution}</a></td><td>{acknowledgement}</td></tr>"""
         table3 = f"""<b>Datasets in Current Temporal View</b>
-<table><tr><th>DatasetID</th><th>Parameters</th></tr>
+<table><tr><th>DatasetID</th><th>Parameters</th><th>Data creator</th><th>Data reference</th></tr>
 {meta_rows}
 </table>
 """
