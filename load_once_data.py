@@ -1,3 +1,6 @@
+import os
+
+import numpy as np
 import pandas as pd
 import param
 import polars as pl
@@ -57,13 +60,17 @@ for dsid in list(allDatasetsVOTO.index) + [
 ]:
     if dsid not in all_dataset_names:
         continue
-    dsdict[dsid] = pl.scan_parquet(f"../voto_erddap_data_cache/{dsid}.parquet")
+    dsdict[dsid] = pl.scan_parquet(
+        os.path.join(utils.cache_location, f"{dsid}.parquet")
+    )
 
 if utils.GDAC_data:
     for dsid in list(allDatasetsGDAC.index) + [
         id + "_small" for id in allDatasetsGDAC.index
     ]:
-        dsdict[dsid] = pl.scan_parquet(f"../voto_erddap_data_cache/{dsid}.parquet")
+        dsdict[dsid] = pl.scan_parquet(
+            os.path.join(utils.cache_location, f"{dsid}.parquet")
+        )
         dsdict[dsid] = (
             dsdict[dsid]
             .drop(cs.string())
@@ -159,3 +166,6 @@ cbar_range_sliders = {
     f"pick_cbar_range_{variable}": create_cbar_range(variable)
     for variable in variables_selectable
 }
+
+with open("getting_started.md") as f:
+    documentation_markdown = f.read()

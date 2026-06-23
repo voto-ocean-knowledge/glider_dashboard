@@ -1,10 +1,14 @@
 import os.path
-import pathlib
-import urllib.request
+import shutil
+
+# import urllib.request
+import urllib
 from urllib.request import urlretrieve
 
 import numpy as np
+import pandas as pd
 import polars as pl
+import urllib3
 import xarray
 from erddapy import ERDDAP
 
@@ -22,14 +26,16 @@ metadata = metadata.drop(
 metadata = metadata.sort_values(by="time_coverage_start (UTC)")
 
 allDatasetsVOTO = utils.load_allDatasets_VOTO()
+# allDatasetsGDAC = utils.load_allDatasets_GDAC()
 all_dataset_ids = utils.add_delayed_dataset_ids(metadata, allDatasetsVOTO)  # hacky
 
 ###### download actual data ##############################
-cache_dir = pathlib.Path("../voto_erddap_data_cache")
+# cache_dir = pathlib.Path("../voto_erddap_data_cache")
 # dsids = ['../voto_erddap_data_cache/'+element+'.nc' for element in metadata.index]
 # import pdb
 # pdb.set_trace()
 print(all_dataset_ids)
+""""
 for dataset_id in all_dataset_ids:
     url = f"https://erddap.observations.voiceoftheocean.org/erddap/files/{dataset_id}/mission_timeseries.nc"
     file_Path = f"../voto_erddap_data_cache/{dataset_id}.nc"
@@ -49,26 +55,65 @@ for dataset_id in all_dataset_ids:
                 urllib.request.urlretrieve(url, file_Path_adcp)
             except:
                 print(f"no adcp data for {dataset_id}")
+"""
 
 for dataset_id in all_dataset_ids:
+    # import pdb
+    # pdb.set_trace()
+
+    print("now downloading", dataset_id)
+    # planned: iterate over 5 day periods to help with annoying low specced ERDDAP servers
+    print(
+        allDatasetsVOTO.loc[dataset_id]["minTime (UTC)"],
+        allDatasetsVOTO.loc[dataset_id]["maxTime (UTC)"],
+    )
+    e = ERDDAP(
+        server="https://erddap.observations.voiceoftheocean.org/erddap/",
+        protocol="tabledap",
+        response="nc",
+    )
+    e.dataset_id = dataset_id
+    url = e.get_download_url()
+    filepath = os.path.join(utils.cache_location, f"{dataset_id}.nc")
+    if os.path.isfile(filepath):
+        print("file already exists, skip and continue")
+        continue
+    urlretrieve(url, filepath)
+    if dataset_id[0:7] == "delayed":
+        dsid = dataset_id.replace("delayed_", "")
+        url = f"https://erddap.observations.voiceoftheocean.org/erddap/files/gliderad2cp_files/{dsid}_adcp_proc.nc"
+        file_Path_adcp = f"../voto_erddap_data_cache/{dsid}_adcp_proc.nc"
+        if os.path.isfile(file_Path_adcp):
+            print(f"{file_Path_adcp} already exists, skip")
+        else:
+            try:
+                urllib.request.urlretrieve(url, file_Path_adcp)
+            except Exception as e:
+                print(f"Error for {dataset_id}: {e}")
+
+for dataset_id in all_dataset_ids:
+    # pdb.set_trace()
     # if not (dataset_id[0:7] == "delayed"):
+    #    # we do not have/provide VOTO nrt ADCP data
     #    continue
-    if os.path.isfile(f"../voto_erddap_data_cache/{dataset_id}.parquet"):
+    if os.path.isfile(os.path.join(utils.cache_location, f"{dataset_id}.parquet")):
         print(
             f"combined {dataset_id} data/adcp file already exists, skip"
         )  # not necessarily :/
         continue
     print(f"combining {dataset_id} variables with adcp file")
-    file_Path = f"../voto_erddap_data_cache/{dataset_id}.nc"
+    file_Path = os.path.join(utils.cache_location, f"{dataset_id}.nc")
     dsid = dataset_id.replace("delayed_", "")
-    file_Path_adcp = f"../voto_erddap_data_cache/{dsid}_adcp_proc.nc"
-    ds = (
-        xarray.open_mfdataset(file_Path, drop_variables="ad2cp_time")
-        .drop_duplicates(dim="time")
-        .load()
-    )
+    file_Path_adcp = os.path.join(utils.cache_location, f"{dsid}_adcp_proc.nc")
 
-    try:
+    ds = xarray.open_mfdataset(file_Path, drop_variables="ad2cp_time")
+    if "time" not in ds["depth"].dims:
+        # unfortunately some datasets come with "row" dimension from ERDDAP currently,
+        # instead of "time" how it is meant to be (?).
+        ds = ds.swap_dims({"row": "time"})
+
+    ds = ds.drop_duplicates(dim="time").load()
+    if os.path.isfile(file_Path_adcp):
         ds2 = (
             xarray.open_mfdataset(file_Path_adcp)
             .set_index({"profile_index": "time"})
@@ -95,7 +140,7 @@ for dataset_id in all_dataset_ids:
                 ]
             ]
         )
-    except:
+    else:
         print(f"no adcp data for {dsid} found, skip combining")
         # continue
     # ds2.sortby('depth','profile_index').sel(profile_index=np.datetime64('2024-01-10'), method='nearest')#
@@ -103,24 +148,53 @@ for dataset_id in all_dataset_ids:
     df = ds.to_pandas().sort_index()
     if df.index.diff().mean() < np.timedelta64(600, "ms"):
         df = df.resample("1s").mean()
-    df = pl.from_dataframe(df.astype(np.float32))
-    df.write_parquet(f"../voto_erddap_data_cache/{dataset_id}.parquet")
-    df = df.filter(pl.col("profile_num") % 10 == 0)
-    df.write_parquet(
-        f"../voto_erddap_data_cache/{dataset_id}_small.parquet"
-    )  # "file.replace(".nc", "_small.parquet").replace("_combined", ""))
+    # First step: write full resolution dataset
+    df_full = pl.from_dataframe(df.astype(np.float32))
+    df_full.write_parquet(os.path.join(utils.cache_location, f"{dataset_id}.parquet"))
+    # Second step: Write reduced resolution data for statistics and zoomed out views
+    maxdepth = df["depth"].quantile(q=0.99)
+    df["depth"] = pd.cut(
+        x=df["depth"], bins=np.arange(0, maxdepth, 0.2), include_lowest=False
+    )
+    ds = (
+        df.groupby([df["depth"], pd.Grouper(freq="3h")]).mean().to_xarray()
+    )  # df.time.dt.date
+    midpoints = [interval.mid for interval in ds.depth.values]
+    ds["depth"] = midpoints
+    x = ds["profile_num"].mean(dim="depth").values
+    # alternative approach giving integer profile numbers outcommented below,
+    # would be underestimating the number of profiles because each time aggreagate (Grouper(freq)) will only count as one profile.
+    # this leads to faulty total number of profiles displayed in the statistics
+    # x = np.arange(len(ds.indexes["time"]))
+    y = np.arange(len(ds.indexes["depth"]))
+    xv, yv = np.meshgrid(x, y)
 
-    # file.replace("nc", "parquet").replace("_combined", ""))
-    # ds.to_netcdf(f"../voto_erddap_data_cache/{dataset_id}_combined.nc", "w")
+    ds["profile_num"] = (["depth", "time"], xv)
 
-# download_glider_dataset(
-#    all_dataset_ids,  # all_dataset_ids may not actually be all datasets
-#    # variables=variables,
-# )
+    df_small = pl.from_dataframe(
+        ds.to_dataframe().reset_index("depth").astype(np.float32)
+    )
+    df_small.write_parquet(
+        os.path.join(utils.cache_location, f"{dataset_id}_small.parquet")
+    )
+
 
 if utils.GDAC_data:
     allDatasetsGDAC = utils.load_allDatasets_GDAC()
+    try:
+        allDatasetsGDAC.drop(
+            index="allDatasets"
+        )  # "allDatasets aggregation table on ERDDAP"
+    except:
+        pass
+    print(allDatasetsGDAC)
     for dsid in allDatasetsGDAC.index:
+        filepath = os.path.join(utils.cache_location, f"{dsid}.nc")
+        if os.path.isfile(filepath):
+            print(f"file {filepath} already exists, skip")
+            continue
+        else:
+            print(f"file {filepath} still needs downloading!")
         print("now downloading", dsid)
         e = ERDDAP(
             server="https://gliders.ioos.us/erddap",
@@ -128,9 +202,47 @@ if utils.GDAC_data:
             response="nc",
         )
         e.dataset_id = dsid
-        url = e.get_download_url()
-        filepath = f"../voto_erddap_data_cache/{dsid}.nc"
-        if os.path.isfile(filepath):
-            print("file already exists, skip and continue")
+
+        # import pdb; pdb.set_trace();
+        # continue
+        info_url = e.get_info_url(dataset_id=dsid, response="csv")
+        dsmeta = pl.read_csv(info_url)
+        # dsmeta.filter(pl.col('Row Type')=='variable')
+        number_of_variables = (
+            dsmeta.filter(pl.col("Row Type") == "variable")
+            .count()
+            .select("Variable Name")
+            .item()
+        )
+        if number_of_variables > 200:
+            print(f"unreasonable many variables in {dsid}:{number_of_variables}, skip")
             continue
-        urlretrieve(url, filepath)
+
+        tstart = allDatasetsGDAC.loc[dsid]["minTime (UTC)"]
+        tend = allDatasetsGDAC.loc[dsid]["maxTime (UTC)"]
+        ds_time_slices = []
+        counter = 0
+        url = e.get_download_url()
+        print(url)
+        filepath = os.path.join(utils.cache_location, f"{dsid}.nc")
+        if os.path.isfile(filepath):
+            print(f"file {filepath} already exists, skip and continue")
+            continue
+
+        timeout = urllib3.Timeout(connect=120, read=300)
+        # http = urllib3.PoolManager(timeout=default_timeout)
+        c = urllib3.PoolManager(timeout=timeout)
+
+        with (
+            c.request("GET", url, preload_content=False) as resp,
+            open(filepath, "wb") as out_file,
+        ):
+            shutil.copyfileobj(resp, out_file)
+
+        resp.release_conn()  # not 100% sure this is required though
+
+        # reso = urllib2.urlopen(url)
+        # with open(filepath, "wb") as f:
+        #    f.write(resp.read())
+        # urlretrieve(url, filepath)
+        print(f"direct download of {filepath} was sucessful")

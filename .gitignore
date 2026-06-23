@@ -1,0 +1,9 @@
+# related to Jupyter/vscode
+/__pycache__/
+/.pytest_cache/
+*.pyc
+/.vscode/
+.vscode/settings.json
+
+# output files
+/test_plots/

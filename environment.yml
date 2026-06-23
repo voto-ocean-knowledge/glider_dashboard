@@ -21,3 +21,5 @@ dependencies:
   - polars
   - selenium
   - pytest
+  - tabulate
+  - urllib3
