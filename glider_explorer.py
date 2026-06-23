@@ -603,7 +603,7 @@ class GliderDashboard(param.Parameterized):
         "pick_high_resolution",
         # "pick_profiles",
         "pick_display_threshold",
-        "pick_show_narwhals.exceptions.DuplicateErrornarwhals.exceptions.DuplicateErrordecoration",  #'pick_startX', 'pick_endX',
+        "pick_show_decoration",  #'pick_startX', 'pick_endX',
         *list(lod.cbar_range_sliders.keys()),  # noqa
         "pick_autorange",
         "pick_TS_color_variable",
