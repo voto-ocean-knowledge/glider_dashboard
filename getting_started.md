@@ -1,3 +1,16 @@
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+
 # Getting started
 Welcome to Glider Dashboard. This browser tools is designed to enable fast initial exploration and interpretation of Glider data. It supports rapid generation of contour-plots, scatter-plots (correlations) and a single profile view. Glider Dashboard is free and Open Source. We welcome feedback, bug reports and contributions.  
 
