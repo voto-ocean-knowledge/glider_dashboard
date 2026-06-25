@@ -1291,8 +1291,10 @@ class GliderDashboard(param.Parameterized):
             ds_small = lod.dsdict[dsid + "_small"]
             varlist_small.append(ds_small)
             if timedelta > np.timedelta64(90, "D") and (not self.pick_high_resolution):
+                print("proceed with small (subsampled) data")
                 varlist.append(ds_small)
             else:
+                print("proceed with full data")
                 ds_full = lod.dsdict[dsid]
                 varlist.append(ds_full)
 
@@ -1389,7 +1391,7 @@ class GliderDashboard(param.Parameterized):
             self.pick_scatter_y,
         ]
 
-        data = self.data_in_view.filter(
+        data = self.data_in_view_small.filter(
             (pl.col("time") > self.startX)
             & (pl.col("time") < self.endX)
             & (pl.col("depth") > self.startY)

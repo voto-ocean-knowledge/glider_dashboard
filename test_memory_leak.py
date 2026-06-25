@@ -18,6 +18,7 @@ def test_salinity(tmp_path, iteration_number="not applicable"):
     GDB.pick_startX = np.datetime64("2024-01-01")
     GDB.pick_endX = np.datetime64("2024-12-19")
     GDB.pick_variable = "salinity"
+    GDB.create_app_instance()
     # import pdb; pdb.set_trace();
 
     # create output for variable salinity
