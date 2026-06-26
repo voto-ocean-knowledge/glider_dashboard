@@ -490,6 +490,8 @@ class GliderDashboard(param.Parameterized):
                     legend_position="bottom_right", show_legend=True
                 )
             )
+        if len(self.profileplots_row) > 0:
+            self.profileplots_row.pop()  # remove old profiles
         self.profileplots_row.append(hv.Layout(profile_plots))
 
     @param.depends(
