@@ -492,6 +492,10 @@ class GliderDashboard(param.Parameterized):
             )
         if len(self.profileplots_row) > 0:
             self.profileplots_row.pop()  # remove old profiles
+        # import pdb
+
+        # pdb.set_trace()
+        # self.get_xsection_TS_profile(0, 0)
         self.profileplots_row.append(hv.Layout(profile_plots))
 
     @param.depends(
@@ -630,7 +634,7 @@ class GliderDashboard(param.Parameterized):
             pixel_ratio = 1.0
         else:
             pixel_ratio = 0.5
-
+        dmap_curve = hv.DynamicMap(self.get_xsection_TS_profile, streams=[tap_stream])
         if self.pick_scatter_bool:
             dmap_TS = hv.DynamicMap(
                 self.get_xsection_TS,
@@ -913,6 +917,7 @@ class GliderDashboard(param.Parameterized):
                     )  # * dcont
                 else:
                     dmapTSr = dmapTSr.opts(xlim=xlim, ylim=ylim, clim=clim)  # * dcont
+
             if self.pick_profiles:
                 ncols += 1
                 if self.pick_activate_scatter_link:
@@ -941,6 +946,7 @@ class GliderDashboard(param.Parameterized):
                     responsive=True,
                     fontscale=2,
                 )
+                * dmap_curve
             )
             if self.pick_scatter_bool
             else contourplots
@@ -1414,6 +1420,44 @@ class GliderDashboard(param.Parameterized):
         else:
             mplt = hv.Points(data=data, kdims=kdims)
         return mplt
+
+    def get_xsection_TS_profile(self, x, y):  # , profile=None):
+        # most of the code is borrowed from the location function
+        # Could be merged or refactored together
+        xvar = self.pick_scatter_x
+        yvar = self.pick_scatter_y
+
+        if (self.data_in_view is None) or np.isnan(x) or np.isnan(y):
+            return hv.Curve([])
+
+        profile_num = (
+            (
+                self.data_in_view.filter(pl.col("time") > x)
+                .first()
+                .select(pl.col("profile_num"))
+            )
+            .collect()
+            .item()
+        )
+        variable = self.pick_scatter_x
+        profiles = self.data_in_view.filter(
+            (pl.col("profile_num") == profile_num)
+            | (pl.col("profile_num") == profile_num + 1)
+        ).collect()
+        profile = self.data_in_view.filter(
+            pl.col("profile_num") == profile_num
+        ).collect()
+
+        profilecurve = hv.Curve(
+            data=profile.to_pandas().dropna(subset=[xvar, yvar]),
+            kdims=xvar,
+            vdims=yvar,
+        ).opts(
+            color="red",
+            line_width=6,
+        )
+
+        return profilecurve
 
     def get_density_contours(self, x_range, y_range):
         import gsw
