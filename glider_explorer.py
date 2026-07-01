@@ -1355,7 +1355,7 @@ class GliderDashboard(param.Parameterized):
         self.param["pick_scatter_x"].objects = variables_selectable
         self.param["pick_scatter_y"].objects = variables_selectable
         # self.param["pick_TS_color"] # boolean
-        self.param["pick_TS_color_variable"].objects = variables_selectable
+        self.param["pick_TS_color_variable"].objects = [None] + variables_selectable
         self.param["pick_contours"].objects = [
             None,
             "same as above",
@@ -1758,7 +1758,7 @@ class GliderDashboard(param.Parameterized):
                         widgets={
                             "pick_scatter_bool": pn.widgets.Switch,
                             "pick_scatter": pn.widgets.RadioButtonGroup,
-                            "pick_TS_color_variable": pn.widgets.AutocompleteInput,
+                            # "pick_TS_color_variable": pn.widgets.AutocompleteInput,
                         },
                     ),
                 ),
