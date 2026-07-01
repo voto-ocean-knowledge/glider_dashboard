@@ -12,9 +12,13 @@ import param
 import plotly.express as px
 import polars as pl
 from holoviews.operation.datashader import (
+    ResampleOperation2D,
     rasterize,
     spread,
 )
+
+ResampleOperation2D.width = 30000
+ResampleOperation2D.height = 1000
 from holoviews.selection import link_selections
 
 # from bokeh.models import DatetimeTickFormatter, HoverTool
@@ -747,8 +751,8 @@ class GliderDashboard(param.Parameterized):
                 default_tools=[],
                 active_tools=["xpan", "xwheel_zoom"],
                 # default_tools=[],
-                responsive=True,  # this currently breaks when activated with MLD
-                # width=800,
+                # responsive=True,  # this currently breaks when activated with MLD
+                width=6000,
                 # int(500/(len(self.pick_variables))),#250+int(250*2/len(self.pick_variables)), #500, 250,
                 cnorm=self.pick_cnorm,
                 bgcolor="dimgrey",
@@ -938,6 +942,7 @@ class GliderDashboard(param.Parameterized):
         if self.pick_show_decoration:
             contourplots = contourplots * dmap_decorators.opts(ylim=(None, 24))
         contourplots = contourplots * dmap_mld if self.pick_mld else contourplots
+        pn.pane.HoloViews(contourplots).save("temperature.png")
         contourplots = (
             (
                 contourplots
