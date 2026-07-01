@@ -311,6 +311,7 @@ class GliderDashboard(param.Parameterized):
     endX = None
     startY = None
     endY = None
+    stats = pl.LazyFrame()
 
     markdown = pn.pane.Markdown(lod.documentation_markdown, width=600, align="center")
 
@@ -939,14 +940,13 @@ class GliderDashboard(param.Parameterized):
         contourplots = contourplots * dmap_mld if self.pick_mld else contourplots
         contourplots = (
             (
-                (contourplots)
-                + dmapTSr.opts(
+                contourplots
+                + (dmapTSr * dmap_curve).opts(
                     padding=(0.05, 0.05),
                     height=cheight,
                     responsive=True,
                     fontscale=2,
                 )
-                * dmap_curve
             )
             if self.pick_scatter_bool
             else contourplots

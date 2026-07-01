@@ -10,7 +10,7 @@ project = "SAMBA"
 basin = "Bornholm Basin"
 year = 2026
 month = 4
-GDAC_data = True
+GDAC_data = False
 cache_location = "../voto_erddap_data_cache/"
 
 
@@ -175,7 +175,7 @@ def filter_metadata():
         (metadata["project"] == project)
         & (metadata["basin"] == basin)
         & (metadata["time_coverage_start (UTC)"].dt.year == year)
-        & (metadata["time_coverage_start (UTC)"].dt.month == month)
+        # & (metadata["time_coverage_start (UTC)"].dt.month == month)
     ]
 
     # Terrible style here.
