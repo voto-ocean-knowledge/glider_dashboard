@@ -1,3 +1,4 @@
+import datetime
 import os.path
 import shutil
 
@@ -75,7 +76,10 @@ for dataset_id in all_dataset_ids:
     e.dataset_id = dataset_id
     url = e.get_download_url()
     filepath = os.path.join(utils.cache_location, f"{dataset_id}.nc")
-    if os.path.isfile(filepath):
+    less_than_60d_old = allDatasetsVOTO["minTime (UTC)"].dt.tz_convert(None).loc[
+        dataset_id
+    ] > (datetime.datetime.now() - datetime.timedelta(days=60))
+    if os.path.isfile(filepath) and not less_than_60d_old:
         print("file already exists, skip and continue")
         continue
     urlretrieve(url, filepath)

@@ -15,7 +15,8 @@ if __name__ == "__main__":
                 "glider_explorer.py",
                 "--port",
                 "5006",
-                "--allow-websocket-origin='*'",
+                "--allow-websocket-origin",
+                "*",
             ]
         )
         time.sleep(7200)
