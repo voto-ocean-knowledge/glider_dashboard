@@ -666,13 +666,14 @@ class GliderDashboard(param.Parameterized):
             if self.pick_scatter_y in ["depth", "pressure", "z"]:
                 dmapTSr = dmapTSr.opts(invert_yaxis=True)
 
-        """
-            dcont = hv.DynamicMap(
-                self.get_density_contours, streams=[range_stream]
-            ).opts(
-                alpha=0.5,
-            )
-        """
+            if (self.pick_scatter_x == "salinity") and (
+                self.pick_scatter_y == "temperature"
+            ):
+                dcont = hv.DynamicMap(
+                    self.get_density_contours, streams=[range_stream]
+                ).opts(
+                    alpha=0.5,
+                )
 
         dmap_decorators = hv.DynamicMap(
             self.get_xsection,
@@ -938,6 +939,12 @@ class GliderDashboard(param.Parameterized):
         if self.pick_show_decoration:
             contourplots = contourplots * dmap_decorators.opts(ylim=(None, 24))
         contourplots = contourplots * dmap_mld if self.pick_mld else contourplots
+        if (
+            self.pick_scatter_bool
+            and (self.pick_scatter_x == "salinity")
+            and (self.pick_scatter_y == "temperature")
+        ):
+            dmap_curve = dmap_curve * dcont
         contourplots = (
             (
                 contourplots
@@ -1464,12 +1471,12 @@ class GliderDashboard(param.Parameterized):
         # +/- 5 gives plently of space for the density line drawing, if user zoomes out.
 
         smin, smax = (
-            self.stats.filter(pl.col("statistic") == "5%")["salinity"] - 5,
-            self.stats.filter(pl.col("statistic") == "99%")["salinity"] + 5,
+            self.stats.filter(pl.col("statistic") == "1%")["salinity"].item() - 5,
+            self.stats.filter(pl.col("statistic") == "99%")["salinity"].item() + 5,
         )
         tmin, tmax = (
-            self.stats.filter(pl.col("statistic") == "5%")["temperature"] - 5,
-            self.stats.filter(pl.col("statistic") == "99%")["temperature"] + 5,
+            self.stats.filter(pl.col("statistic") == "1%")["temperature"].item() - 5,
+            self.stats.filter(pl.col("statistic") == "99%")["temperature"].item() + 5,
         )
 
         xdim = round((smax - smin) / 0.1 + 1, 0)
@@ -1496,15 +1503,6 @@ class GliderDashboard(param.Parameterized):
         ).opts(
             show_legend=False,
             cmap="dimgray",
-            xlim=(
-                self.stats.filter(pl.col("statistic") == "5%")["salinity"]
-                - 1,  # 5% because we get 0PSU readings at surface.
-                self.stats.filter(pl.col("statistic") == "99%")["salinity"] + 1,
-            ),
-            ylim=(
-                self.stats.filter(pl.col("statistic") == "1%")["temperature"] - 1,
-                self.stats.filter(pl.col("statistic") == "99%")["temperature"] + 1,
-            ),
         )
         return dcont
 
