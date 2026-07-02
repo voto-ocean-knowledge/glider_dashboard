@@ -101,7 +101,14 @@ for dataset_id in all_dataset_ids:
     # if not (dataset_id[0:7] == "delayed"):
     #    # we do not have/provide VOTO nrt ADCP data
     #    continue
-    if os.path.isfile(os.path.join(utils.cache_location, f"{dataset_id}.parquet")):
+    isrecent_nrt = (
+        allDatasetsVOTO["minTime (UTC)"].dt.tz_convert(None).loc[dataset_id]
+        > (datetime.datetime.now() - datetime.timedelta(days=60))
+    ) and (dataset_id[0:3] == "nrt")
+    if (
+        os.path.isfile(os.path.join(utils.cache_location, f"{dataset_id}.parquet"))
+        and not isrecent_nrt
+    ):
         print(
             f"combined {dataset_id} data/adcp file already exists, skip"
         )  # not necessarily :/
