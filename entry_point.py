@@ -17,6 +17,7 @@ if __name__ == "__main__":
                 "5006",
                 "--allow-websocket-origin",
                 "*",
+                "--warm",
             ]
         )
         time.sleep(7200)
