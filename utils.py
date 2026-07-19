@@ -193,24 +193,13 @@ def filter_metadata():
 
 
 def add_delayed_dataset_ids(metadata, all_datasets):
-    # import pdb
-
-    # pdb.set_trace()
-    # nrt_dataset_ids = #list(metadata.index)
-    # all_datasets = all_datasets
-    # all_datasets = all_datasets[all_datasets["minTime (UTC)"].dt.year == 2026]
-    nrt_dataset_ids = list(
-        all_datasets[all_datasets.index.str.startswith("nrt_")].index
-    )
-    delayed_dataset_ids = list(
-        all_datasets[all_datasets.index.str.startswith("delayed_")].index
-    )
-    # delayed_dataset_ids = [
-    #    datasetid.replace("nrt", "delayed")
-    #    if datasetid.replace("nrt", "delayed") in all_datasets.index
-    #    else datasetid
-    #    for datasetid in #metadata.index
-    # ]
+    nrt_dataset_ids = list(metadata.index)
+    delayed_dataset_ids = [
+        datasetid.replace("nrt", "delayed")
+        if datasetid.replace("nrt", "delayed") in all_datasets.index
+        else datasetid
+        for datasetid in metadata.index
+    ]
 
     all_dataset_ids = nrt_dataset_ids + delayed_dataset_ids
     return all_dataset_ids  # metadata.loc[all_dataset_ids]
