@@ -7,3 +7,6 @@
 
 # output files
 /test_plots/
+
+# sphinx
+/docs/build/
