@@ -7,7 +7,7 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = 'Glider Dashboard'
-# copyright = '2026, Martin Mohrmann'
+copyright = '2026, Martin Mohrmann'
 author = 'Voice of the Ocean Foundation'
 
 import os
