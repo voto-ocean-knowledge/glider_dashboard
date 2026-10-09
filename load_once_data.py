@@ -35,13 +35,9 @@ dsdict = {}
 # AND ONE/TWO DATASETS THAT ARE FILTERED AND SHWON IN THE DASHBOARD
 # all_dataset_names = list(all_datasets.index) + list(metadata.index)
 
-all_dataset_names = set(allDatasetsVOTO.index).intersection(
-    [element.replace("nrt", "delayed") for element in metadata.index]
-)
-all_dataset_names = list(all_dataset_names)
-all_dataset_names += list(
-    metadata.index
-)  # Add nrt data because I currently use it for statistics
+all_dataset_names = utils.add_delayed_dataset_ids(
+    metadata, allDatasetsVOTO
+)  # nrt data is included because I currently use it for statistics
 if utils.GDAC_data:
     all_dataset_names += list(allDatasetsGDAC.index)
 

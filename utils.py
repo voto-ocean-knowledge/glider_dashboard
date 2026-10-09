@@ -192,16 +192,22 @@ def filter_metadata():
     return metadata  # , all_datasets
 
 
+#   Homogenizing the picker
+def preferred_dataset_id(nrt_id, available_ids):
+    """Return the delayed-mode ID for a mission if it exists, else the nrt file ID."""
+    delayed_id = "delayed_" + nrt_id.removeprefix("nrt_")
+    return delayed_id if delayed_id in available_ids else nrt_id
+
+
 def add_delayed_dataset_ids(metadata, all_datasets):
     nrt_dataset_ids = list(metadata.index)
     delayed_dataset_ids = [
-        datasetid.replace("nrt", "delayed")
-        if datasetid.replace("nrt", "delayed") in all_datasets.index
-        else datasetid
+        preferred_dataset_id(datasetid, all_datasets.index)
         for datasetid in metadata.index
     ]
 
-    all_dataset_ids = nrt_dataset_ids + delayed_dataset_ids
+    # dict.fromkeys drops nrt ids that had no delayed counterpart, keeping order
+    all_dataset_ids = list(dict.fromkeys(nrt_dataset_ids + delayed_dataset_ids))
     return all_dataset_ids  # metadata.loc[all_dataset_ids]
 
 
