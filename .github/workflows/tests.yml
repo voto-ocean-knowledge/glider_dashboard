@@ -1,0 +1,41 @@
+name: Tests
+
+# no permissions by default
+permissions: {}
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  run:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        python-version: [ "3.11", "3.14" ]
+        os: [ windows-latest, ubuntu-latest, macos-latest ]
+      fail-fast: false
+    defaults:
+      run:
+        shell: bash -l {0}
+
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+
+    - name: Setup Micromamba ${{ matrix.python-version }}
+      uses: mamba-org/setup-micromamba@d6abac32e3a0d16ca7161790b7c20e0167cfdae8  # v3.2.0
+      with:
+        environment-name: glider_dashboard
+        init-shell: bash
+        create-args: >-
+          python=${{ matrix.python-version }} pip python-gil
+          --file environment.yml
+          --channel conda-forge
+
+    # - name: Tests
+    #   run: |
+    #     python -m pytest --disable-warnings
