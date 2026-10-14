@@ -1,0 +1,54 @@
+# Glider Dashboard configuration.
+#
+# Write a copy of this file with `glider-dashboard init-config` and pass it to
+# the CLI with `--config <file>`. Any key left out falls back to the value shown
+# here. Relative paths are resolved relative to the location of the config file.
+
+# Where downloaded NetCDF files, the converted parquet files and cached ERDDAP
+# tables are stored.
+data_dir: glider_dashboard_data
+
+# Voice of the Ocean ERDDAP server (always used).
+voto:
+  server: https://erddap.observations.voiceoftheocean.org/erddap
+  # Processed ADCP files are combined with delayed-mode datasets when present.
+  adcp_files_url: https://erddap.observations.voiceoftheocean.org/erddap/files/gliderad2cp_files
+  # Missions longer than this are downloaded in pieces of this many days. The
+  # server corrupts some variables in very large single responses. null
+  # downloads every mission in one request.
+  chunk_days: 7
+
+# Which VOTO missions to download and show. All filters are combined; an empty
+# list or `null` means "do not filter on this".
+selection:
+  # Explicit mission IDs, e.g. [nrt_SEA067_M15, SEA078_M43]. When given, the
+  # project/basins/years filters below are ignored.
+  dataset_ids: []
+  project: SAMBA
+  basins: [Bornholm Basin]
+  # Years in which the missions started, e.g. [2024, 2025].
+  years: []
+  # Keep only the N most recent missions that pass the filters. Keeps local
+  # downloads small; set to null to download everything that matches.
+  latest: 3
+  # Missions that are known to be broken.
+  exclude_dataset_ids: [nrt_SEA067_M15, nrt_SEA079_M14, nrt_SEA061_M63]
+
+# IOOS glider GDAC. Disabled by default; enabling it downloads a lot of data.
+gdac:
+  enabled: false
+  server: https://gliders.ioos.us/erddap
+  year: 2026
+  month: 4
+  max_datasets: 90
+  # Datasets with more variables than this are skipped.
+  max_variables: 200
+  exclude_institutions:
+    - C-PROOF
+    - OOI Coastal & Global Scale Nodes (CGSN)
+
+# Options for `glider-dashboard serve`, passed on to `panel serve`.
+server:
+  port: 5006
+  allow_websocket_origin: ["*"]
+  extra_args: [--warm, --use-xheaders]

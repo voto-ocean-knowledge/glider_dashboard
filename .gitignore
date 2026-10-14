@@ -10,3 +10,13 @@
 
 # sphinx
 /docs/build/
+
+# packaging
+/dist/
+*.egg-info/
+
+# local data and config created by `glider-dashboard`
+/glider_dashboard_data/
+/glider_dashboard.yaml
+*.pkl
+output.parquet

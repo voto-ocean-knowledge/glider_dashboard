@@ -1,0 +1,75 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "glider-dashboard"
+dynamic = ["version"]
+description = "Interactive dashboard for visualising large amounts of ocean glider data from ERDDAP"
+readme = "README.md"
+authors = [{ name = "Martin Mohrmann" }, { name = "Voice of the Ocean Foundation" }]
+requires-python = ">=3.11"
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Topic :: Scientific/Engineering :: Oceanography",
+  "Topic :: Scientific/Engineering :: Visualization",
+]
+dependencies = [
+  "cmocean",
+  "datashader",
+  "erddapy",
+  "gsw",
+  "holoviews",
+  "netcdf4",
+  "numpy",
+  "pandas",
+  "panel",
+  "param>=2",
+  "plotly",
+  "polars",
+  "pyarrow",
+  "pyyaml",
+  "urllib3>=2",
+  "xarray",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+docs = ["sphinx"]
+
+[project.scripts]
+glider-dashboard = "glider_dashboard.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/voto-ocean-knowledge/glider_dashboard"
+Documentation = "https://glider-dashboard.readthedocs.io/en/docs/"
+Issues = "https://github.com/voto-ocean-knowledge/glider_dashboard/issues"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.targets.sdist]
+exclude = ["/demo.gif", "/.github", "/.vscode"]
+
+[tool.pytest.ini_options]
+minversion = "8"
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers", "--strict-config", "--import-mode=importlib"]
+xfail_strict = true
+filterwarnings = [
+  "error",
+  "ignore::DeprecationWarning",
+  "ignore::FutureWarning",
+  "ignore:numpy.ndarray size changed:RuntimeWarning",  # netCDF4 import
+]
+log_level = "INFO"
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+extend-select = ["B", "I", "UP"]

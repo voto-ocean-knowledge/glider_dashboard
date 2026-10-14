@@ -1,7 +1,7 @@
+"""Per-variable plotting styles: colormaps, default ranges and units."""
+
 import cmocean.cm
 import numpy as np
-
-print("Testing: Loading dictionaries.")
 
 cmap_dict = dict(
     conservative_temperature=cmocean.cm.thermal,
