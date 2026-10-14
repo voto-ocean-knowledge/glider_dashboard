@@ -17,7 +17,7 @@ dependencies:
   - shapely
   - plotly
   - spatialpandas
-  - pytest
+  - pandas
   - polars
   - selenium
   - pytest

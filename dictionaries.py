@@ -1,6 +1,8 @@
 import cmocean.cm
 import numpy as np
 
+print("Testing: Loading dictionaries.")
+
 cmap_dict = dict(
     conservative_temperature=cmocean.cm.thermal,
     potential_density=cmocean.cm.dense,

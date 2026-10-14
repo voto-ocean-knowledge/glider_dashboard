@@ -355,11 +355,15 @@ class GliderDashboard(param.Parameterized):
             self.param.pick_basin.precedence = -10
             self.param.pick_institution.precedence = 1 if utils.GDAC_data else -10
             if self.pick_institution == "show all (no filtering)":
-                self.param.pick_dsids.objects = lod.fDs.index
+                dsids = lod.fDs.index
             else:
-                self.param.pick_dsids.objects = lod.fDs[
-                    lod.fDs["institution"] == self.pick_institution
-                ].index
+                dsids = lod.fDs[lod.fDs["institution"] == self.pick_institution].index
+            
+            self.param.pick_dsids.objects = {
+                dsid.removeprefix("nrt_"): dsid
+                for dsid in dsids
+                if not dsid.startswith("delayed_")
+            }
 
         # if not utils.GDAC_data:
         #    # only show VOTO datasets of pick_GDAC is set to False in utils
@@ -1281,11 +1285,7 @@ class GliderDashboard(param.Parameterized):
 
         meta, plt_props = self.load_viewport_datasets(x_range)
         metakeys = [
-            (
-                element.replace("nrt", "delayed")
-                if element.replace("nrt", "delayed") in lod.allDatasetsVOTO.index
-                else element
-            )
+            utils.preferred_dataset_id(element, lod.allDatasetsVOTO.index)
             for element in meta.index
         ]
 
