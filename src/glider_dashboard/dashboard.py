@@ -37,6 +37,9 @@ VISIBLE = 1
 
 SHOW_ALL_INSTITUTIONS = "show all (no filtering)"
 
+#: Panel 1.9 renamed the ``button_type`` option of buttons to ``color``.
+BUTTON_COLOR = "color" if "color" in pn.widgets.RadioButtonGroup.param else "button_type"
+
 #: Parameters kept in sync with the page URL, so views can be shared as links.
 URL_PARAMETERS = [
     "pick_basin",
@@ -1009,7 +1012,7 @@ class GliderDashboard(param.Parameterized):
                         widgets={
                             "pick_toggle": {
                                 "type": pn.widgets.RadioButtonGroup,
-                                "button_type": "success",
+                                BUTTON_COLOR: "success",
                             },
                             "pick_dsids": pn.widgets.MultiChoice,
                         },

@@ -20,3 +20,4 @@
 /glider_dashboard.yaml
 *.pkl
 output.parquet
+.coverage
