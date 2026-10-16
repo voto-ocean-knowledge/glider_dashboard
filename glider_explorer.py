@@ -4,6 +4,7 @@ import time
 
 import cmocean
 import datashader as dsh
+import gsw
 import holoviews as hv
 import numpy as np
 import pandas as pd
@@ -43,6 +44,17 @@ def exception_handler(ex):
         pn.state.notifications.error(
             "Please complete/change input parameters", duration=10000
         )
+
+
+def sigma0_batch(s):
+    sa = np.asarray(s[0].to_numpy(), dtype=np.float64).ravel()
+    ct = np.asarray(s[1].to_numpy(), dtype=np.float64).ravel()
+    p = np.asarray(s[2].to_numpy(), dtype=np.float32).ravel()
+    N2, pmid = gsw.stability.Nsquared(sa, ct, p)
+    N2 = np.append(N2, 0)
+    return pl.Series(N2).clip(
+        -1, 1
+    )  # pl.Series(np.ravel(gsw.stability.Turner_Rsubrho(sa, ct, p)), dtype=pl.Float64)
 
 
 pn.extension(
@@ -90,7 +102,7 @@ class GliderDashboard(param.Parameterized):
     pick_variables = param.ListSelector(
         default=["temperature"],
         allow_None=False,
-        objects=lod.variables_selectable,
+        objects=lod.variables_selectable + ["N2"],
         label="variable",
         doc="Variable used to create colormesh",
         precedence=1,
@@ -358,7 +370,7 @@ class GliderDashboard(param.Parameterized):
                 dsids = lod.fDs.index
             else:
                 dsids = lod.fDs[lod.fDs["institution"] == self.pick_institution].index
-            
+
             self.param.pick_dsids.objects = {
                 dsid.removeprefix("nrt_"): dsid
                 for dsid in dsids
@@ -1340,6 +1352,25 @@ class GliderDashboard(param.Parameterized):
         dsconc_small = utils.voto_concat_datasets2(varlist_small)
         dsconc_small = dsconc_small.with_columns(pl.col("depth")).sort("time")
 
+        # import pdb
+        # pdb.set_trace()
+        dsconc = dsconc.with_columns(
+            pl.map_batches(
+                ["salinity", "temperature", "depth"],
+                sigma0_batch,
+                return_dtype=pl.Float64,
+                is_elementwise=True,
+            ).alias("N2")
+        )
+
+        dsconc_small = dsconc_small.with_columns(
+            pl.map_batches(
+                ["salinity", "temperature", "depth"],
+                sigma0_batch,
+                return_dtype=pl.Float64,
+                is_elementwise=True,
+            ).alias("N2")
+        )
         kdims = ["time", "depth", self.pick_scatter_x, self.pick_scatter_y]
         # for kdim in kdims:
         #    dsconc = dsconc.with_columns(pl.col(kdim).alias(kdim + " "))
@@ -1363,7 +1394,7 @@ class GliderDashboard(param.Parameterized):
             print("added", element)
 
         variables_selectable = list(
-            set(self.data_in_view.collect_schema().names() + list(variables))
+            set(self.data_in_view.collect_schema().names() + list(variables) + ["N2"])
         )
         variables_selectable.sort()
         self.param["pick_variables"].objects = variables_selectable
