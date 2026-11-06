@@ -10,10 +10,8 @@ project = 'Glider Dashboard'
 copyright = '2026, Martin Mohrmann'
 author = 'Voice of the Ocean Foundation'
 
-import os
-import sys
-
-sys.path.insert(0, os.path.abspath("../.."))
+# The package is installed (see .readthedocs.yaml); importing its modules
+# does not download any data.
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -35,5 +33,4 @@ napoleon_numpy_docstring = True
 
 #   https://sphinx-themes.org/#themes
 html_theme = 'alabaster'
-html_static_path = ['_static']
 html_logo = "../VOTO-symbol-light-grey.png"
