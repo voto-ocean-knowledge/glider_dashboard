@@ -56,6 +56,10 @@ source = "vcs"
 
 [tool.hatch.build.targets.sdist]
 exclude = ["/demo.gif", "/.github", "/.vscode"]
+core-metadata-version = "2.4"
+
+[tool.hatch.build.targets.wheel]
+core-metadata-version = "2.4"
 
 [tool.pytest.ini_options]
 minversion = "8"
