@@ -7,6 +7,8 @@ name = "glider-dashboard"
 dynamic = ["version"]
 description = "Interactive dashboard for visualising large amounts of ocean glider data from ERDDAP"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "Martin Mohrmann" }, { name = "Voice of the Ocean Foundation" }]
 requires-python = ">=3.11"
 classifiers = [
