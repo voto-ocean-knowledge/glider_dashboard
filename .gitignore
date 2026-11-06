@@ -21,3 +21,4 @@
 *.pkl
 output.parquet
 .coverage
+coverage.lcov
