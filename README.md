@@ -3,6 +3,7 @@
 [![GitHub release](https://img.shields.io/github/v/release/voto-ocean-knowledge/glider_dashboard)](https://github.com/voto-ocean-knowledge/glider_dashboard/releases)
 [![PyPI](https://img.shields.io/pypi/v/glider-dashboard)](https://pypi.org/project/glider-dashboard/)
 [![Tests](https://github.com/voto-ocean-knowledge/glider_dashboard/actions/workflows/python-package.yml/badge.svg)](https://github.com/voto-ocean-knowledge/glider_dashboard/actions/workflows/python-package.yml)
+[![Coverage Status](https://coveralls.io/repos/github/voto-ocean-knowledge/glider_dashboard/badge.svg?branch=main)](https://coveralls.io/github/voto-ocean-knowledge/glider_dashboard?branch=main)
 
 A Python program for visualising and interacting with large amounts of ocean glider data,
 downloaded from the [Voice of the Ocean ERDDAP](https://erddap.observations.voiceoftheocean.org/erddap/)
